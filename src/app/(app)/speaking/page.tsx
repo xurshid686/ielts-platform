@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mic, ArrowRight, Calendar } from "lucide-react";
+import { Mic, ArrowRight, Calendar, Radio, FileAudio } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { SPEAKING_TOPICS } from "@/lib/ielts/speaking-prompts";
@@ -40,29 +40,54 @@ export default async function SpeakingPage() {
         <div>
           <h1 className="text-2xl font-bold">Speaking</h1>
           <p className="text-sm text-muted">
-            Take a full 3-part mock and get an AI band estimate with feedback.
+            Talk live with an AI examiner, or take a recorded mock for a band estimate.
           </p>
         </div>
       </div>
 
-      {/* Topic picker */}
+      {/* Live conversation — the main experience */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-          Choose a topic
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          <Radio className="h-4 w-4 text-primary" /> Practice live with an AI examiner
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SPEAKING_TOPICS.map((t) => (
             <Link
               key={t.id}
-              href={`/speaking/${t.id}`}
+              href={`/speaking/live/${t.id}`}
               className="group flex flex-col rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-primary/50"
             >
-              <h3 className="font-semibold">{t.title}</h3>
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Live
+              </span>
+              <h3 className="mt-2 font-semibold">{t.title}</h3>
               <p className="mt-1 flex-1 text-sm text-muted">{t.blurb}</p>
               <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">
-                Start mock{" "}
+                Start conversation{" "}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Recorded mock — secondary */}
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          <FileAudio className="h-4 w-4" /> Or take a recorded 3-part mock
+        </h2>
+        <p className="text-sm text-muted">
+          Record Parts 1–3 on your own and get an AI band breakdown with a transcript.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SPEAKING_TOPICS.map((t) => (
+            <Link
+              key={t.id}
+              href={`/speaking/${t.id}`}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-4 py-2 text-sm hover:bg-surface-2"
+            >
+              {t.title}
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           ))}
         </div>
