@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { timeAgo } from "@/lib/utils";
 import type { Profile } from "@/types/database";
 
 export default async function AdminPage() {
+  const me = await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: students }, { count: testCount }, { count: resultCount }] = await Promise.all([
@@ -46,20 +48,22 @@ export default async function AdminPage() {
             Open <ArrowRight className="h-4 w-4" />
           </Link>
         </Card>
-        <Card className="flex items-center justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="h-4 w-4 text-primary" /> Manage admins
-            </h2>
-            <p className="text-sm text-muted">Promote or revoke admins by email.</p>
-          </div>
-          <Link
-            href="/admin/team"
-            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
-          >
-            Open <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Card>
+        {me.is_owner && (
+          <Card className="flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <ShieldCheck className="h-4 w-4 text-primary" /> Manage admins
+              </h2>
+              <p className="text-sm text-muted">Promote or revoke admins by email.</p>
+            </div>
+            <Link
+              href="/admin/team"
+              className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+            >
+              Open <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Card>
+        )}
       </div>
 
       <section>
@@ -75,10 +79,16 @@ export default async function AdminPage() {
                   <div>
                     <p className="text-sm font-medium">
                       {p.name}
-                      {p.role === "admin" && (
-                        <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
-                          admin
+                      {p.is_owner ? (
+                        <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
+                          owner
                         </span>
+                      ) : (
+                        p.role === "admin" && (
+                          <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+                            admin
+                          </span>
+                        )
                       )}
                     </p>
                     <p className="text-xs text-muted">{p.email}</p>

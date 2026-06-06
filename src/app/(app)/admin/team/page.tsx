@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AdminTeam } from "@/components/admin/admin-team";
 import type { Profile } from "@/types/database";
 
 export default async function AdminTeamPage() {
-  const me = await requireAdmin();
+  const me = await requireOwner();
   const supabase = await createClient();
 
   const { data } = await supabase

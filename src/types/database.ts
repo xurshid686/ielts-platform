@@ -10,6 +10,7 @@ export type Profile = {
   email: string | null;
   avatar_url: string | null;
   role: Role;
+  is_owner: boolean;
   streak: number;
   longest_streak: number;
   last_activity_date: string | null;

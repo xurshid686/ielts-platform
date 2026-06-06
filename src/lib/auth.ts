@@ -25,6 +25,7 @@ export async function requireProfile(): Promise<Profile> {
       email: user.email ?? null,
       avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
       role: "student",
+      is_owner: false,
       streak: 0,
       longest_streak: 0,
       last_activity_date: null,
@@ -39,5 +40,12 @@ export async function requireProfile(): Promise<Profile> {
 export async function requireAdmin(): Promise<Profile> {
   const profile = await requireProfile();
   if (profile.role !== "admin") redirect("/dashboard");
+  return profile;
+}
+
+/** Owner-only pages (managing admins). Other admins are sent back to /admin. */
+export async function requireOwner(): Promise<Profile> {
+  const profile = await requireAdmin();
+  if (!profile.is_owner) redirect("/admin");
   return profile;
 }
