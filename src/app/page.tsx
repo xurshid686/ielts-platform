@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { GraduationCap, BookOpen, Headphones, PenLine, Mic, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,9 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Signed-in users skip the marketing page and go straight to their dashboard.
+  if (user) redirect("/dashboard");
+
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
@@ -18,20 +22,12 @@ export default async function Home() {
         </span>
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          {user ? (
-            <Button asChild>
-              <Link href="/dashboard">Dashboard</Link>
-            </Button>
-          ) : (
-            <>
-              <Button asChild variant="ghost">
-                <Link href="/login">Sign in</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">Get started</Link>
-              </Button>
-            </>
-          )}
+          <Button asChild variant="ghost">
+            <Link href="/login">Sign in</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/register">Get started</Link>
+          </Button>
         </div>
       </header>
 
@@ -51,9 +47,7 @@ export default async function Home() {
           </p>
           <div className="mt-8 flex justify-center gap-3">
             <Button asChild size="lg">
-              <Link href={user ? "/dashboard" : "/register"}>
-                {user ? "Go to dashboard" : "Start practising free"}
-              </Link>
+              <Link href="/register">Start practising free</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <Link href="/login">I have an account</Link>
