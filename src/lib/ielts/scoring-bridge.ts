@@ -9,15 +9,40 @@ export const SCORING_BRIDGE = `
 <script>
 /* ${BRIDGE_MARKER} (auto-injected by /api/test-html) */
 (function () {
-  window.reportIELTSResult = window.reportIELTSResult || function (raw, total, band) {
+  // Harvest the user's answers so the PLATFORM can grade them server-side.
+  // CDI tests address every question via input[name="qN"] — text value for
+  // completion, the :checked value for MCQ/TF. Returns { "1": "...", ... }.
+  function harvestAnswers() {
+    var out = {};
+    var nodes = document.querySelectorAll('[name^="q"]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var m = (el.name || "").match(/^q(\\d+)$/);
+      if (!m) continue;
+      var q = m[1];
+      if (el.type === "radio" || el.type === "checkbox") {
+        if (el.checked) out[q] = el.value;
+      } else {
+        var v = (el.value || "").trim();
+        if (v) out[q] = v;
+      }
+    }
+    return out;
+  }
+
+  window.reportIELTSResult = window.reportIELTSResult || function (raw, total, band, answers) {
     try {
       parent.postMessage({
         source: "IELTS_CDI_TEST",
         type: "RESULT",
         payload: {
+          // Client-reported score — kept only as a fallback for tests with no
+          // stored key. When a key exists the server ignores this and grades
+          // 'answers' itself, so the score cannot be faked.
           raw: Number(raw),
           total: Number(total),
           band: band != null && !isNaN(band) ? Number(band) : undefined,
+          answers: answers || harvestAnswers(),
         },
       }, "*");
     } catch (e) { console.error("reportIELTSResult", e); }

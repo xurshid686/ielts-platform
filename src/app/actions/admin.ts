@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { extractAnswerKey } from "@/lib/ielts/extract-key";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -44,6 +45,10 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   if (!file.name.toLowerCase().endsWith(".html") && file.type !== "text/html")
     return { ok: false, error: "File must be a .html file." };
 
+  // Extract the answer key now so the platform can grade this test server-side.
+  // (Null is fine — the test still works via the client-score fallback.)
+  const extracted = extractAnswerKey(await file.text());
+
   const path = `${skill}/${crypto.randomUUID()}.html`;
 
   const { error: upErr } = await supabase.storage.from("tests").upload(path, file, {
@@ -63,6 +68,8 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     passage,
     file_url: publicUrl,
     file_path: path,
+    answer_key: extracted?.key ?? null,
+    total: extracted?.total ?? null,
     created_by: user!.id,
   });
   if (insErr) {

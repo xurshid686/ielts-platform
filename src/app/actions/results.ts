@@ -3,13 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { rawToBand } from "@/lib/ielts/bandTable";
+import { gradeAnswers, asAnswerKey, asAnswers, type Answers } from "@/lib/ielts/grade";
 
 export type SaveResultInput = {
   testId: string | null;
   skill: "reading" | "listening";
+  // Client-reported score — used ONLY as a fallback for tests that have no
+  // stored answer key. When a key exists, the server grades `answers` and
+  // ignores these, so the score cannot be fabricated.
   raw: number;
   total: number;
   band?: number;
+  answers?: Answers;
 };
 
 export type SaveResultResult =
@@ -31,12 +36,40 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
-  const raw = Math.max(0, Math.round(input.raw));
-  const total = Math.max(1, Math.round(input.total));
-  const band =
-    typeof input.band === "number" && input.band > 0
-      ? input.band
-      : rawToBand(input.skill, raw, total);
+  // --- Score: server grades from the stored key when there is one ---
+  // (the client-reported raw/total/band are only a fallback for keyless tests).
+  let raw = 0;
+  let total = 1;
+  let band = 0;
+
+  let serverGraded = false;
+  if (input.testId) {
+    const { data: testRow } = await supabase
+      .from("tests")
+      .select("answer_key")
+      .eq("id", input.testId)
+      .single();
+    const key = asAnswerKey((testRow as { answer_key?: unknown } | null)?.answer_key);
+    const answers = asAnswers(input.answers);
+    if (key) {
+      // A keyed test with no/blank answers means harvesting failed — grade what
+      // we have (a perfect-score fake is still impossible: raw comes from us).
+      const graded = gradeAnswers(key, answers ?? {});
+      raw = graded.raw;
+      total = graded.total;
+      band = rawToBand(input.skill, raw, total);
+      serverGraded = true;
+    }
+  }
+
+  if (!serverGraded) {
+    raw = Math.max(0, Math.round(input.raw));
+    total = Math.max(1, Math.round(input.total));
+    band =
+      typeof input.band === "number" && input.band > 0
+        ? input.band
+        : rawToBand(input.skill, raw, total);
+  }
 
   // Idempotency guard: ignore an identical re-submit of the same test within 30s
   // (protects against any accidental double-fire inflating XP/streak).

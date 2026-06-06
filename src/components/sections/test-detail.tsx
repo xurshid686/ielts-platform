@@ -24,5 +24,9 @@ export async function TestDetail({
   if (!test) notFound();
   const t = test as Test;
 
-  return <TestRunner testId={t.id} title={t.title} skill={skill} />;
+  // Server-graded tests have a stored answer key — the manual score-entry
+  // fallback is hidden for them (their score can't be hand-entered).
+  const graded = !!t.answer_key && Object.keys(t.answer_key).length > 0;
+
+  return <TestRunner testId={t.id} title={t.title} skill={skill} graded={graded} />;
 }

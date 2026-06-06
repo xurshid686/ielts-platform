@@ -25,6 +25,10 @@ export type Test = {
   passage: number | null; // reading only: 1, 2 or 3
   file_url: string;
   file_path: string;
+  // Answer key for server-side grading: { "1": ["terminal"], ... }. NULL for
+  // legacy tests where no key could be extracted (falls back to client score).
+  answer_key: Record<string, string[]> | null;
+  total: number | null; // number of gradeable questions
   created_by: string | null;
   created_at: string;
 };

@@ -10,6 +10,10 @@ type Props = {
   testId: string;
   title: string;
   skill: "reading" | "listening";
+  // True when the test is graded server-side (has a stored answer key). The
+  // manual "type your score" fallback is hidden for these — the score is
+  // computed from the user's actual answers and can't be hand-entered.
+  graded?: boolean;
 };
 
 type Saved = {
@@ -22,7 +26,22 @@ type Saved = {
   firstToday: boolean;
 };
 
-function parseMessage(data: unknown): { raw: number; total: number; band?: number } | null {
+type Answers = Record<string, string>;
+
+function parseAnswers(value: unknown): Answers | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const out: Answers = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (/^\d+$/.test(k) && (typeof v === "string" || typeof v === "number")) {
+      out[k] = String(v);
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function parseMessage(
+  data: unknown,
+): { raw: number; total: number; band?: number; answers?: Answers } | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
   if (d.source !== "IELTS_CDI_TEST" || d.type !== "RESULT") return null;
@@ -32,10 +51,15 @@ function parseMessage(data: unknown): { raw: number; total: number; band?: numbe
   const total = Number(p.total);
   if (!Number.isFinite(raw) || !Number.isFinite(total) || total <= 0) return null;
   const band = Number(p.band);
-  return { raw, total, band: Number.isFinite(band) && band > 0 ? band : undefined };
+  return {
+    raw,
+    total,
+    band: Number.isFinite(band) && band > 0 ? band : undefined,
+    answers: parseAnswers(p.answers),
+  };
 }
 
-export function TestRunner({ testId, title, skill }: Props) {
+export function TestRunner({ testId, title, skill, graded = false }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const handled = useRef(false);
@@ -50,12 +74,12 @@ export function TestRunner({ testId, title, skill }: Props) {
   const srcUrl = `/api/test-html/${testId}`;
   const expectedOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
-  async function submit(raw: number, total: number, band?: number) {
+  async function submit(raw: number, total: number, band?: number, answers?: Answers) {
     if (handled.current) return;
     handled.current = true;
     setSaving(true);
     setError(null);
-    const res = await saveResult({ testId, skill, raw, total, band });
+    const res = await saveResult({ testId, skill, raw, total, band, answers });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -81,7 +105,7 @@ export function TestRunner({ testId, title, skill }: Props) {
       if (expectedOrigin && e.origin !== expectedOrigin) return;
       const parsed = parseMessage(e.data);
       if (!parsed) return;
-      submit(parsed.raw, parsed.total, parsed.band);
+      submit(parsed.raw, parsed.total, parsed.band, parsed.answers);
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -138,12 +162,14 @@ export function TestRunner({ testId, title, skill }: Props) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setManual((m) => !m)}
-            className="hidden h-8 items-center rounded-lg px-2 text-xs text-muted hover:bg-surface-2 hover:text-foreground sm:inline-flex"
-          >
-            Score didn&apos;t save?
-          </button>
+          {!graded && (
+            <button
+              onClick={() => setManual((m) => !m)}
+              className="hidden h-8 items-center rounded-lg px-2 text-xs text-muted hover:bg-surface-2 hover:text-foreground sm:inline-flex"
+            >
+              Score didn&apos;t save?
+            </button>
+          )}
           <button
             onClick={toggleFullscreen}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-surface-2"
