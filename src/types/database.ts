@@ -56,14 +56,33 @@ export type WritingSubmission = {
   created_at: string;
 };
 
+// Per-criterion band + a short comment, as returned by Gemini.
+export type SpeakingCriterion = { band: number; comment: string };
+
+export type SpeakingFeedback = {
+  overallBand: number;
+  criteria: {
+    fluency: SpeakingCriterion; // Fluency & Coherence
+    lexical: SpeakingCriterion; // Lexical Resource
+    grammar: SpeakingCriterion; // Grammatical Range & Accuracy
+    pronunciation: SpeakingCriterion;
+  };
+  strengths: string[];
+  improvements: string[];
+  partFeedback: { part: number; comment: string }[];
+  transcript: string;
+};
+
 export type SpeakingSubmission = {
   id: string;
   user_id: string;
   prompt: string | null;
+  topic: string | null;
   audio_url: string | null;
   audio_path: string | null;
-  score: number | null;
-  feedback: unknown | null;
+  audio_paths: string[] | null;
+  score: number | null; // overall band
+  feedback: SpeakingFeedback | null;
   created_at: string;
 };
 
