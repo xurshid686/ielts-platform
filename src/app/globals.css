@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* next-themes toggles the `dark` class on <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #f1f3f9;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --primary: #4f46e5;      /* indigo */
+  --primary-foreground: #ffffff;
+  --accent: #0d9488;       /* teal */
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --ring: #6366f1;
+}
+
+.dark {
+  --background: #0b1120;
+  --surface: #111827;
+  --surface-2: #161f33;
+  --foreground: #e5e7eb;
+  --muted: #94a3b8;
+  --border: #1f2a44;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --accent: #2dd4bf;
+  --success: #22c55e;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --ring: #818cf8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+.dark ::-webkit-scrollbar-thumb { background: #233052; border-radius: 8px; }

@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IELTS Reading Test - Try It and See</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root {
+  --reading-font-size: 16px; --pale-blue-bg:#ffffff; --pale-blue-panel:#ffffff; --pale-blue-soft:#ffffff; --pale-blue-border:#b7dcf7;
+  --accent:#2563eb; --attempted:#f59e0b; --text:#111827; --success:#10b981; --danger:#7f1d1d; --unanswered:#f59e0b; --highlight:rgb(253 224 71); --evidence:#86efac;
+}
+*{box-sizing:border-box} html,body{margin:0;padding:0;height:100%;font-family:Arial,sans-serif;color:var(--text);background:var(--pale-blue-bg);overflow:hidden}
+
+.start-screen { position: fixed; inset: 0; background: var(--pale-blue-bg); z-index: 3000; display: flex; align-items: center; justify-content: center; font-family: 'Montserrat', sans-serif; }
+.start-content { background: #fff; padding: 3rem 4rem; border-radius: 1rem; box-shadow: 0 15px 40px rgba(15,23,42,0.08); text-align: center; max-width: 600px; width: 90%; position: relative; overflow: hidden; border: 1px solid var(--pale-blue-border); }
+.start-content .ielts-logo { margin-bottom: 5px; color: #e11d48; font-weight: 900; font-size: 2.8rem; line-height: 1; letter-spacing: -1px; }
+.start-content h1 { color: #111827; margin: 0.5rem 0; font-size: 1.8rem; }
+.start-content h2 { color: #d97706; margin: 0 0 1.5rem; font-size: 1.3rem; font-weight: 700; }
+.start-content p.instructions { color: #4b5563; font-size: 1.05rem; line-height: 1.6; margin-bottom: 2.5rem; font-weight: 600; }
+.btn-start { background: var(--accent); color: #fff; border: none; padding: 0.9rem 2.5rem; border-radius: 999px; font-size: 1.15rem; font-weight: 800; cursor: pointer; font-family: 'Montserrat', sans-serif; box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
+.btn-start:hover { background: #1d4ed8; }
+.loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.loading-overlay.active { opacity: 1; pointer-events: auto; }
+.spinner { width: 45px; height: 45px; border: 4px solid #e5e7eb; border-top: 4px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 1rem; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.loading-overlay p { color: #4b5563; font-weight: 700; font-size: 1.1rem; margin: 0; }
+
+.test-wrapper{height:100vh;display:flex;flex-direction:column;background:var(--pale-blue-bg)}
+.header{height:72px;flex:0 0 72px;background:#fff;border-bottom:1px solid var(--pale-blue-border);display:flex;align-items:center;justify-content:space-between;padding:0 22px;box-shadow:0 3px 12px rgba(15,23,42,.06);font-family:'Montserrat',sans-serif;}
+.header__logo{display:flex;align-items:center;gap:12px;min-width:260px}
+.ielts-logo{font-size:2.35rem;font-weight:900;color:#e11d48;letter-spacing:-1px;line-height:1}
+.telegram-link{display:flex;align-items:center;text-decoration:none;color:#0088cc;font-size:1.8rem;}
+.telegram-link:hover{transform:scale(1.1);color:#0077b5;}
+.header__center{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:0.6rem}
+.header__timer{font-family:'Montserrat',sans-serif;font-size:1.35rem;font-weight:900;color:#111827;text-align:center;min-width:80px;}
+.header-retake{display:none;font-family:'Montserrat',sans-serif;background:#ef4444;color:#fff;border:none;padding:.46rem 1rem;border-radius:999px;font-weight:800;font-size:0.95rem;cursor:pointer;align-items:center;gap:.4rem;margin-left:10px;}
+.header-retake.show{display:inline-flex}
+.header-retake:hover{background:#dc2626}
+.header__icons{display:flex;align-items:center;gap:20px;min-width:260px;justify-content:flex-end;}
+.header__icon{font-size:1.45rem;color:#374151;cursor:pointer;background:none;border:none;padding:0;}
+.header__icon:hover{color:var(--accent);}
+
+.test-container{flex:1 1 auto;display:flex;overflow:hidden;min-height:0;background:var(--pale-blue-bg)}
+.passage-container,.questions-container{background:var(--pale-blue-panel);overflow-y:auto;padding:26px 32px 28px;min-width:280px;font-size:var(--reading-font-size);line-height:24px;scrollbar-width:thin;scrollbar-color:#8b8f96 var(--pale-blue-soft)}
+.passage-container{flex:0 0 calc(50% - 7px);min-width:280px;border-right:1px solid var(--pale-blue-border)} .questions-container{flex:1 1 auto; padding-left: 2rem;}
+.passage-container::-webkit-scrollbar,.questions-container::-webkit-scrollbar{width:10px} .passage-container::-webkit-scrollbar-track,.questions-container::-webkit-scrollbar-track{background:var(--pale-blue-soft)} .passage-container::-webkit-scrollbar-thumb,.questions-container::-webkit-scrollbar-thumb{background:#8b8f96;border-radius:6px}
+.divider{flex:0 0 10px;width:10px;background:transparent;cursor:col-resize;position:relative;border:0}
+.divider::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pale-blue-border);transform:translateX(-50%)}
+.divider-handle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:28px;height:28px;border:1px solid #cbd5e1;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#6b7280;z-index:2;box-shadow:0 1px 3px rgba(15,23,42,.08);font-size:.85rem}
+.divider-handle::before{content:'↔'}
+
+.sectionRubric{padding:0;margin:0 0 1rem;color:#374151}
+.sectionRubric h2{margin:0 0 .25rem;color:#d97706;font-size:calc(var(--reading-font-size)*1.08);font-weight:800}
+.sectionRubric p{margin:0;color:#374151;font-size:var(--reading-font-size);line-height:24px}
+#passageContent{font-size:var(--reading-font-size);line-height:24px;color:#111827}
+#passageContent h1{font-size:calc(var(--reading-font-size)*1.35)!important;margin:1rem 0 .4rem;line-height:1.35;text-align:center;font-weight:900;color:#111827;}
+#passageContent .subtitle{text-align:center;font-style:italic;color:#374151;margin:0 0 1rem;}
+#passageContent p{margin:0 0 1.15em;text-align:left;line-height:24px;color:#111827}
+#passageContent strong{font-weight:800}
+
+.question{margin:0 0 2rem;padding:0 0 1.35rem;background:transparent;border:0;box-shadow:none} .question+.question{border-top:1px solid rgba(37,99,235,.18);padding-top:1.35rem}
+.question-rubric h3{margin:0 0 .75rem;color:#000;font-size:calc(var(--reading-font-size)*1.15);font-weight:800} .question-rubric p{margin:.25rem 0;line-height:24px;color:#111827} .question-content{font-size:var(--reading-font-size);color:#111827}
+
+.review-flag{background:none;border:none;color:#ef4444;font-size:1.05rem;cursor:pointer;padding:0 4px;flex:0 0 auto;outline:none;opacity:0;pointer-events:none;vertical-align:middle;}
+.review-flag:not(.active){color:#9ca3af;}
+.review-flag:hover{color:#ef4444;}
+.review-flag.active{opacity:1;pointer-events:auto;}
+@media (hover:none),(max-width:800px){.review-flag{opacity:1 !important;pointer-events:auto !important;}}
+
+/* ====== Matching Headings ====== */
+.headings-list-container { margin: 1.2rem 0; padding: 1.2rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+.headings-list-container h4 { margin: 0 0 1rem; color: #0f172a; font-size: 1.05rem; font-weight: 800; text-align: center; }
+.headings-list { display: flex; flex-direction: column; gap: 0.6rem; min-height: 40px; }
+.headings-list:empty::after { content: "No headings remain"; display: block; text-align: center; padding: 1rem; color: #94a3b8; font-style: italic; }
+.heading-token { padding: 0.75rem 1rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; cursor: grab; user-select: none; font-size: var(--reading-font-size); color: #111827; box-shadow: 0 1px 2px rgba(15,23,42,0.05); transition: box-shadow 0.2s, transform 0.1s, border-color 0.2s; display: flex; align-items: flex-start; gap: 0.6rem; line-height: 1.4; touch-action: none; z-index: 100; position: relative; }
+.heading-token.dragging { opacity: 0; }
+.heading-token:hover { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-color: #94a3b8; z-index: 101; }
+.heading-token.selected-for-tap { border: 2px solid var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+.heading-roman { font-weight: 800; color: #475569; min-width: 2.2rem; text-align: right; }
+.heading-text { flex: 1; pointer-events: none; }
+.heading-drop-zone { min-height: 54px; margin-bottom: 0.8rem; padding: 0.5rem; border: 2px dashed #9ca3af; border-radius: 6px; background: rgba(243,244,246,0.5); transition: background 0.2s, border-color 0.2s; display: flex; align-items: center; justify-content: center; position: relative; }
+.heading-drop-zone::before { content: "Drop heading here"; color: #9ca3af; font-size: 0.9rem; font-style: italic; position: absolute; pointer-events: none; opacity: 1; transition: opacity 0.2s; }
+.heading-drop-zone.has-token::before { opacity: 0; }
+.heading-drop-zone.drag-over { background: rgba(219,234,254,0.5); border-color: #60a5fa; border-style: solid; }
+.heading-drop-zone.tap-target { border: 2px dashed var(--accent); background: rgba(219,234,254,0.3); animation: pulse-border 1.5s infinite; cursor: pointer; }
+.heading-drop-zone .heading-token { margin: 0; width: 100%; border-color: transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1); background: #f8fafc; cursor: pointer; }
+.heading-drop-zone .heading-token:hover { border-color: #cbd5e1; }
+@keyframes pulse-border { 0% { border-color: rgba(37,99,235,0.4); } 50% { border-color: var(--accent); } 100% { border-color: rgba(37,99,235,0.4); } }
+.heading-drop-zone.correct { border: 2px solid var(--success) !important; background: #ecfdf5 !important; }
+.heading-drop-zone.correct .heading-token { background: #d1fae5; border-color: var(--success); }
+.heading-drop-zone.incorrect { border: 2px solid var(--danger) !important; background: #fef2f2 !important; }
+.heading-drop-zone.incorrect .heading-token { background: #fee2e2; border-color: var(--danger); text-decoration: line-through; color: var(--danger); opacity: 0.8; }
+.heading-q-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid #e5e7eb; }
+.heading-q-row:last-child { border-bottom: none; }
+.heading-q-row:hover .review-flag { opacity: 1; pointer-events: auto; }
+.heading-q-num { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 0.35rem; border: 2px solid var(--accent); border-radius: 4px; color: #111827; background: #fff; font-weight: 800; font-size: 1rem; margin-right: 0.8rem; }
+.heading-q-row .para-ref { font-size: var(--reading-font-size); color: #374151; font-weight: 600; }
+
+/* ====== Notes / sentence completion ====== */
+.notes-title { font-weight: 900; font-size: 1.05rem; margin: 1.2rem 0 0.5rem; text-align: center; }
+.notes-list { list-style: disc; padding-left: 1.4rem; margin: 0.4rem 0 1rem; }
+.notes-item { margin: 0.55rem 0; line-height: 1.85; }
+.blank-wrapper { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.inspera-input-wrapper { position: relative; display: inline-flex; align-items: center; height: 32px; border: 1px solid #9ca3af; border-radius: 4px; background: #fff; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s, width 0.12s ease; width: 135px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02); margin: 0 0.2rem; }
+.inspera-input-wrapper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
+.inspera-input-text { border: none; outline: none; height: 100%; width: 100%; padding: 0 28px 0 34px; font-size: calc(var(--reading-font-size) * 0.95); font-weight: 700; color: #111827; background: transparent; z-index: 2; font-family: Arial, sans-serif; }
+.cdi-placeholder { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 0.85rem; font-weight: 800; color: #6b7280; pointer-events: none; background: #f3f4f6; padding: 2px 6px; border-radius: 3px; z-index: 1; }
+.inspera-input-wrapper .review-flag { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); font-size: 0.95rem; opacity: 0; pointer-events: none; z-index: 3; }
+.blank-wrapper:hover .inspera-input-wrapper .review-flag { opacity: 1; pointer-events: auto; }
+.inspera-input-wrapper.correct { border-color: var(--success); background: #d1fae5; box-shadow: inset 0 0 0 1px var(--success); }
+.inspera-input-wrapper.incorrect { border-color: var(--danger); background: #fee2e2; box-shadow: inset 0 0 0 1px var(--danger); }
+.inspera-input-wrapper.incorrect .inspera-input-text { text-decoration: line-through; color: var(--danger); }
+
+/* ====== Matching-info table (radios) ====== */
+.matching-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; margin: 1rem 0; }
+.matching-table thead { background: #f3f4f6; }
+.matching-table th { padding: 0.7rem 0.4rem; font-weight: 800; font-size: 0.95rem; text-align: center; color: #111827; border: 1px solid #d1d5db; }
+.matching-table th.statement-th { width: auto; text-align: left; padding-left: 0.7rem; }
+.matching-table th.letter-th { min-width: 42px; width: 48px; }
+.matching-table td { padding: 0.7rem 0.6rem; border: 1px solid #d1d5db; vertical-align: middle; }
+.matching-table td.statement-cell { font-size: var(--reading-font-size); line-height: 24px; color: #111827; vertical-align: top; padding-top: 0.85rem; }
+.matching-table td.radio-cell { text-align: center; vertical-align: middle; padding: 0.5rem 0.3rem; cursor: pointer; }
+.matching-table tbody tr:hover { background: #fafbfc; }
+.matching-table .q-num-box { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 .35rem; border: 2px solid var(--accent); border-radius: 4px; color: #111827; background: #fff; font-weight: 800; line-height: 1; margin-right: 0.55rem; font-size: 0.95rem; vertical-align: middle; }
+.matching-table .stmt-flex { display: flex; align-items: flex-start; gap: 0.5rem; }
+.matching-table .stmt-text { flex: 1; padding-top: 4px; }
+.matching-radio { appearance: none; -webkit-appearance: none; width: 1.15rem; height: 1.15rem; border: 1.8px solid #9ca3af; border-radius: 50%; background: #fff; margin: 0; display: inline-grid; place-content: center; cursor: pointer; vertical-align: middle; transition: border-color 0.15s, background 0.15s; }
+.matching-radio::before { content: ""; width: 0.6rem; height: 0.6rem; border-radius: 50%; transform: scale(0); transition: transform 120ms ease-in-out; background: var(--accent); }
+.matching-radio:checked { border-color: var(--accent); }
+.matching-radio:checked::before { transform: scale(1); }
+.matching-table td.radio-cell.correct-cell { background: #ecfdf5; }
+.matching-table td.radio-cell.correct-cell .matching-radio { border-color: var(--success); background: #d1fae5; }
+.matching-table td.radio-cell.correct-cell .matching-radio::before { background: var(--success); transform: scale(1); }
+.matching-table td.radio-cell.incorrect-cell { background: #fef2f2; }
+.matching-table td.radio-cell.incorrect-cell .matching-radio { border-color: var(--danger); background: #fee2e2; }
+.matching-table td.radio-cell.incorrect-cell .matching-radio::before { background: var(--danger); transform: scale(1); }
+.matching-table tbody tr:hover .review-flag, .matching-table tr .review-flag.active { opacity: 1; pointer-events: auto; }
+
+.footer{height:60px;flex:0 0 60px;background:#fff;border-top:1px solid var(--pale-blue-border);display:flex;align-items:center;padding:0 22px;box-shadow:0 -2px 10px rgba(15,23,42,.03);gap:1rem;z-index:10;}
+.nav-scroll-wrapper{flex:1;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.nav-scroll-wrapper::-webkit-scrollbar{display:none}
+.footer-nav{display:flex;gap:4px;align-items:center}
+.footer-nav button{width:36px;height:36px;flex:0 0 36px;border:none;background:transparent;border-radius:4px;font-size:1.05rem;font-weight:700;color:#4b5563;cursor:pointer;position:relative;transition:all .15s}
+.footer-nav button:hover{background:#f3f4f6;color:#111827}
+.footer-nav button.answered::after{content:'';position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:var(--attempted)}
+.footer-nav button.active{color:var(--accent);font-weight:900}
+.footer-nav button.active::before{content:'';position:absolute;bottom:0;left:15%;right:15%;height:3px;background:var(--accent);border-radius:2px}
+.footer-nav button.flagged-nav::before{content:'';position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 12px 12px 0;border-color:transparent #ef4444 transparent transparent;border-radius:0 4px 0 0}
+.footer-nav button.flagged-nav.active::before{border-color:transparent #ef4444 transparent transparent;height:0;left:auto;right:0;bottom:auto;top:0;width:0;background:transparent}
+.footer-nav button.post-correct{background:#d1fae5;color:#065f46} .footer-nav button.post-incorrect{background:#fee2e2;color:#991b1b} .footer-nav button.post-unanswered{background:#fef3c7;color:#92400e}
+.question-nav-focus{outline:2px solid var(--accent);background-color:rgba(37,99,235,0.08);transition:all 0.15s ease;}
+.btn-submit{background:var(--accent);color:#fff;border:none;padding:0.5rem 1.4rem;border-radius:999px;font-weight:800;font-size:1.05rem;cursor:pointer;font-family:'Montserrat',sans-serif;box-shadow:0 2px 6px rgba(37,99,235,.2)}
+.btn-submit:hover{background:#1d4ed8} .btn-submit:disabled{background:#94a3b8;cursor:not-allowed;box-shadow:none}
+
+.highlight-btn{position:absolute;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(15,23,42,.15);z-index:1000;display:none;font-family:'Montserrat',sans-serif}
+.highlight-btn::after{content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border-width:5px 5px 0;border-style:solid;border-color:var(--accent) transparent transparent transparent}
+.highlight-btn:hover{background:#1d4ed8}
+.saved-highlight,.evidence-highlight{background:var(--highlight);color:inherit!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;display:inline!important}
+.saved-highlight{cursor:pointer} .saved-highlight:hover{background:#fde047;box-shadow:0 -2px 0 rgba(0,0,0,.1) inset}
+.evidence-highlight{background:var(--evidence)}
+.evidence-qbadge{display:inline-flex;align-items:center;justify-content:center;background:var(--success);color:#fff;font-weight:800;font-size:0.75rem;padding:0 5px;border-radius:4px;margin-right:4px;height:18px;vertical-align:middle;box-shadow:0 1px 2px rgba(0,0,0,0.1);font-family:Arial,sans-serif;}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:2000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-overlay.active{display:flex}
+.submission-content{background:#fff;border-radius:12px;box-shadow:0 20px 40px rgba(15,23,42,.12);width:90%;max-width:850px;max-height:85vh;display:flex;flex-direction:column;font-family:Arial,sans-serif;position:relative}
+.report-head{background:#f8fafc;padding:1.5rem 2rem;border-bottom:1px solid #e2e8f0;border-radius:12px 12px 0 0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.report-head h2{margin:0;color:#0f172a;font-family:'Montserrat',sans-serif;font-size:1.6rem}
+.report-meta{display:flex;gap:1.5rem;align-items:center}
+.score-cards{display:flex;gap:1rem;margin:-0.5rem 2rem 1rem;padding-top:1.5rem}
+.report-card{flex:1;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1.2rem;text-align:center;box-shadow:0 2px 4px rgba(15,23,42,.03)}
+.report-card .rc-label{font-size:0.85rem;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem}
+.report-card .rc-val{font-size:2.2rem;font-family:'Montserrat',sans-serif;font-weight:900;color:#0f172a;line-height:1}
+.rc-pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.85rem;font-weight:700;margin-top:0.4rem}
+.rc-pill.good{background:#d1fae5;color:#065f46} .rc-pill.warn{background:#fef3c7;color:#92400e} .rc-pill.bad{background:#fee2e2;color:#991b1b}
+.report-body{padding:0 2rem 1.5rem;overflow-y:auto;flex:1}
+.type-breakdown{margin-bottom:2rem}
+.type-row{display:flex;align-items:center;padding:0.75rem 0;border-bottom:1px solid #f1f5f9}
+.type-name{flex:1;font-weight:700;color:#334155}
+.type-bar-bg{width:150px;height:8px;background:#e2e8f0;border-radius:4px;margin-right:1rem;overflow:hidden}
+.type-bar-fill{height:100%;background:var(--success);border-radius:4px}
+.type-score{width:50px;text-align:right;font-weight:700;color:#0f172a;font-family:'Montserrat',sans-serif}
+.mistakes-list{display:flex;flex-direction:column;gap:1rem;margin-bottom:2rem;}
+.mistake-item{background:#fff;border:1px solid #e2e8f0;border-left:4px solid #ef4444;border-radius:6px;padding:1rem;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+.mistake-item.unanswered-item{border-left-color:#f59e0b}
+.m-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem}
+.m-qnum{font-family:'Montserrat',sans-serif;font-weight:800;color:#0f172a}
+.m-type{font-size:0.8rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.02em}
+.m-body{display:flex;gap:2rem;font-size:0.95rem}
+.m-col{flex:1}
+.m-col-label{font-size:0.75rem;color:#94a3b8;text-transform:uppercase;font-weight:700;margin-bottom:0.25rem}
+.m-yours{color:#b91c1c;font-weight:700;word-break:break-word}
+.unanswered-text{color:#d97706;font-style:italic}
+.m-correct{color:#047857;font-weight:700}
+.m-actions{margin-top:0.8rem;display:flex;gap:0.5rem;justify-content:flex-end}
+.m-btn{background:#f1f5f9;border:1px solid #cbd5e1;color:#475569;padding:0.4rem 0.8rem;border-radius:4px;font-size:0.85rem;font-weight:700;cursor:pointer;transition:all 0.15s;outline:none}
+.m-btn:hover{background:#e2e8f0;color:#0f172a}
+.m-btn i{margin-right:4px}
+.chip-group{margin-bottom:1.5rem}
+.chip-title{font-size:0.9rem;color:#64748b;font-weight:700;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.02em}
+.chip-container{display:flex;flex-wrap:wrap;gap:0.5rem}
+.qchip{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-weight:700;font-size:0.9rem;cursor:pointer;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;transition:all 0.15s}
+.qchip:hover{background:#e2e8f0;color:#0f172a}
+.qchip.qchip-unanswered{background:#fffbeb;color:#92400e;border-color:#fde68a} .qchip.qchip-unanswered:hover{background:#fef3c7}
+.qchip.qchip-flagged{background:#fef2f2;color:#991b1b;border-color:#fecaca;position:relative} .qchip.qchip-flagged:hover{background:#fee2e2}
+.qchip.qchip-flagged::after{content:'';position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 10px 10px 0;border-color:transparent #ef4444 transparent transparent;border-radius:0 4px 0 0}
+.report-foot{background:#f8fafc;padding:1.2rem 2rem;border-top:1px solid #e2e8f0;border-radius:0 0 12px 12px;display:flex;justify-content:flex-end;gap:1rem;flex-shrink:0}
+.btn-secondary{background:#fff;border:1px solid #cbd5e1;color:#475569;padding:0.6rem 1.2rem;border-radius:6px;font-weight:700;cursor:pointer;transition:all 0.15s;font-family:'Montserrat',sans-serif}
+.btn-secondary:hover{background:#f1f5f9;color:#0f172a}
+.btn-primary{background:var(--accent);border:none;color:#fff;padding:0.6rem 1.4rem;border-radius:6px;font-weight:700;cursor:pointer;transition:all 0.15s;font-family:'Montserrat',sans-serif;box-shadow:0 2px 4px rgba(37,99,235,0.2)}
+.btn-primary:hover{background:#1d4ed8}
+
+.analysis{margin-top:1.5rem;padding:1.2rem;background:#f8fafc;border-left:4px solid var(--accent);border-radius:0 6px 6px 0;display:none;font-size:0.95rem;line-height:1.6}
+.analysis.show{display:block}
+.analysis strong{color:#0f172a}
+.analysis-header{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;color:var(--accent);font-weight:800;font-family:'Montserrat',sans-serif}
+.feedback{display:none;margin-top:0.6rem;font-weight:700;font-size:0.95rem;align-items:center;gap:0.4rem;}
+.feedback.show{display:flex;}
+.feedback.correct-text{color:var(--success);}
+.feedback.incorrect-text{color:var(--danger);}
+
+.settings-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:4000;display:none;backdrop-filter:blur(2px);opacity:0;transition:opacity 0.2s}
+.settings-overlay.active{display:block;opacity:1}
+.settings-panel{position:absolute;top:0;right:-320px;width:320px;bottom:0;background:#fff;box-shadow:-5px 0 25px rgba(0,0,0,0.1);transition:right 0.3s cubic-bezier(0.4, 0, 0.2, 1);display:flex;flex-direction:column}
+.settings-overlay.active .settings-panel{right:0}
+.settings-header-bar{padding:1.2rem 1.5rem;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc}
+.settings-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:1.1rem;color:#0f172a;margin:0}
+.settings-close{background:none;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;padding:4px}
+.settings-close:hover{color:#ef4444}
+.settings-body{padding:1.5rem;flex:1;overflow-y:auto}
+.settings-section{margin-bottom:2rem}
+.settings-section-title{font-size:0.85rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;font-weight:800;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}
+.settings-list{display:flex;flex-direction:column;gap:0.5rem}
+.settings-item{display:flex;align-items:center;justify-content:space-between;padding:0.8rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s}
+.settings-item:hover{border-color:#cbd5e1;background:#f1f5f9}
+.settings-item.selected{border-color:var(--accent);background:rgba(37,99,235,0.05);box-shadow:inset 0 0 0 1px var(--accent)}
+.settings-item-left{display:flex;align-items:center;gap:0.75rem}
+.settings-item-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:#475569;font-size:0.9rem}
+.settings-item.selected .settings-item-icon{color:var(--accent);background:#dbeafe}
+.settings-item-label{font-weight:600;color:#334155;font-size:0.95rem}
+.settings-item.selected .settings-item-label{color:#0f172a;font-weight:700}
+.check-icon{color:var(--accent);opacity:0;transform:scale(0.5);transition:all 0.2s}
+.settings-item.selected .check-icon{opacity:1;transform:scale(1)}
+
+.size-preview{margin-top:1rem;padding:1rem;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+.preview-text{color:#334155;line-height:1.5;margin:0;transition:font-size 0.2s}
+.preview-box{display:flex;align-items:center;justify-content:space-between;padding:0.5rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:0.5rem}
+.preview-line{height:4px;background:#cbd5e1;border-radius:2px;flex:1;margin:0 1rem}
+
+/* THEMES */
+body.theme-dark { --pale-blue-bg:#0f172a; --pale-blue-panel:#1e293b; --pale-blue-soft:#334155; --pale-blue-border:#334155; --text:#f9fafb; --accent:#60a5fa; --highlight:rgba(253,224,71,0.3); }
+body.theme-dark .header, body.theme-dark .footer, body.theme-dark .start-content, body.theme-dark .settings-header-bar, body.theme-dark .settings-body, body.theme-dark .settings-overlay { background:#0f172a !important; border-color:#334155 !important; color:#f9fafb !important; }
+body.theme-dark #passageContent, body.theme-dark #passageContent h1, body.theme-dark #passageContent p, body.theme-dark .sectionRubric p, body.theme-dark .question-rubric p, body.theme-dark .question-rubric h3, body.theme-dark .question-content, body.theme-dark .question-content p, body.theme-dark .tfng-statement-text, body.theme-dark .letter-list, body.theme-dark .letter-list .letter-item, body.theme-dark .letter-list .letter-item b, body.theme-dark .matching-table td.statement-cell, body.theme-dark .matching-table th, body.theme-dark #passageContent .para-letter { color:#f9fafb !important; }
+body.theme-dark .tfng-instruction-box, body.theme-dark .matching-table, body.theme-dark .matching-table thead, body.theme-dark .matching-table th, body.theme-dark .matching-table td { background:#1e293b !important; border-color:#475569 !important; color:#f9fafb !important; }
+body.theme-dark .inspera-input-wrapper { background:#334155 !important; border-color:#475569 !important; }
+body.theme-dark .inspera-input-text { color:#f9fafb !important; }
+body.theme-dark .cdi-placeholder { background:#1e293b !important; color:#94a3b8 !important; }
+body.theme-dark .tfng-number, body.theme-dark .matching-table .q-num-box, body.theme-dark .heading-q-num { background:#1e293b !important; color:#f9fafb !important; border-color:#60a5fa !important; }
+body.theme-dark .tfng-radio-label { color:#cbd5e1 !important; }
+body.theme-dark .tfng-radio-label:hover { background:#334155 !important; }
+body.theme-dark .tfng-radio-label input[type="radio"], body.theme-dark .matching-radio { background:#334155 !important; border-color:#64748b !important; }
+body.theme-dark .tfng-radio-label input[type="radio"]::before, body.theme-dark .matching-radio::before { background:#60a5fa !important; }
+body.theme-dark .tfng-radio-label input[type="radio"]:checked, body.theme-dark .matching-radio:checked { border-color:#60a5fa !important; }
+body.theme-dark .headings-list-container { background:#1e293b !important; border-color:#475569 !important; }
+body.theme-dark .headings-list-container h4 { color:#f9fafb !important; }
+body.theme-dark .heading-token { background:#334155 !important; border-color:#475569 !important; color:#f9fafb !important; }
+body.theme-dark .heading-token:hover { border-color:#64748b !important; }
+body.theme-dark .heading-roman { color:#94a3b8 !important; }
+body.theme-dark .heading-drop-zone { background:rgba(30,41,59,0.5) !important; border-color:#475569 !important; }
+body.theme-dark .heading-drop-zone::before { color:#64748b !important; }
+body.theme-dark .heading-drop-zone.drag-over { background:rgba(59,130,246,0.2) !important; border-color:#60a5fa !important; }
+body.theme-dark .heading-q-row { border-color:#475569 !important; }
+body.theme-dark .heading-q-row .para-ref { color:#cbd5e1 !important; }
+body.theme-dark .divider-handle { background:#334155 !important; border-color:#475569 !important; color:#cbd5e1 !important; }
+body.theme-dark .analysis, body.theme-dark .settings-list, body.theme-dark .settings-item, body.theme-dark .size-preview, body.theme-dark .preview-box { background:#1e293b !important; border-color:#475569 !important; color:#f9fafb !important; }
+body.theme-dark .settings-item:hover { background:#334155 !important; }
+body.theme-dark .settings-item-label, body.theme-dark .settings-title, body.theme-dark .preview-text { color:#f9fafb !important; }
+body.theme-dark .submission-content, body.theme-dark .report-head, body.theme-dark .report-foot, body.theme-dark .report-card, body.theme-dark .mistake-item, body.theme-dark .m-btn { background:#1e293b !important; border-color:#475569 !important; color:#f9fafb !important; }
+body.theme-dark .report-head h2, body.theme-dark .rc-val, body.theme-dark .m-qnum, body.theme-dark .type-name { color:#f9fafb !important; }
+body.theme-dark .m-btn { color:#cbd5e1 !important; }
+body.theme-dark .m-btn:hover { background:#334155 !important; color:#f9fafb !important; }
+body.theme-dark .footer-nav button { color:#cbd5e1 !important; }
+body.theme-dark .footer-nav button:hover { background:#334155 !important; color:#f9fafb !important; }
+body.theme-dark .footer-nav button.active { color:#60a5fa !important; }
+
+body.theme-yellow { --pale-blue-bg:#000000; --pale-blue-panel:#000000; --pale-blue-soft:#333333; --pale-blue-border:#555555; --text:#fde047; --accent:#facc15; --highlight:rgba(253,224,71,0.4); }
+body.theme-yellow .header, body.theme-yellow .footer, body.theme-yellow .start-content, body.theme-yellow .settings-header-bar, body.theme-yellow .settings-body, body.theme-yellow .settings-overlay { background:#000000 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow #passageContent, body.theme-yellow #passageContent p, body.theme-yellow .sectionRubric p, body.theme-yellow .question-rubric p, body.theme-yellow .question-content, body.theme-yellow .question-content p, body.theme-yellow .tfng-statement-text, body.theme-yellow .letter-list, body.theme-yellow .letter-list .letter-item, body.theme-yellow .letter-list .letter-item b, body.theme-yellow .matching-table td.statement-cell, body.theme-yellow .matching-table th, body.theme-yellow #passageContent .para-letter { color:#fde047 !important; }
+body.theme-yellow #passageContent h1, body.theme-yellow .question-rubric h3 { color:#fde047 !important; }
+body.theme-yellow .tfng-instruction-box, body.theme-yellow .matching-table, body.theme-yellow .matching-table thead, body.theme-yellow .matching-table th, body.theme-yellow .matching-table td { background:#000000 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow .inspera-input-wrapper { background:#222222 !important; border-color:#555555 !important; }
+body.theme-yellow .inspera-input-text { color:#fde047 !important; caret-color:#fde047 !important; }
+body.theme-yellow .cdi-placeholder { background:#000000 !important; color:#a1a1aa !important; }
+body.theme-yellow .tfng-number, body.theme-yellow .matching-table .q-num-box, body.theme-yellow .heading-q-num { background:#000000 !important; color:#fde047 !important; border-color:#facc15 !important; }
+body.theme-yellow .tfng-radio-label { color:#fef08a !important; }
+body.theme-yellow .tfng-radio-label:hover { background:#222222 !important; }
+body.theme-yellow .tfng-radio-label input[type="radio"], body.theme-yellow .matching-radio { background:#222222 !important; border-color:#71717a !important; }
+body.theme-yellow .tfng-radio-label input[type="radio"]::before, body.theme-yellow .matching-radio::before { background:#facc15 !important; }
+body.theme-yellow .tfng-radio-label input[type="radio"]:checked, body.theme-yellow .matching-radio:checked { border-color:#facc15 !important; }
+body.theme-yellow .headings-list-container { background:#000000 !important; border-color:#555555 !important; }
+body.theme-yellow .headings-list-container h4 { color:#fde047 !important; }
+body.theme-yellow .heading-token { background:#222222 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow .heading-token:hover { border-color:#71717a !important; }
+body.theme-yellow .heading-roman { color:#fef08a !important; }
+body.theme-yellow .heading-drop-zone { background:rgba(0,0,0,0.5) !important; border-color:#555555 !important; }
+body.theme-yellow .heading-drop-zone::before { color:#a1a1aa !important; }
+body.theme-yellow .heading-drop-zone.drag-over { background:rgba(250,204,21,0.2) !important; border-color:#facc15 !important; }
+body.theme-yellow .heading-q-row { border-color:#555555 !important; }
+body.theme-yellow .heading-q-row .para-ref { color:#fef08a !important; }
+body.theme-yellow .divider-handle { background:#222222 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow .analysis, body.theme-yellow .settings-list, body.theme-yellow .settings-item, body.theme-yellow .size-preview, body.theme-yellow .preview-box { background:#000000 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow .settings-item:hover { background:#222222 !important; }
+body.theme-yellow .settings-item-label, body.theme-yellow .settings-title, body.theme-yellow .preview-text { color:#fde047 !important; }
+body.theme-yellow .submission-content, body.theme-yellow .report-head, body.theme-yellow .report-foot, body.theme-yellow .report-card, body.theme-yellow .mistake-item, body.theme-yellow .m-btn { background:#000000 !important; border-color:#555555 !important; color:#fde047 !important; }
+body.theme-yellow .report-head h2, body.theme-yellow .rc-val, body.theme-yellow .m-qnum, body.theme-yellow .type-name { color:#fde047 !important; }
+body.theme-yellow .m-btn { color:#fef08a !important; }
+body.theme-yellow .m-btn:hover { background:#222222 !important; color:#fde047 !important; }
+body.theme-yellow .footer-nav button { color:#fef08a !important; }
+body.theme-yellow .footer-nav button:hover { background:#222222 !important; color:#fde047 !important; }
+body.theme-yellow .footer-nav button.active { color:#facc15 !important; }
+body.theme-yellow .btn-primary { background:#facc15 !important; color:#000 !important; }
+body.theme-yellow .btn-primary:hover { background:#eab308 !important; }
+body.theme-yellow .btn-start { background:#facc15 !important; color:#000 !important; }
+body.theme-yellow .btn-start:hover { background:#eab308 !important; }
+body.theme-yellow .btn-submit { background:#facc15 !important; color:#000 !important; }
+body.theme-yellow .btn-submit:hover { background:#eab308 !important; }
+body.theme-yellow .header__timer, body.theme-yellow .header__icon, body.theme-yellow .ielts-logo { color:#fde047 !important; }
+
+/* POST-SUBMIT OVERRIDES FOR DARK/YELLOW */
+body.theme-dark .inspera-input-wrapper.correct, body.theme-yellow .inspera-input-wrapper.correct { background:rgba(16,185,129,0.15) !important; border-color:#10b981 !important; box-shadow:none !important; }
+body.theme-dark .inspera-input-wrapper.incorrect, body.theme-yellow .inspera-input-wrapper.incorrect { background:rgba(239,68,68,0.15) !important; border-color:#ef4444 !important; box-shadow:none !important; }
+body.theme-dark .inspera-input-wrapper.incorrect .inspera-input-text, body.theme-yellow .inspera-input-wrapper.incorrect .inspera-input-text { color:#ef4444 !important; }
+body.theme-dark .matching-table td.radio-cell.correct-cell, body.theme-yellow .matching-table td.radio-cell.correct-cell { background:rgba(16,185,129,0.15) !important; }
+body.theme-dark .matching-table td.radio-cell.incorrect-cell, body.theme-yellow .matching-table td.radio-cell.incorrect-cell { background:rgba(239,68,68,0.15) !important; }
+body.theme-dark .heading-drop-zone.correct, body.theme-yellow .heading-drop-zone.correct { background:rgba(16,185,129,0.15) !important; border-color:#10b981 !important; }
+body.theme-dark .heading-drop-zone.correct .heading-token, body.theme-yellow .heading-drop-zone.correct .heading-token { background:rgba(16,185,129,0.1) !important; border-color:#10b981 !important; }
+body.theme-dark .heading-drop-zone.incorrect, body.theme-yellow .heading-drop-zone.incorrect { background:rgba(239,68,68,0.15) !important; border-color:#ef4444 !important; }
+body.theme-dark .heading-drop-zone.incorrect .heading-token, body.theme-yellow .heading-drop-zone.incorrect .heading-token { background:rgba(239,68,68,0.1) !important; border-color:#ef4444 !important; color:#ef4444 !important; }
+
+/* Mobile */
+.mobile-tabs{display:none;background:#fff;border-bottom:1px solid var(--pale-blue-border);padding:0 10px;font-family:'Montserrat',sans-serif}
+.mobile-tab{flex:1;text-align:center;padding:12px 0;font-size:0.9rem;font-weight:800;color:#64748b;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer}
+.mobile-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+@media (max-width:800px){
+  .test-container{flex-direction:column}
+  .divider{display:none}
+  .passage-container,.questions-container{flex:1 1 100%;width:100%;border:none;padding:20px 16px;display:none}
+  .passage-container.active,.questions-container.active{display:block}
+  .mobile-tabs{display:flex}
+  .header__center{display:none}
+  .header__logo{min-width:auto} .header__icons{min-width:auto}
+  .start-content{padding:2rem} .score-cards{flex-direction:column;gap:0.5rem}
+  .m-body{flex-direction:column;gap:0.8rem}
+  .headings-list-container { margin: 1rem 0; padding: 0.8rem; }
+  .heading-token { padding: 0.5rem; font-size: 0.95rem; }
+  .heading-drop-zone { min-height: 48px; }
+  body.theme-dark .mobile-tabs, body.theme-yellow .mobile-tabs { background:#000 !important; border-color:#333 !important; }
+  body.theme-dark .mobile-tab, body.theme-yellow .mobile-tab { color:#888 !important; }
+  body.theme-dark .mobile-tab.active { color:#60a5fa !important; border-color:#60a5fa !important; }
+  body.theme-yellow .mobile-tab.active { color:#facc15 !important; border-color:#facc15 !important; }
+}
+
+/* PDF Print styles */
+@media print {
+  .print-wrapper { background: #fff !important; color: #000 !important; padding: 20px; font-family: Arial, sans-serif; }
+  .print-wrapper h1 { font-family: 'Montserrat', sans-serif; color: #111827; margin-top: 0; }
+  .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  .print-table th, .print-table td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }
+  .print-table th { background: #f1f5f9; font-weight: bold; }
+  .print-correct { color: #047857; font-weight: bold; }
+  .print-incorrect { color: #b91c1c; font-weight: bold; text-decoration: line-through; }
+  .print-unanswered { color: #d97706; font-style: italic; }
+}
+</style>
+</head>
+<body>
+
+<div class="start-screen" id="startScreen">
+  <div class="start-content">
+    <div class="ielts-logo">IELTS</div>
+    <h1>Reading Practice Test</h1>
+    <h2>Try It and See</h2>
+    <p class="instructions">You will have 20 minutes to complete 14 questions based on the reading passage.<br><br>The timer will begin when you click Start.</p>
+    <button class="btn-start" onclick="startTest()">Start Test</button>
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <p>Preparing your test...</p>
+    </div>
+  </div>
+</div>
+
+<div class="test-wrapper">
+  <header class="header">
+    <div class="header__logo">
+      <div class="ielts-logo">IELTS</div>
+      <button class="header-retake" id="headerRetakeBtn" onclick="retakeTest()"><i class="fas fa-redo"></i> Retake</button>
+    </div>
+    <div class="header__center">
+      <div class="header__timer" id="timer">20:00</div>
+    </div>
+    <div class="header__icons">
+      <button class="header__icon" onclick="toggleSettings()" title="Settings" aria-label="Settings"><i class="fas fa-bars"></i></button>
+      <button class="header__icon" onclick="toggleFullscreen()" title="Fullscreen" aria-label="Fullscreen"><i class="fas fa-expand" id="fsIcon"></i></button>
+      <button class="header__icon" onclick="showHelp()" title="Help" aria-label="Help"><i class="fas fa-question-circle"></i></button>
+      <a href="https://t.me/VA_IELTS" target="_blank" class="telegram-link" title="Join our Telegram"><i class="fab fa-telegram"></i></a>
+    </div>
+  </header>
+
+  <div class="mobile-tabs">
+    <button class="mobile-tab active" onclick="switchMobileTab('passage')">Passage</button>
+    <button class="mobile-tab" onclick="switchMobileTab('questions')">Questions</button>
+  </div>
+
+  <div class="test-container">
+    <div class="passage-container active" id="passagePanel">
+      <div id="passageContent">
+        <h1>TRY IT AND SEE</h1>
+        <p class="subtitle">In the social sciences, it is often supposed that there can be no such thing as a controlled experiment. Think again.</p>
+        
+        <div class="para-block" id="para-A">
+          <div class="para-letter">A</div>
+          <p>In the scientific pecking order, social scientists are usually looked down on by their peers in the natural sciences. Natural scientists do experiments to test their theories or, if they cannot, they try to look for natural phenomena that can act in lieu of experiments. Social scientists, it is widely thought, do not subject their own hypotheses to any such rigorous treatment. Worse, they peddle their untested hypotheses to governments and try to get them turned into policies.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="B"></div>
+        <div class="para-block" id="para-B">
+          <div class="para-letter">B</div>
+          <p>Governments require sellers of new medicines to demonstrate their safety and effectiveness. The accepted gold standard of evidence is a randomized control trial, in which a new drug is compared with the best existing therapy (or with a placebo, if no treatment is available). Patients are assigned to one arm or the other of such a study at random, ensuring that the only difference between the two groups is the new treatment. The best studies also ensure that neither patient nor physician knows which patient is allocated to which therapy. Drug trials must also include enough patients to make it unlikely that chance alone may determine the result.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="C"></div>
+        <div class="para-block" id="para-C">
+          <div class="para-letter">C</div>
+          <p>But few education programs or social initiatives are evaluated in carefully conducted studies prior to their introduction. A case in point is the 'whole-language' approach to reading, which swept much of the English-speaking world in the 1970s and 1980s. The whole-language theory holds that children learn to read best by absorbing contextual clues from texts, not by breaking individual words into their component parts and reassembling them (a method known as phonics). Unfortunately, the educational theorists who pushed the whole- language notion so successfully did not wait for evidence from controlled randomized trials before advancing their claims. Had they done so, they might have concluded, as did an analysis of 52 randomized studies carried out by the US National Reading Panel in 2000, that effective reading instruction requires phonics.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="D"></div>
+        <div class="para-block" id="para-D">
+          <div class="para-letter">D</div>
+          <p>To avoid the widespread adoption of misguided ideas, the sensible thing is to experiment first and make policy later. This is the idea behind a trial of restorative justice which is taking place in the English courts. The experiment will include criminals who plead guilty to robbery. Those who agree to participate will be assigned randomly either to sentencing as normal or to participation in a conference in which the offender comes face-to-face with his victim and discusses how he may make emotional and material restitution. The purpose of the trial is to assess whether such restorative justice limits re offending. If it does, it might be adopted more widely.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="E"></div>
+        <div class="para-block" id="para-E">
+          <div class="para-letter">E</div>
+          <p>The idea of experimental evidence is not quite as new to the social sciences as sneering natural scientists might believe. In fact, randomized trials and systematic reviews of evidence were introduced into the social sciences long before they became common in medicine. An apparent example of random allocation is a study carried out in 1927 of how to persuade people to vote in elections. And randomized trials in social work were begun in the 1930s and 1940s. But enthusiasm later waned. This loss of interest can be attributed, at least in part, to the fact that early experiments produced little evidence of positive outcomes. Others suggest that much of the opposition to experimental evaluation stems from a common philosophical malaise among social scientists, who doubt the validity of the natural sciences, and therefore reject the potential of knowledge derived from controlled experiments. A more pragmatic factor limiting the growth of evidence-based education and social services may be limitations on the funds available for research.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="F"></div>
+        <div class="para-block" id="para-F">
+          <div class="para-letter">F</div>
+          <p>Nevertheless, some 11,000 experimental studies are known in the social sciences (compared with over 250,000 in the medical literature). Randomized trials have been used to evaluate the effectiveness of driver-education programs, job training schemes, classroom size, psychological counselling for post-traumatic stress disorder and increased investment in public housing. And where they are carried out, they seem to have a healthy dampening effect on otherwise rosy interpretations of the observations.</p>
+        </div>
+
+        <div class="heading-drop-zone" data-para="G"></div>
+        <div class="para-block" id="para-G">
+          <div class="para-letter">G</div>
+          <p>The problem for policymakers is often not too few data, but what to make of multiple and conflicting studies. This is where a body called the Campbell Collaboration comes into its own. This independent non-profit organization is designed to evaluate existing studies, in a process known as a systematic review. This means attempting to identify every relevant trial of a given question (including studies that have never been published), choosing the best ones using clearly defined criteria for quality, and combining the results in a statistically valid way. An equivalent body, the Cochrane Collaboration, has produced more than 1,004 such reviews in medical fields. The hope is that rigorous review standards will allow Campbell, like Cochrane, to become a trusted and authoritative source of information.</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="divider" id="divider">
+      <div class="divider-handle"></div>
+    </div>
+    
+    <div class="questions-container" id="questionsPanel">
+      
+      <!-- Questions 1-6 -->
+      <div class="question" id="qset-1-6">
+        <div class="question-rubric">
+          <h3>Questions 1-6</h3>
+          <p>Reading Passage 3 has seven paragraphs <strong>A-G</strong>.</p>
+          <p><em>Choose the correct heading for paragraphs <strong>B-G</strong> from the list of headings below.</em></p>
+        </div>
+
+        <div class="headings-list-container">
+          <h4>List of Headings</h4>
+          <div class="headings-list" id="headingsBank">
+            <div class="heading-token" draggable="true" data-id="i"><span class="heading-roman">i</span><span class="heading-text">Why some early social science methods lost popularity</span></div>
+            <div class="heading-token" draggable="true" data-id="ii"><span class="heading-roman">ii</span><span class="heading-text">The cost implications of research</span></div>
+            <div class="heading-token" draggable="true" data-id="iii"><span class="heading-roman">iii</span><span class="heading-text">Looking ahead to an unbiased assessment of research</span></div>
+            <div class="heading-token" draggable="true" data-id="iv"><span class="heading-roman">iv</span><span class="heading-text">A range of social issues that have been usefully studied</span></div>
+            <div class="heading-token" draggable="true" data-id="v"><span class="heading-roman">v</span><span class="heading-text">An example of a poor decision that was made too quickly</span></div>
+            <div class="heading-token" draggable="true" data-id="vi"><span class="heading-roman">vi</span><span class="heading-text">What happens when the figures are wrong</span></div>
+            <div class="heading-token" draggable="true" data-id="vii"><span class="heading-roman">vii</span><span class="heading-text">One area of research that is rigorously carried out</span></div>
+            <div class="heading-token" draggable="true" data-id="viii"><span class="heading-roman">viii</span><span class="heading-text">The changing nature of medical trials</span></div>
+            <div class="heading-token" draggable="true" data-id="ix"><span class="heading-roman">ix</span><span class="heading-text">An investigative study that may lead to a new system</span></div>
+            <div class="heading-token" draggable="true" data-id="x"><span class="heading-roman">x</span><span class="heading-text">Why some scientists’ theories are considered second-rate</span></div>
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.95rem; color: #475569;">
+          <em>Example: Paragraph A — Answer x</em>
+        </div>
+
+        <div class="heading-q-row" id="q1">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">1</span>
+            <span class="para-ref">Paragraph <strong>B</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(1)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-1"></div>
+        <div class="feedback" id="feedback-1"></div>
+
+        <div class="heading-q-row" id="q2">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">2</span>
+            <span class="para-ref">Paragraph <strong>C</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(2)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-2"></div>
+        <div class="feedback" id="feedback-2"></div>
+
+        <div class="heading-q-row" id="q3">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">3</span>
+            <span class="para-ref">Paragraph <strong>D</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(3)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-3"></div>
+        <div class="feedback" id="feedback-3"></div>
+
+        <div class="heading-q-row" id="q4">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">4</span>
+            <span class="para-ref">Paragraph <strong>E</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(4)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-4"></div>
+        <div class="feedback" id="feedback-4"></div>
+
+        <div class="heading-q-row" id="q5">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">5</span>
+            <span class="para-ref">Paragraph <strong>F</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(5)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-5"></div>
+        <div class="feedback" id="feedback-5"></div>
+
+        <div class="heading-q-row" id="q6">
+          <div style="display:flex; align-items:center;">
+            <span class="heading-q-num">6</span>
+            <span class="para-ref">Paragraph <strong>G</strong></span>
+          </div>
+          <button class="review-flag" onclick="toggleFlag(6)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+        </div>
+        <div class="analysis" id="analysis-6"></div>
+        <div class="feedback" id="feedback-6"></div>
+      </div>
+
+      <!-- Questions 7-10 -->
+      <div class="question" id="qset-7-10">
+        <div class="question-rubric">
+          <h3>Questions 7-10</h3>
+          <p>Complete the summary below.</p>
+          <p>Choose <strong>NO MORE THAN TWO WORDS</strong> from the passage for each answer.</p>
+        </div>
+        
+        <div class="question-content" style="line-height: 2.2;">
+          <h4 style="text-align: center; margin: 1.5rem 0 1rem; font-size: 1.1rem; font-weight: 800; color: #111827;">Fighting Crime</h4>
+          Some criminals in England are agreering to take part in a trial designed to help reduce their chances of 
+          <span class="blank-wrapper" id="q7">
+            <span class="inspera-input-wrapper">
+              <span class="cdi-placeholder">7</span>
+              <input type="text" class="inspera-input-text cdi-input" data-q="7" oninput="autoResizeInput(this); saveAnswers()" autocomplete="off" spellcheck="false">
+              <button class="review-flag" onclick="toggleFlag(7)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+            </span>
+          </span>
+          The idea is that while one group of randomly selected criminals undergoes the usual 
+          <span class="blank-wrapper" id="q8">
+            <span class="inspera-input-wrapper">
+              <span class="cdi-placeholder">8</span>
+              <input type="text" class="inspera-input-text cdi-input" data-q="8" oninput="autoResizeInput(this); saveAnswers()" autocomplete="off" spellcheck="false">
+              <button class="review-flag" onclick="toggleFlag(8)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+            </span>
+          </span>
+          , the other group will discuss the possibility of making some repayment for their crime by meeting the 
+          <span class="blank-wrapper" id="q9">
+            <span class="inspera-input-wrapper">
+              <span class="cdi-placeholder">9</span>
+              <input type="text" class="inspera-input-text cdi-input" data-q="9" oninput="autoResizeInput(this); saveAnswers()" autocomplete="off" spellcheck="false">
+              <button class="review-flag" onclick="toggleFlag(9)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+            </span>
+          </span>
+          It is yet to be seen whether this system, known as 
+          <span class="blank-wrapper" id="q10">
+            <span class="inspera-input-wrapper" style="width: 160px;">
+              <span class="cdi-placeholder">10</span>
+              <input type="text" class="inspera-input-text cdi-input" data-q="10" oninput="autoResizeInput(this); saveAnswers()" autocomplete="off" spellcheck="false">
+              <button class="review-flag" onclick="toggleFlag(10)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+            </span>
+          </span>
+          , will work.
+        </div>
+
+        <div id="analysis-boxes-7-10">
+          <div class="analysis" id="analysis-7"></div>
+          <div class="feedback" id="feedback-7"></div>
+          <div class="analysis" id="analysis-8"></div>
+          <div class="feedback" id="feedback-8"></div>
+          <div class="analysis" id="analysis-9"></div>
+          <div class="feedback" id="feedback-9"></div>
+          <div class="analysis" id="analysis-10"></div>
+          <div class="feedback" id="feedback-10"></div>
+        </div>
+      </div>
+
+      <!-- Questions 11-14 -->
+      <div class="question" id="qset-11-14">
+        <div class="question-rubric">
+          <h3>Questions 11-14</h3>
+          <p>Classify the following characteristics as relating to</p>
+        </div>
+        
+        <div class="letter-list">
+          <div class="letter-item"><b>A</b> Social Science</div>
+          <div class="letter-item"><b>B</b> Medical Science</div>
+          <div class="letter-item"><b>C</b> Both Social Science and Medical Science</div>
+          <div class="letter-item"><b>D</b> Neither Social Science nor Medical Science</div>
+        </div>
+
+        <table class="matching-table">
+          <thead>
+            <tr>
+              <th class="statement-th"></th>
+              <th class="letter-th">A</th>
+              <th class="letter-th">B</th>
+              <th class="letter-th">C</th>
+              <th class="letter-th">D</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="q11">
+              <td class="statement-cell">
+                <div class="stmt-flex">
+                  <span class="q-num-box">11</span>
+                  <div class="stmt-text">a tendency for negative results in early trials</div>
+                  <button class="review-flag" onclick="toggleFlag(11)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+                </div>
+                <div class="analysis" id="analysis-11" style="margin-top:0.8rem; margin-right: 0.5rem; display:none;"></div>
+              </td>
+              <td class="radio-cell"><input type="radio" name="q11" value="A" class="matching-radio" data-q="11" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q11" value="B" class="matching-radio" data-q="11" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q11" value="C" class="matching-radio" data-q="11" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q11" value="D" class="matching-radio" data-q="11" onchange="saveAnswers()"></td>
+            </tr>
+            <tr id="q12">
+              <td class="statement-cell">
+                <div class="stmt-flex">
+                  <span class="q-num-box">12</span>
+                  <div class="stmt-text">the desire to submit results for independent assessment</div>
+                  <button class="review-flag" onclick="toggleFlag(12)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+                </div>
+                <div class="analysis" id="analysis-12" style="margin-top:0.8rem; margin-right: 0.5rem; display:none;"></div>
+              </td>
+              <td class="radio-cell"><input type="radio" name="q12" value="A" class="matching-radio" data-q="12" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q12" value="B" class="matching-radio" data-q="12" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q12" value="C" class="matching-radio" data-q="12" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q12" value="D" class="matching-radio" data-q="12" onchange="saveAnswers()"></td>
+            </tr>
+            <tr id="q13">
+              <td class="statement-cell">
+                <div class="stmt-flex">
+                  <span class="q-num-box">13</span>
+                  <div class="stmt-text">the prioritization of research areas to meet government needs</div>
+                  <button class="review-flag" onclick="toggleFlag(13)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+                </div>
+                <div class="analysis" id="analysis-13" style="margin-top:0.8rem; margin-right: 0.5rem; display:none;"></div>
+              </td>
+              <td class="radio-cell"><input type="radio" name="q13" value="A" class="matching-radio" data-q="13" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q13" value="B" class="matching-radio" data-q="13" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q13" value="C" class="matching-radio" data-q="13" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q13" value="D" class="matching-radio" data-q="13" onchange="saveAnswers()"></td>
+            </tr>
+            <tr id="q14">
+              <td class="statement-cell">
+                <div class="stmt-flex">
+                  <span class="q-num-box">14</span>
+                  <div class="stmt-text">the widespread use of studies that investigate the quality of new products</div>
+                  <button class="review-flag" onclick="toggleFlag(14)" title="Flag for review"><i class="fas fa-bookmark"></i></button>
+                </div>
+                <div class="analysis" id="analysis-14" style="margin-top:0.8rem; margin-right: 0.5rem; display:none;"></div>
+              </td>
+              <td class="radio-cell"><input type="radio" name="q14" value="A" class="matching-radio" data-q="14" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q14" value="B" class="matching-radio" data-q="14" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q14" value="C" class="matching-radio" data-q="14" onchange="saveAnswers()"></td>
+              <td class="radio-cell"><input type="radio" name="q14" value="D" class="matching-radio" data-q="14" onchange="saveAnswers()"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="nav-scroll-wrapper"><div class="footer-nav" id="footerNav"></div></div>
+    <button class="btn-submit" id="submitBtn" onclick="submitTest()">Submit</button>
+  </footer>
+</div>
+
+<button id="highlightBtn" class="highlight-btn"><i class="fas fa-highlighter"></i> Highlight</button>
+
+<div class="modal-overlay" id="resultModal">
+  <div class="submission-content">
+    <div class="report-head">
+      <h2>Test Report</h2>
+      <div class="report-meta">
+        <button class="btn-secondary" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+        <button class="btn-secondary" onclick="copyReport()"><i class="fas fa-copy"></i> Copy</button>
+        <button class="settings-close" style="font-size:1.5rem" onclick="document.getElementById('resultModal').classList.remove('active')"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+    <div class="score-cards">
+      <div class="report-card">
+        <div class="rc-label">Score</div>
+        <div class="rc-val" id="reportScore">0/14</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Accuracy</div>
+        <div class="rc-val" id="reportAccuracy">0%</div>
+      </div>
+      <div class="report-card">
+        <div class="rc-label">Time Used</div>
+        <div class="rc-val" id="reportTime">00:00</div>
+      </div>
+    </div>
+    <div class="report-body">
+      <div class="type-breakdown">
+        <h3 style="font-family:'Montserrat',sans-serif;font-size:1.1rem;margin:0 0 1rem;color:#0f172a">Performance by Type</h3>
+        <div class="type-row"><div class="type-name">Matching Headings</div><div class="type-bar-bg"><div class="type-bar-fill" id="bar-headings" style="width:0%"></div></div><div class="type-score" id="score-headings">0/6</div></div>
+        <div class="type-row"><div class="type-name">Summary Completion</div><div class="type-bar-bg"><div class="type-bar-fill" id="bar-summary" style="width:0%"></div></div><div class="type-score" id="score-summary">0/4</div></div>
+        <div class="type-row" style="border:0"><div class="type-name">Classification</div><div class="type-bar-bg"><div class="type-bar-fill" id="bar-classification" style="width:0%"></div></div><div class="type-score" id="score-classification">0/4</div></div>
+      </div>
+      <div class="chip-group" id="unansweredGroup" style="display:none">
+        <div class="chip-title">Unanswered Questions</div>
+        <div class="chip-container" id="unansweredChips"></div>
+      </div>
+      <div class="chip-group" id="flaggedGroup" style="display:none">
+        <div class="chip-title">Flagged for Review</div>
+        <div class="chip-container" id="flaggedChips"></div>
+      </div>
+      <h3 style="font-family:'Montserrat',sans-serif;font-size:1.1rem;margin:2rem 0 1rem;color:#0f172a;border-bottom:2px solid #f1f5f9;padding-bottom:0.5rem">Review Mistakes</h3>
+      <div class="mistakes-list" id="mistakesList"></div>
+    </div>
+    <div class="report-foot">
+      <button class="btn-secondary" onclick="retakeTest()"><i class="fas fa-redo"></i> Retake Test</button>
+      <button class="btn-primary" onclick="document.getElementById('resultModal').classList.remove('active')">Review Answers</button>
+    </div>
+  </div>
+</div>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="settings-header-bar">
+      <h3 class="settings-title">Test Settings</h3>
+      <button class="settings-close" onclick="toggleSettings()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fas fa-palette"></i> Color Theme</div>
+        <div class="settings-list" id="themeList">
+          <div class="settings-item selected" onclick="setTheme('light')">
+            <div class="settings-item-left"><div class="settings-item-icon"><i class="fas fa-sun"></i></div><span class="settings-item-label">Light (Default)</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+          <div class="settings-item" onclick="setTheme('dark')">
+            <div class="settings-item-left"><div class="settings-item-icon"><i class="fas fa-moon"></i></div><span class="settings-item-label">Dark</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+          <div class="settings-item" onclick="setTheme('yellow')">
+            <div class="settings-item-left"><div class="settings-item-icon"><i class="fas fa-adjust"></i></div><span class="settings-item-label">Yellow on Black</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fas fa-font"></i> Text Size</div>
+        <div class="settings-list" id="sizeList">
+          <div class="settings-item selected" onclick="setTextSize('regular')">
+            <div class="settings-item-left"><div class="settings-item-icon" style="font-size:0.8rem">A</div><span class="settings-item-label">Regular</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+          <div class="settings-item" onclick="setTextSize('large')">
+            <div class="settings-item-left"><div class="settings-item-icon" style="font-size:1rem">A</div><span class="settings-item-label">Large</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+          <div class="settings-item" onclick="setTextSize('xlarge')">
+            <div class="settings-item-left"><div class="settings-item-icon" style="font-size:1.2rem">A</div><span class="settings-item-label">Extra Large</span></div>
+            <i class="fas fa-check check-icon"></i>
+          </div>
+        </div>
+        <div class="size-preview">
+          <div class="preview-box">
+            <i class="fas fa-align-left" style="color:#94a3b8"></i>
+            <div class="preview-line"></div>
+            <i class="fas fa-align-right" style="color:#94a3b8"></i>
+          </div>
+          <p class="preview-text">The quick brown fox jumps over the lazy dog. This helps you read comfortably.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'ielts_cdi_day16p3_v1';
+const TOTAL_QUESTIONS = 14;
+const TEST_TIME_SEC = 20 * 60;
+let timeRemaining = TEST_TIME_SEC;
+let timerInterval = null;
+let isSubmitted = false;
+let currentTheme = 'light';
+let currentSize = 'regular';
+let flags = {};
+let answers = {};
+let draggedToken = null;
+let draggedFromZone = null;
+let originalSlotRect = null;
+
+const correctAnswers = {
+  1: 'vii',
+  2: 'v',
+  3: 'ix',
+  4: 'i',
+  5: 'iv',
+  6: 'iii',
+  7: ['re offending', 're-offending'],
+  8: 'sentencing',
+  9: 'victim',
+  10: 'restorative justice',
+  11: 'A',
+  12: 'D',
+  13: 'D',
+  14: 'B'
+};
+
+const evidence = {
+  1: { para: "para-B", text: "Drug trials must also include enough patients to make it unlikely that chance alone may determine the result." },
+  2: { para: "para-C", text: "Unfortunately, the educational theorists who pushed the whole- language notion so successfully did not wait for evidence from controlled randomized trials before advancing their claims." },
+  3: { para: "para-D", text: "The experiment will include criminals who plead guilty to robbery. Those who agree to participate will be assigned randomly either to sentencing as normal or to participation in a conference in which the offender comes face-to-face with his victim and discusses how he may make emotional and material restitution." },
+  4: { para: "para-E", text: "This loss of interest can be attributed, at least in part, to the fact that early experiments produced little evidence of positive outcomes." },
+  5: { para: "para-F", text: "Randomized trials have been used to evaluate the effectiveness of driver-education programs, job training schemes, classroom size, psychological counselling for post-traumatic stress disorder and increased investment in public housing." },
+  6: { para: "para-G", text: "The hope is that rigorous review standards will allow Campbell, like Cochrane, to become a trusted and authoritative source of information." },
+  7: { para: "para-D", text: "The purpose of the trial is to assess whether such restorative justice limits re offending." },
+  8: { para: "para-D", text: "Those who agree to participate will be assigned randomly either to sentencing as normal or to participation in a conference" },
+  9: { para: "para-D", text: "the offender comes face-to-face with his victim and discusses how he may make emotional and material restitution." },
+  10: { para: "para-D", text: "This is the idea behind a trial of restorative justice which is taking place in the English courts." },
+  11: { para: "para-E", text: "This loss of interest can be attributed, at least in part, to the fact that early experiments produced little evidence of positive outcomes." },
+  12: { para: "para-A", text: "Social scientists, it is widely thought, do not subject their own hypotheses to any such rigorous treatment." },
+  13: { para: "para-A", text: "Worse, they peddle their untested hypotheses to governments and try to get them turned into policies." },
+  14: { para: "para-B", text: "Governments require sellers of new medicines to demonstrate their safety and effectiveness. The accepted gold standard of evidence is a randomized control trial" }
+};
+
+const qTypes = {
+  1: 'headings', 2: 'headings', 3: 'headings', 4: 'headings', 5: 'headings', 6: 'headings',
+  7: 'summary', 8: 'summary', 9: 'summary', 10: 'summary',
+  11: 'classification', 12: 'classification', 13: 'classification', 14: 'classification'
+};
+
+/* --- Drag and Drop Setup --- */
+function setupDragAndDrop() {
+  const tokens = document.querySelectorAll('.heading-token');
+  const zones = document.querySelectorAll('.heading-drop-zone');
+  const bank = document.getElementById('headingsBank');
+
+  tokens.forEach(token => {
+    token.addEventListener('dragstart', (e) => {
+      if(isSubmitted) return;
+      draggedToken = token;
+      draggedFromZone = token.parentElement.classList.contains('heading-drop-zone') ? token.parentElement : null;
+      if(draggedFromZone) {
+        originalSlotRect = { w: token.offsetWidth, h: token.offsetHeight };
+        token.style.visibility = 'hidden';
+      }
+      setTimeout(() => token.classList.add('dragging'), 0);
+      e.dataTransfer.setData('text/plain', token.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    token.addEventListener('dragend', () => {
+      token.classList.remove('dragging');
+      token.style.visibility = 'visible';
+      draggedToken = null;
+      draggedFromZone = null;
+      zones.forEach(z => z.classList.remove('drag-over'));
+      saveAnswers();
+    });
+
+    token.addEventListener('click', (e) => {
+      if(isSubmitted) return;
+      const allTokens = document.querySelectorAll('.heading-token');
+      const isSelected = token.classList.contains('selected-for-tap');
+      allTokens.forEach(t => t.classList.remove('selected-for-tap'));
+      zones.forEach(z => z.classList.remove('tap-target'));
+      
+      if(!isSelected) {
+        token.classList.add('selected-for-tap');
+        zones.forEach(z => z.classList.add('tap-target'));
+      }
+    });
+  });
+
+  zones.forEach(zone => {
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      if(!isSubmitted && draggedToken && draggedToken.parentElement !== zone) {
+        zone.classList.add('drag-over');
+      }
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if(isSubmitted || !draggedToken) return;
+      
+      if(zone.children.length > 0) {
+        const existingToken = zone.children[0];
+        if(draggedFromZone) draggedFromZone.appendChild(existingToken);
+        else bank.appendChild(existingToken);
+      }
+      zone.appendChild(draggedToken);
+    });
+
+    zone.addEventListener('click', e => {
+      if(isSubmitted) return;
+      const selectedToken = document.querySelector('.heading-token.selected-for-tap');
+      if(selectedToken) {
+        if(zone.children.length > 0) {
+          const existing = zone.children[0];
+          if(selectedToken.parentElement.classList.contains('heading-drop-zone')) {
+            selectedToken.parentElement.appendChild(existing);
+          } else {
+            bank.appendChild(existing);
+          }
+        }
+        zone.appendChild(selectedToken);
+        selectedToken.classList.remove('selected-for-tap');
+        zones.forEach(z => z.classList.remove('tap-target'));
+        saveAnswers();
+      } else if (zone.children.length > 0) {
+        bank.appendChild(zone.children[0]);
+        saveAnswers();
+      }
+    });
+  });
+}
+
+function getHeadingParaMap() {
+  const mapping = {};
+  document.querySelectorAll('.heading-drop-zone').forEach(zone => {
+    const para = zone.dataset.para;
+    const qNum = para.charCodeAt(0) - 65; // B is Q1 (66-65=1)
+    if(zone.children.length > 0) {
+      mapping[qNum] = zone.children[0].dataset.id;
+    }
+  });
+  return mapping;
+}
+
+/* --- Core Test Logic --- */
+function init() {
+  const nav = document.getElementById('footerNav');
+  for(let i=1; i<=TOTAL_QUESTIONS; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    btn.id = `nav-btn-${i}`;
+    btn.onclick = () => scrollToQ(i);
+    nav.appendChild(btn);
+  }
+  setupSplitter();
+  setupHighlights();
+  setupDragAndDrop();
+  
+  document.addEventListener('click', function(e) {
+    const cell = e.target.closest('td.radio-cell');
+    if (cell && !cell.classList.contains('disabled')) {
+      const radio = cell.querySelector('.matching-radio');
+      if (radio && !radio.disabled) { radio.checked = true; radio.dispatchEvent(new Event('change', {bubbles:true})); }
+    }
+  });
+
+  loadState();
+}
+
+function startTest() {
+  document.getElementById('startScreen').style.display = 'none';
+  if(!timerInterval && !isSubmitted) {
+    timerInterval = setInterval(updateTimer, 1000);
+  }
+}
+
+function updateTimer() {
+  if(timeRemaining <= 0) { clearInterval(timerInterval); submitTest(); return; }
+  timeRemaining--;
+  const m = Math.floor(timeRemaining/60).toString().padStart(2,'0');
+  const s = (timeRemaining%60).toString().padStart(2,'0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+  if(timeRemaining%5 === 0) saveState();
+}
+
+function autoResizeInput(input) {
+  const val = input.value || input.placeholder || "";
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const compStyle = window.getComputedStyle(input);
+  ctx.font = `${compStyle.fontWeight} ${compStyle.fontSize} ${compStyle.fontFamily}`;
+  const width = ctx.measureText(val).width;
+  input.parentElement.style.width = Math.max(80, width + 55) + "px";
+}
+
+function scrollToQ(q) {
+  document.querySelectorAll('.footer-nav button').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`nav-btn-${q}`);
+  if(btn) btn.classList.add('active');
+  const el = document.getElementById(`q${q}`);
+  if(el) {
+    document.getElementById('questionsPanel').scrollTo({top: el.offsetTop - 80, behavior:'smooth'});
+    el.classList.add('question-nav-focus');
+    setTimeout(() => el.classList.remove('question-nav-focus'), 1200);
+  }
+}
+
+function toggleFlag(q) {
+  flags[q] = !flags[q];
+  const qEl = document.getElementById(`q${q}`);
+  if(qEl) {
+    const flagBtn = qEl.querySelector('.review-flag');
+    if(flagBtn) flagBtn.classList.toggle('active', flags[q]);
+  }
+  const navBtn = document.getElementById(`nav-btn-${q}`);
+  if(navBtn) navBtn.classList.toggle('flagged-nav', flags[q]);
+  saveState();
+}
+
+function saveAnswers() {
+  if(isSubmitted) return;
+  answers = {};
+  const hMap = getHeadingParaMap();
+  for(let i=1; i<=6; i++) {
+    if(hMap[i]) answers[i] = hMap[i];
+  }
+  document.querySelectorAll('.cdi-input').forEach(inp => {
+    if(inp.value.trim()) answers[inp.dataset.q] = inp.value.trim();
+  });
+  document.querySelectorAll('.matching-radio:checked').forEach(r => {
+    answers[r.dataset.q] = r.value;
+  });
+  
+  for(let i=1; i<=TOTAL_QUESTIONS; i++) {
+    const btn = document.getElementById(`nav-btn-${i}`);
+    if(btn) btn.classList.toggle('answered', !!answers[i]);
+  }
+  saveState();
+}
+
+function saveState() {
+  const h = [];
+  document.querySelectorAll('.saved-highlight').forEach(el => h.push(el.outerHTML));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    time: timeRemaining, answers, flags, isSubmitted, highlights: h
+  }));
+}
+
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(!saved) return;
+  try {
+    const data = JSON.parse(saved);
+    if(data.time) timeRemaining = data.time;
+    if(data.answers) answers = data.answers;
+    if(data.flags) flags = data.flags;
+    if(data.isSubmitted) { isSubmitted = true; showResults(); }
+    else {
+      // restore highlights
+      if(data.highlights && data.highlights.length > 0) {
+         // rudimentary restore: replace passage content if it had highlights. 
+         // For a robust version, we'd need node-path serialization. Skipping complex restore for now to guarantee no drift.
+      }
+      
+      // restore headings
+      const bank = document.getElementById('headingsBank');
+      for(let i=1; i<=6; i++) {
+        if(answers[i]) {
+          const token = document.querySelector(`.heading-token[data-id="${answers[i]}"]`);
+          const para = String.fromCharCode(64 + i);
+          const zone = document.querySelector(`.heading-drop-zone[data-para="${para}"]`);
+          if(token && zone) {
+            zone.appendChild(token);
+          }
+        }
+      }
+      // restore inputs
+      document.querySelectorAll('.cdi-input').forEach(inp => {
+        if(answers[inp.dataset.q]) {
+          inp.value = answers[inp.dataset.q];
+          autoResizeInput(inp);
+        }
+      });
+      // restore radios
+      document.querySelectorAll('.matching-radio').forEach(r => {
+        if(answers[r.dataset.q] === r.value) { r.checked = true; }
+      });
+      
+      for(let i=1; i<=TOTAL_QUESTIONS; i++) {
+        if(flags[i]) toggleFlag(i); // UI update
+      }
+      saveAnswers(); // updates footer nav
+      
+      const m = Math.floor(timeRemaining/60).toString().padStart(2,'0');
+      const s = (timeRemaining%60).toString().padStart(2,'0');
+      document.getElementById('timer').textContent = `${m}:${s}`;
+      document.getElementById('loadingOverlay').classList.remove('active');
+    }
+  } catch(e) { console.error('Load state error:', e); }
+}
+
+function checkAns(q, u, c) {
+  if(!u) return false;
+  u = u.trim().toLowerCase();
+  if(Array.isArray(c)) return c.map(x=>x.toLowerCase()).includes(u);
+  return u === c.toLowerCase();
+}
+
+function submitTest() {
+  if(isSubmitted) return;
+  clearInterval(timerInterval);
+  isSubmitted = true;
+  saveAnswers(); // final sync
+  
+  // Disable UI
+  document.querySelectorAll('input, button:not(.header__icon):not(.settings-close):not(.btn-secondary):not(.btn-primary):not(.header-retake)').forEach(el => {
+    if(!el.classList.contains('review-flag') && !el.closest('#footerNav')) {
+      el.disabled = true;
+    }
+  });
+  document.querySelectorAll('td.radio-cell').forEach(c => c.classList.add('disabled'));
+  document.querySelectorAll('.heading-token').forEach(t => t.draggable = false);
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('headerRetakeBtn').classList.add('show');
+  document.getElementById('timer').style.color = '#64748b';
+
+  computeReport();
+  showResults();
+  saveState();
+}
+
+function computeReport() {
+  let correct = 0;
+  const hMap = getHeadingParaMap();
+  const typeScores = { headings:0, summary:0, classification:0 };
+  const typeTotals = { headings:6, summary:4, classification:4 };
+  const mistakes = [];
+  const unanswered = [];
+  const flagged = [];
+
+  for(let i=1; i<=TOTAL_QUESTIONS; i++) {
+    const isCorrect = checkAns(i, answers[i], correctAnswers[i]);
+    if(isCorrect) {
+      correct++;
+      typeScores[qTypes[i]]++;
+    }
+
+    if(flags[i]) flagged.push(i);
+    if(!answers[i]) unanswered.push(i);
+
+    // Build mistake list
+    if(!isCorrect) {
+      const cStr = Array.isArray(correctAnswers[i]) ? correctAnswers[i].join(' OR ') : correctAnswers[i];
+      mistakes.push(`
+        <div class="mistake-item ${!answers[i] ? 'unanswered-item' : ''}">
+          <div class="m-head">
+            <span class="m-qnum">Question ${i}</span>
+            <span class="m-type">${qTypes[i].replace('-',' ')}</span>
+          </div>
+          <div class="m-body">
+            <div class="m-col"><div class="m-col-label">Your Answer</div><div class="m-yours ${!answers[i] ? 'unanswered-text' : ''}">${answers[i] || 'Not answered'}</div></div>
+            <div class="m-col"><div class="m-col-label">Correct Answer</div><div class="m-correct">${cStr}</div></div>
+          </div>
+          <div class="m-actions">
+            <button class="m-btn" onclick="showEvidenceFor(${i})"><i class="fas fa-search"></i> Show evidence</button>
+            <button class="m-btn" onclick="scrollToQ(${i}); document.getElementById('resultModal').classList.remove('active')"><i class="fas fa-arrow-right"></i> Go to question</button>
+          </div>
+        </div>
+      `);
+    }
+
+    // Update in-place UI and analysis blocks
+    const navBtn = document.getElementById(`nav-btn-${i}`);
+    if(navBtn) {
+      navBtn.classList.add(isCorrect ? 'post-correct' : (!answers[i] ? 'post-unanswered' : 'post-incorrect'));
+    }
+
+    // Build analysis block
+    const aBox = document.getElementById(`analysis-${i}`);
+    if(aBox && evidence[i]) {
+      const pLetter = evidence[i].para.replace('para-', '');
+      aBox.innerHTML = `Q${i} — Paragraph ${pLetter}: ${evidence[i].text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}`;
+      aBox.classList.add('show');
+    }
+    
+    const fBox = document.getElementById(`feedback-${i}`);
+    if(fBox) {
+      if(isCorrect) {
+        fBox.innerHTML = `<i class="fas fa-check-circle"></i> Correct`;
+        fBox.className = 'feedback show correct-text';
+      } else {
+        const cStr = Array.isArray(correctAnswers[i]) ? correctAnswers[i][0] : correctAnswers[i];
+        fBox.innerHTML = `<i class="fas fa-times-circle"></i> ${!answers[i] ? 'Unanswered' : 'Incorrect'} (Correct: ${cStr})`;
+        fBox.className = 'feedback show incorrect-text';
+      }
+    }
+
+    // Update specific UI components
+    if(qTypes[i] === 'headings') {
+      const para = String.fromCharCode(64 + i);
+      const zone = document.querySelector(`.heading-drop-zone[data-para="${para}"]`);
+      if(zone) {
+        zone.classList.add(isCorrect ? 'correct' : 'incorrect');
+      }
+    } else if(qTypes[i] === 'summary') {
+      const inp = document.querySelector(`input[data-q="${i}"]`);
+      if(inp) {
+        inp.parentElement.classList.add(isCorrect ? 'correct' : 'incorrect');
+      }
+    } else if(qTypes[i] === 'classification') {
+      const row = document.getElementById(`q${i}`);
+      if(row) {
+        const selectedCell = row.querySelector(`input[value="${answers[i]}"]`)?.closest('td');
+        const correctCell = row.querySelector(`input[value="${correctAnswers[i]}"]`)?.closest('td');
+        if(selectedCell && !isCorrect) selectedCell.classList.add('incorrect-cell');
+        if(correctCell) correctCell.classList.add('correct-cell');
+      }
+    }
+  }
+
+  // Populate Modal
+  document.getElementById('reportScore').textContent = `${correct}/${TOTAL_QUESTIONS}`;
+  document.getElementById('reportAccuracy').textContent = `${Math.round((correct/TOTAL_QUESTIONS)*100)}%`;
+  const tUsed = TEST_TIME_SEC - timeRemaining;
+  document.getElementById('reportTime').textContent = `${Math.floor(tUsed/60).toString().padStart(2,'0')}:${(tUsed%60).toString().padStart(2,'0')}`;
+
+  ['headings', 'summary', 'classification'].forEach(t => {
+    document.getElementById(`bar-${t}`).style.width = `${(typeScores[t]/typeTotals[t])*100}%`;
+    document.getElementById(`score-${t}`).textContent = `${typeScores[t]}/${typeTotals[t]}`;
+  });
+
+  document.getElementById('mistakesList').innerHTML = mistakes.length ? mistakes.join('') : '<div style="color:#10b981;font-weight:700;text-align:center;padding:2rem 0"><i class="fas fa-star" style="font-size:2rem;display:block;margin-bottom:1rem;color:#fbbf24"></i>Perfect score! No mistakes to review.</div>';
+
+  if(unanswered.length) {
+    document.getElementById('unansweredGroup').style.display = 'block';
+    document.getElementById('unansweredChips').innerHTML = unanswered.map(q => `<div class="qchip qchip-unanswered" onclick="scrollToQ(${q}); document.getElementById('resultModal').classList.remove('active')">${q}</div>`).join('');
+  }
+  if(flagged.length) {
+    document.getElementById('flaggedGroup').style.display = 'block';
+    document.getElementById('flaggedChips').innerHTML = flagged.map(q => `<div class="qchip qchip-flagged" onclick="scrollToQ(${q}); document.getElementById('resultModal').classList.remove('active')">${q}</div>`).join('');
+  }
+}
+
+function showResults() { document.getElementById('resultModal').classList.add('active'); }
+
+function retakeTest() {
+  if(confirm("Are you sure you want to retake the test? This will erase all your current answers and highlights.")) {
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+  }
+}
+
+function clearTempEvidence() {
+  document.querySelectorAll('.evidence-highlight').forEach(el => {
+    if(el.dataset.evidenceTemp) {
+      const p = el.parentNode;
+      while(el.firstChild) p.insertBefore(el.firstChild, el);
+      p.removeChild(el);
+      p.normalize();
+    }
+  });
+  document.querySelectorAll('.evidence-qbadge').forEach(el => el.remove());
+}
+
+function showEvidenceFor(q) {
+  document.getElementById('resultModal').classList.remove('active');
+  scrollToQ(q);
+  switchMobileTab('passage');
+  clearTempEvidence();
+  
+  if(!evidence[q]) return;
+  const snippet = evidence[q].text;
+  const pNode = document.getElementById(`para-${evidence[q].para}`);
+  if(!pNode) return;
+  
+  const contentNode = pNode.querySelector('p');
+  if(!contentNode) return;
+  
+  if(highlightEvidenceText(contentNode, snippet)) {
+    const firstH = contentNode.querySelector('.evidence-highlight');
+    if(firstH) {
+      const badge = document.createElement('span');
+      badge.className = 'evidence-qbadge';
+      badge.textContent = `Q${q}`;
+      firstH.parentNode.insertBefore(badge, firstH);
+      
+      const panel = document.getElementById('passagePanel');
+      panel.scrollTo({top: firstH.offsetTop - panel.offsetTop - 100, behavior:'smooth'});
+      let blinks = 0;
+      const t = setInterval(() => {
+        document.querySelectorAll('.evidence-highlight').forEach(el => {
+          el.style.backgroundColor = (blinks%2===0) ? '#4ade80' : 'var(--evidence)';
+        });
+        if(++blinks > 5) {
+          clearInterval(t);
+          document.querySelectorAll('.evidence-highlight').forEach(el => el.style.backgroundColor = 'var(--evidence)');
+        }
+      }, 300);
+    }
+  }
+}
+
+function highlightEvidenceText(root, textToFind) {
+  const lowerText = root.textContent.toLowerCase();
+  const lowerFind = textToFind.toLowerCase();
+  const idx = lowerText.indexOf(lowerFind);
+  if (idx === -1) return false;
+
+  let currentIdx = 0;
+  let startNode = null, startOffset = 0;
+  let endNode = null, endOffset = 0;
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+  let node;
+  while ((node = walker.nextNode())) {
+    const len = node.nodeValue.length;
+    if (!startNode && currentIdx + len > idx) {
+      startNode = node;
+      startOffset = idx - currentIdx;
+    }
+    if (startNode && currentIdx + len >= idx + lowerFind.length) {
+      endNode = node;
+      endOffset = idx + lowerFind.length - currentIdx;
+      break;
+    }
+    currentIdx += len;
+  }
+
+  if (startNode && endNode) {
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    
+    // whitespace-preserving wrap
+    const fragments = [];
+    const w2 = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(n) {
+        if(!range.intersectsNode(n)) return NodeFilter.FILTER_REJECT;
+        if(!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }, false);
+    
+    let n2;
+    while((n2 = w2.nextNode())) {
+      let s = 0, e = n2.nodeValue.length;
+      if(n2 === startNode) s = startOffset;
+      if(n2 === endNode) e = endOffset;
+      const r2 = document.createRange();
+      r2.setStart(n2, s);
+      r2.setEnd(n2, e);
+      fragments.push(r2);
+    }
+    
+    fragments.reverse().forEach(fr => {
+      const span = document.createElement('span');
+      span.className = 'evidence-highlight';
+      span.dataset.evidenceTemp = "1";
+      fr.surroundContents(span);
+    });
+    return true;
+  }
+  return false;
+}
+
+/* --- Highlighting Engine --- */
+function setupHighlights() {
+  const btn = document.getElementById('highlightBtn');
+  document.addEventListener('selectionchange', () => {
+    if(isSubmitted) return;
+    const sel = window.getSelection();
+    if(sel.rangeCount > 0 && !sel.isCollapsed) {
+      const range = sel.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      if(container.nodeType === 1 && container.closest('.test-container')) {
+        const rect = range.getBoundingClientRect();
+        btn.style.display = 'block';
+        btn.style.top = (rect.top - 40) + 'px';
+        btn.style.left = (rect.left + rect.width/2 - btn.offsetWidth/2) + 'px';
+        return;
+      }
+    }
+    btn.style.display = 'none';
+  });
+
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    applyHighlight();
+    btn.style.display = 'none';
+  });
+
+  document.addEventListener('click', (e) => {
+    if(e.target.classList.contains('saved-highlight') && !isSubmitted) {
+      removeHighlight(e.target);
+    }
+  });
+}
+
+function applyHighlight() {
+  const sel = window.getSelection();
+  if(!sel.rangeCount || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  
+  const fragments = [];
+  const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(n) {
+      if(!range.intersectsNode(n)) return NodeFilter.FILTER_REJECT;
+      if(!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT; // do not wrap pure whitespace
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  }, false);
+  
+  let node;
+  while((node = walker.nextNode())) {
+    let start = 0, end = node.nodeValue.length;
+    if(node === range.startContainer) start = range.startOffset;
+    if(node === range.endContainer) end = range.endOffset;
+    if(start < end) {
+      const r = document.createRange();
+      r.setStart(node, start);
+      r.setEnd(node, end);
+      fragments.push(r);
+    }
+  }
+  
+  fragments.reverse().forEach(fr => {
+    const span = document.createElement('span');
+    span.className = 'saved-highlight';
+    fr.surroundContents(span);
+  });
+  sel.removeAllRanges();
+  saveState();
+}
+
+function removeHighlight(span) {
+  const p = span.parentNode;
+  while(span.firstChild) p.insertBefore(span.firstChild, span);
+  p.removeChild(span);
+  p.normalize();
+  saveState();
+}
+
+/* --- UI Helpers --- */
+let isDraggingDivider = false;
+function setupSplitter() {
+  const divider = document.getElementById('divider');
+  const passage = document.getElementById('passagePanel');
+  const container = document.querySelector('.test-container');
+  
+  divider.addEventListener('mousedown', e => {
+    isDraggingDivider = true;
+    document.body.style.cursor = 'col-resize';
+  });
+  document.addEventListener('mousemove', e => {
+    if(!isDraggingDivider) return;
+    const containerRect = container.getBoundingClientRect();
+    let newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+    newWidth = Math.max(20, Math.min(newWidth, 80));
+    passage.style.flex = `0 0 calc(${newWidth}% - 5px)`;
+  });
+  document.addEventListener('mouseup', () => {
+    isDraggingDivider = false;
+    document.body.style.cursor = 'default';
+  });
+}
+
+function toggleSettings() {
+  const overlay = document.getElementById('settingsOverlay');
+  overlay.classList.toggle('active');
+}
+function setTheme(theme) {
+  document.body.classList.remove('theme-dark', 'theme-yellow');
+  if(theme !== 'light') document.body.classList.add(`theme-${theme}`);
+  currentTheme = theme;
+  document.querySelectorAll('#themeList .settings-item').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+function setTextSize(size) {
+  const sizes = { 'regular': '16px', 'large': '19px', 'xlarge': '22px' };
+  document.documentElement.style.setProperty('--reading-font-size', sizes[size]);
+  currentSize = size;
+  document.querySelectorAll('#sizeList .settings-item').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+function switchMobileTab(tab) {
+  document.querySelectorAll('.mobile-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.passage-container, .questions-container').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById(`${tab}Panel`).classList.add('active');
+}
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => console.log(err));
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const icon = document.getElementById('fsIcon');
+  icon.classList.toggle('fa-expand', !document.fullscreenElement);
+  icon.classList.toggle('fa-compress', !!document.fullscreenElement);
+});
+
+function copyReport() {
+  const s = document.getElementById('reportScore').textContent;
+  const a = document.getElementById('reportAccuracy').textContent;
+  const t = document.getElementById('reportTime').textContent;
+  const txt = `IELTS Reading Practice - Try It and See\nScore: ${s}\nAccuracy: ${a}\nTime: ${t}`;
+  navigator.clipboard.writeText(txt).then(() => alert('Report copied to clipboard!'));
+}
+
+function exportPDF() {
+  const s = document.getElementById('reportScore').textContent;
+  const a = document.getElementById('reportAccuracy').textContent;
+  const t = document.getElementById('reportTime').textContent;
+  
+  const w = document.createElement('div');
+  w.className = 'print-wrapper';
+  w.innerHTML = `
+    <h1>IELTS Reading Report: Try It and See</h1>
+    <p><strong>Score:</strong> ${s} | <strong>Accuracy:</strong> ${a} | <strong>Time:</strong> ${t}</p>
+    <table class="print-table">
+      <tr><th>Q</th><th>Type</th><th>Your Answer</th><th>Correct Answer</th></tr>
+      ${Array.from({length: TOTAL_QUESTIONS}, (_, i) => {
+        const q = i+1;
+        const ans = answers[q] || '';
+        const isC = checkAns(q, ans, correctAnswers[q]);
+        const cStr = Array.isArray(correctAnswers[q]) ? correctAnswers[q].join(' OR ') : correctAnswers[q];
+        return `<tr>
+          <td>${q}</td>
+          <td>${qTypes[q].replace('-',' ')}</td>
+          <td class="${!ans ? 'print-unanswered' : (isC ? 'print-correct' : 'print-incorrect')}">${ans || 'Not answered'}</td>
+          <td class="print-correct">${cStr}</td>
+        </tr>`;
+      }).join('')}
+    </table>
+  `;
+  
+  html2pdf().set({
+    margin: 10,
+    filename: 'IELTS_Reading_Report.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(w).save();
+}
+
+window.onload = init;
+</script>
+
+<script>
+/* IELTS Platform scoring bridge (auto-injected) */
+(function () {
+  window.reportIELTSResult = window.reportIELTSResult || function (raw, total, band) {
+    try {
+      parent.postMessage({
+        source: "IELTS_CDI_TEST",
+        type: "RESULT",
+        payload: {
+          raw: Number(raw),
+          total: Number(total),
+          band: band != null && !isNaN(band) ? Number(band) : undefined,
+        },
+      }, "*");
+    } catch (e) { console.error("reportIELTSResult", e); }
+  };
+
+  var done = false;
+
+  // Only read the score once the report is actually ON SCREEN. This avoids the
+  // default "0/14" placeholder firing on page load or after a cancelled submit.
+  function visible(el) {
+    return !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+  }
+  function tryReport() {
+    if (done) return false;
+    var el = document.querySelector("#reportScore, #userScore");
+    if (!visible(el)) return false;
+    var m = el.textContent.match(/(\d+)\s*\/\s*(\d+)/);
+    if (!m) return false;
+    var raw = +m[1], total = +m[2];
+    if (!total) return false;
+    var b = document.querySelector("#bandScore");
+    var band = b ? parseFloat(b.textContent) : NaN;
+    done = true;
+    window.reportIELTSResult(raw, total, band);
+    return true;
+  }
+
+  // Primary mechanism: fire when the results modal becomes visible.
+  var obs = new MutationObserver(function () { tryReport(); });
+  obs.observe(document.documentElement, {
+    subtree: true, childList: true, characterData: true,
+    attributes: true, attributeFilter: ["class", "style"],
+  });
+
+  // Booster: after a submit click, poll briefly (covers the confirm dialog delay).
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest &&
+      e.target.closest('#submitBtn, .btn-submit, #deliver-button, .footer__deliverButton, [onclick*="submit"]');
+    if (!t) return;
+    var n = 0, iv = setInterval(function () {
+      if (tryReport() || ++n > 80) clearInterval(iv);
+    }, 200);
+  }, true);
+})();
+</script>
+</body>
+</html>

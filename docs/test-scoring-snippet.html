@@ -1,0 +1,37 @@
+<!--
+  IELTS PLATFORM — SCORING BRIDGE
+  Paste this <script> into every Reading/Listening test HTML, just before </body>.
+  Then, inside your test's existing "Submit" handler, call:
+
+      reportIELTSResult(correctCount, totalQuestions, bandScore);
+
+  - correctCount : number of correct answers (e.g. 32)
+  - totalQuestions: total questions (e.g. 40)
+  - bandScore    : optional IELTS band (e.g. 7.0). If omitted, the platform
+                   estimates the band from correct/total automatically.
+
+  The platform listens for this message, saves the result, updates the
+  streak + XP, and shows the score popup.
+-->
+<script>
+  (function () {
+    window.reportIELTSResult = function (raw, total, band) {
+      try {
+        window.parent.postMessage(
+          {
+            source: "IELTS_CDI_TEST",
+            type: "RESULT",
+            payload: {
+              raw: Number(raw),
+              total: Number(total),
+              band: band != null && band !== "" ? Number(band) : undefined,
+            },
+          },
+          "*"
+        );
+      } catch (e) {
+        console.error("reportIELTSResult failed", e);
+      }
+    };
+  })();
+</script>
