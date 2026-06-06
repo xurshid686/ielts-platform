@@ -54,7 +54,10 @@ export function AppShell({
       >
         <div className="flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-            <GraduationCap className="h-6 w-6 text-primary" /> IELTS
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-white shadow-[var(--shadow-primary)]">
+              <GraduationCap className="h-5 w-5" />
+            </span>
+            IELTS
           </Link>
           <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
             <X className="h-5 w-5" />
@@ -83,12 +86,14 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="absolute inset-x-4 bottom-4 rounded-xl border border-border bg-surface-2 p-3">
+        <div className="absolute inset-x-4 bottom-4 rounded-xl border border-border bg-surface-2 p-3 shadow-soft">
           <div className="flex items-center gap-2 text-sm">
             <Flame className="h-4 w-4 text-warning" />
-            <span className="font-semibold">{profile.streak}-day streak</span>
+            <span className="font-semibold tabular-nums">{profile.streak}-day streak</span>
           </div>
-          <p className="mt-1 text-xs text-muted">{profile.xp} XP · best {profile.longest_streak}🔥</p>
+          <p className="mt-1 text-xs text-muted tabular-nums">
+            {profile.xp} XP · best {profile.longest_streak}🔥
+          </p>
         </div>
       </aside>
 
