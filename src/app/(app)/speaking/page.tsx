@@ -45,10 +45,31 @@ export default async function SpeakingPage() {
         </div>
       </div>
 
-      {/* Live conversation — the main experience */}
+      {/* Hero: jump straight into a real-time voice conversation */}
+      <Link
+        href="/speaking/live/general"
+        className="group flex flex-col items-start gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-surface p-6 transition-colors hover:border-primary/60 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Radio className="h-7 w-7" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Voice conversation</h2>
+            <p className="text-sm text-muted">
+              Talk with an AI examiner in real time — it speaks, listens, and replies. No topic needed.
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-6 font-medium text-primary-foreground transition-transform group-hover:translate-x-0.5">
+          <Mic className="h-5 w-5" /> Start talking
+        </span>
+      </Link>
+
+      {/* Live conversation by topic */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          <Radio className="h-4 w-4 text-primary" /> Practice live with an AI examiner
+          <Radio className="h-4 w-4 text-primary" /> Or practise a specific topic, live
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SPEAKING_TOPICS.map((t) => (

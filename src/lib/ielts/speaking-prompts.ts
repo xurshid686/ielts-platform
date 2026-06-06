@@ -93,7 +93,32 @@ export const SPEAKING_TOPICS: SpeakingTopic[] = [
   },
 ];
 
+// Open-ended free conversation (the "Voice conversation" button). Not part of
+// SPEAKING_TOPICS so it doesn't appear in the topic grids, but resolvable by id.
+export const GENERAL_TOPIC: SpeakingTopic = {
+  id: "general",
+  title: "Open conversation",
+  blurb: "A free-flowing speaking practice across everyday IELTS topics.",
+  part1: [
+    "Let's start with you — could you tell me a little about yourself?",
+    "What do you do — do you work or are you a student?",
+    "How do you usually spend your free time?",
+    "What's something you're looking forward to?",
+  ],
+  part2: {
+    cue: "Tell me about something that's important to you.",
+    bullets: ["what it is", "how long it's mattered to you", "why it's important"],
+  },
+  part3: [
+    "How do you think people's interests change as they get older?",
+    "Do you think technology has changed how people spend their free time?",
+    "What makes a skill worth learning, in your opinion?",
+    "How important is it to keep learning throughout life?",
+  ],
+};
+
 export function getTopic(id: string): SpeakingTopic | undefined {
+  if (id === GENERAL_TOPIC.id) return GENERAL_TOPIC;
   return SPEAKING_TOPICS.find((t) => t.id === id);
 }
 
