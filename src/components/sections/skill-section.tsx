@@ -1,9 +1,9 @@
-import Link from "next/link";
-import { BookOpen, Headphones, ArrowRight, FileText } from "lucide-react";
+import { BookOpen, Headphones } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { avg } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import type { Result, Test } from "@/types/database";
 
 const META = {
@@ -25,14 +25,30 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       .order("submitted_at", { ascending: false }),
   ]);
 
-  let testList = (tests ?? []) as Test[];
-  if (skill === "reading") {
-    // Group by passage (1,2,3) with un-tagged tests last, newest first within a group.
-    testList = [...testList].sort(
-      (a, b) => (a.passage ?? 99) - (b.passage ?? 99),
-    );
-  }
+  const testList = (tests ?? []) as Test[];
   const res = (results ?? []) as Result[];
+
+  // Enrich each test with the user's attempt count + best band, then order
+  // full tests first, then passages by number.
+  const items: BrowserItem[] = [...testList]
+    .sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "full" ? -1 : 1;
+      return (a.passage ?? 99) - (b.passage ?? 99);
+    })
+    .map((t) => {
+      const attempts = res.filter((r) => r.test_id === t.id);
+      const bandAttempts = attempts.filter((a) => a.band != null).map((a) => Number(a.band));
+      return {
+        id: t.id,
+        title: t.title,
+        kind: t.kind ?? "single",
+        passage: t.passage,
+        level: t.level,
+        attempts: attempts.length,
+        best: bandAttempts.length ? Math.max(...bandAttempts) : null,
+      };
+    });
+
   const bands = res.filter((r) => r.band != null).map((r) => Number(r.band));
   const average = avg(bands);
   const best = bands.length ? Math.max(...bands) : null;
@@ -88,64 +104,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         </Card>
       )}
 
-      {/* Test list */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Available tests</h2>
-        {testList.length === 0 ? (
-          <Card className="text-center text-muted">
-            No {skill} tests have been uploaded yet.
-            {profile.role === "admin" && (
-              <>
-                {" "}
-                <Link href="/admin/tests" className="font-medium text-primary hover:underline">
-                  Upload one →
-                </Link>
-              </>
-            )}
-          </Card>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {testList.map((t) => {
-              const attempts = res.filter((r) => r.test_id === t.id);
-              const bestAttempt = attempts.length
-                ? Math.max(...attempts.filter((a) => a.band != null).map((a) => Number(a.band)))
-                : null;
-              return (
-                <Link key={t.id} href={`/${skill}/${t.id}`}>
-                  <Card className="h-full transition-colors hover:border-primary/50">
-                    <div className="flex items-start justify-between">
-                      <FileText className="h-5 w-5 text-primary" />
-                      <div className="flex items-center gap-1.5">
-                        {t.passage && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                            Passage {t.passage}
-                          </span>
-                        )}
-                        {t.level && (
-                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
-                            {t.level}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <h3 className="mt-3 font-semibold leading-snug">{t.title}</h3>
-                    <div className="mt-3 flex items-center justify-between text-sm text-muted">
-                      <span>
-                        {attempts.length
-                          ? `${attempts.length} attempt${attempts.length > 1 ? "s" : ""}${
-                              bestAttempt != null ? ` · best ${bestAttempt}` : ""
-                            }`
-                          : "Not attempted"}
-                      </span>
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {/* Test list with search + filter */}
+      <TestBrowser items={items} skill={skill} />
     </div>
   );
 }

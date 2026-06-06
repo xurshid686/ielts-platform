@@ -11,6 +11,7 @@ export function UploadForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const [loading, setLoading] = useState(false);
   const [skill, setSkill] = useState("reading");
+  const [kind, setKind] = useState("single");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function action(formData: FormData) {
@@ -47,7 +48,22 @@ export function UploadForm() {
             <option value="listening">Listening</option>
           </select>
         </label>
-        {skill === "reading" && (
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium">Type</span>
+          <select
+            name="kind"
+            required
+            className="admin-input"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+          >
+            <option value="single">
+              {skill === "listening" ? "Single section" : "Single passage"}
+            </option>
+            <option value="full">Full test</option>
+          </select>
+        </label>
+        {skill === "reading" && kind === "single" && (
           <label className="space-y-1.5">
             <span className="text-sm font-medium">Passage</span>
             <select name="passage" className="admin-input" defaultValue="">

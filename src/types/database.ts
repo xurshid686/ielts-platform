@@ -21,8 +21,9 @@ export type Test = {
   id: string;
   title: string;
   skill: "reading" | "listening";
+  kind: "single" | "full"; // single passage/section, or a full test
   level: string | null;
-  passage: number | null; // reading only: 1, 2 or 3
+  passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;
   file_path: string;
   // Answer key for server-side grading: { "1": ["terminal"], ... }. NULL for

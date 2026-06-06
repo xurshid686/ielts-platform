@@ -33,9 +33,12 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
 
   const title = String(formData.get("title") || "").trim();
   const skill = String(formData.get("skill") || "");
+  const kind = String(formData.get("kind") || "single") === "full" ? "full" : "single";
   const level = String(formData.get("level") || "").trim() || null;
   const passageRaw = String(formData.get("passage") || "").trim();
-  const passage = skill === "reading" && passageRaw ? Number(passageRaw) : null;
+  // A passage number only applies to a single reading passage.
+  const passage =
+    skill === "reading" && kind === "single" && passageRaw ? Number(passageRaw) : null;
   const file = formData.get("file") as File | null;
 
   if (!title) return { ok: false, error: "Title is required." };
@@ -64,6 +67,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   const { error: insErr } = await supabase.from("tests").insert({
     title,
     skill,
+    kind,
     level,
     passage,
     file_url: publicUrl,
