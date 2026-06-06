@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { avg, timeAgo } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { BandTrend, type BandPoint } from "@/components/dashboard/band-trend";
 import type { Result, SpeakingSubmission } from "@/types/database";
 
 type Activity = {
@@ -55,6 +56,13 @@ export default async function DashboardPage() {
   const speakingAvg = avg(speakingBands);
 
   const totalCompleted = all.length + speak.length;
+
+  // Reading band history as a chronological series (oldest first) for the trend.
+  const readingSeries: BandPoint[] = all
+    .filter((r) => r.skill === "reading" && r.band != null)
+    .slice(0, 12)
+    .reverse()
+    .map((r) => ({ band: Number(r.band), at: r.submitted_at }));
 
   // Unified recent activity across all skills.
   const activity: Activity[] = [
@@ -155,6 +163,12 @@ export default async function DashboardPage() {
             sub="Task 1 & 2"
           />
         </div>
+      </section>
+
+      {/* Reading band trend */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Your trend</h2>
+        <BandTrend points={readingSeries} />
       </section>
 
       {/* Recent activity */}
