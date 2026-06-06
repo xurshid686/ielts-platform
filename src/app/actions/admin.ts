@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { extractAnswerKey } from "@/lib/ielts/extract-key";
+import { sendAdminPromotionEmail } from "@/lib/email/send";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -85,6 +86,49 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   revalidatePath("/admin/tests");
   revalidatePath(`/${skill}`);
   return { ok: true };
+}
+
+export type SetRoleResult =
+  | { ok: true; email: string; name: string | null; emailed: boolean; emailNote?: string }
+  | { ok: false; error: string };
+
+// Promote (role='admin') or revoke (role='student') a user by email. The
+// privilege change is enforced in the DB by set_user_role (admin-only,
+// SECURITY DEFINER). On promotion we best-effort email the person.
+export async function setUserRole(
+  email: string,
+  role: "admin" | "student",
+): Promise<SetRoleResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const target = email.trim();
+  if (!target) return { ok: false, error: "Enter an email address." };
+
+  const { data, error } = await supabase.rpc("set_user_role", {
+    target_email: target,
+    new_role: role,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { email: string; name: string | null }
+    | undefined;
+  const resolvedEmail = row?.email ?? target;
+  const name = row?.name ?? null;
+
+  let emailed = false;
+  let emailNote: string | undefined;
+  if (role === "admin") {
+    const sent = await sendAdminPromotionEmail(resolvedEmail, name);
+    emailed = sent.sent;
+    if (!sent.sent) emailNote = sent.error;
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/team");
+  return { ok: true, email: resolvedEmail, name, emailed, emailNote };
 }
 
 export async function deleteTest(id: string): Promise<ActionResult> {

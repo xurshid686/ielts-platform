@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, FileText, CheckCircle2, Flame, ArrowRight } from "lucide-react";
+import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { timeAgo } from "@/lib/utils";
@@ -31,18 +31,36 @@ export default async function AdminPage() {
         <Stat icon={<Flame className="text-warning" />} label="Active streaks" value={activeStreaks} />
       </div>
 
-      <Card className="flex items-center justify-between">
-        <div>
-          <h2 className="font-semibold">Manage tests</h2>
-          <p className="text-sm text-muted">Upload and remove reading/listening HTML tests.</p>
-        </div>
-        <Link
-          href="/admin/tests"
-          className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-        >
-          Open <ArrowRight className="h-4 w-4" />
-        </Link>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <FileText className="h-4 w-4 text-primary" /> Manage tests
+            </h2>
+            <p className="text-sm text-muted">Upload and remove reading/listening tests.</p>
+          </div>
+          <Link
+            href="/admin/tests"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <ShieldCheck className="h-4 w-4 text-primary" /> Manage admins
+            </h2>
+            <p className="text-sm text-muted">Promote or revoke admins by email.</p>
+          </div>
+          <Link
+            href="/admin/team"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+      </div>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Students</h2>
