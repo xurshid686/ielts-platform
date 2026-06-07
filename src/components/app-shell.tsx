@@ -13,10 +13,10 @@ import {
   Flame,
   Menu,
   X,
-  LogOut,
   GraduationCap,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AccountMenu } from "@/components/account-menu";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types/database";
 
@@ -113,30 +113,7 @@ export function AppShell({
           <div className="hidden lg:block" />
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div className="flex items-center gap-2">
-              {profile.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profile.avatar_url}
-                  alt=""
-                  className="h-8 w-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-                  {(profile.name || profile.email || "U").charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span className="hidden text-sm font-medium sm:block">{profile.name}</span>
-            </div>
-            <form action="/auth/signout" method="post">
-              <button
-                type="submit"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted hover:bg-surface-2 hover:text-foreground"
-                aria-label="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </form>
+            <AccountMenu profile={profile} />
           </div>
         </header>
 
