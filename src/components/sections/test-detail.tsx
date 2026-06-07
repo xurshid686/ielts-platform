@@ -6,6 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { canAccessTest, unlockCost } from "@/lib/premium";
 import { TestRunner } from "@/components/test-runner";
 import { UnlockButton } from "@/components/sections/unlock-button";
+import { PremiumContact } from "@/components/premium-contact";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
@@ -62,6 +63,7 @@ export async function TestDetail({
           </p>
           <UnlockButton testId={t.id} cost={cost} xp={profile.xp} />
         </div>
+        <PremiumContact className="mt-4 text-left" />
       </div>
     );
   }

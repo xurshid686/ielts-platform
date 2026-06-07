@@ -72,14 +72,25 @@ export async function submitSpeakingMock(
   let feedback: SpeakingFeedback | null = null;
   let band: number | null = null;
   let aiError: string | null = null;
+  // Daily AI grading cap (cost control).
+  const { data: gradeAllowed } = await supabase.rpc("use_ai_quota", {
+    p_kind: "speaking_grade",
+  });
   try {
+    if (gradeAllowed === false) {
+      throw new Error("daily AI limit");
+    }
     feedback = await gradeSpeaking(topic.title, audioParts);
     band = typeof feedback.overallBand === "number" ? feedback.overallBand : null;
   } catch (e) {
-    aiError =
-      e instanceof GeminiKeyMissing
-        ? "AI feedback isn't set up yet — add a GEMINI_API_KEY to enable it. Your recording was saved."
-        : "AI feedback couldn't be generated this time. Your recording was saved.";
+    if (gradeAllowed === false) {
+      aiError =
+        "You've reached today's AI feedback limit. Your recording was saved — try again tomorrow or go Premium.";
+    } else if (e instanceof GeminiKeyMissing) {
+      aiError = "AI feedback isn't set up yet — add a GEMINI_API_KEY to enable it. Your recording was saved.";
+    } else {
+      aiError = "AI feedback couldn't be generated this time. Your recording was saved.";
+    }
   }
 
   const { error: insErr } = await supabase.from("speaking_submissions").insert({

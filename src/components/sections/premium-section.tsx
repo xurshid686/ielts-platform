@@ -17,6 +17,7 @@ import {
 import type { BrowserItem } from "@/components/sections/test-browser";
 import { unlockCost } from "@/lib/premium";
 import { unlockTest } from "@/app/actions/unlock";
+import { PremiumContact } from "@/components/premium-contact";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -186,6 +187,8 @@ export function PremiumSection({
           );
         })}
       </div>
+
+      {!canAccess && <PremiumContact className="mt-5" />}
     </section>
   );
 }

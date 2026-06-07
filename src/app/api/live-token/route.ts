@@ -21,6 +21,15 @@ export async function POST() {
       { status: 503 },
     );
 
+  // Daily usage cap (cost control). Admins unlimited; premium higher.
+  const { data: allowed } = await supabase.rpc("use_ai_quota", { p_kind: "live" });
+  if (allowed === false) {
+    return Response.json(
+      { error: "You've reached today's live-conversation limit. Try again tomorrow or go Premium." },
+      { status: 429 },
+    );
+  }
+
   // 30 min to talk; 2 min window to actually open the session.
   const expireTime = new Date(Date.now() + 30 * 60_000).toISOString();
   const newSessionExpireTime = new Date(Date.now() + 2 * 60_000).toISOString();

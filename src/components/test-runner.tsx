@@ -2,8 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft } from "lucide-react";
+import {
+  CheckCircle2,
+  Flame,
+  Loader2,
+  Maximize,
+  Minimize,
+  Trophy,
+  X,
+  ArrowLeft,
+  Sparkles,
+  Send,
+} from "lucide-react";
 import { saveResult } from "@/app/actions/results";
+import { askTutorAction } from "@/app/actions/tutor";
+import type { ChatMsg } from "@/lib/ai/tutor";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -70,6 +83,32 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const [isFs, setIsFs] = useState(false);
+
+  // AI tutor chat
+  const [tutorOpen, setTutorOpen] = useState(false);
+  const [tutorMsgs, setTutorMsgs] = useState<ChatMsg[]>([]);
+  const [tutorInput, setTutorInput] = useState("");
+  const [tutorSending, setTutorSending] = useState(false);
+  const tutorEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    tutorEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [tutorMsgs, tutorSending]);
+
+  async function sendTutor() {
+    const q = tutorInput.trim();
+    if (!q || tutorSending) return;
+    const next: ChatMsg[] = [...tutorMsgs, { role: "user", text: q }];
+    setTutorMsgs(next);
+    setTutorInput("");
+    setTutorSending(true);
+    const res = await askTutorAction(testId, next);
+    setTutorSending(false);
+    setTutorMsgs((prev) => [
+      ...prev,
+      { role: "model", text: res.ok ? res.reply : `⚠️ ${res.error}` },
+    ]);
+  }
 
   const srcUrl = `/api/test-html/${testId}`;
   const expectedOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -171,6 +210,17 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
             </button>
           )}
           <button
+            onClick={() => setTutorOpen((o) => !o)}
+            className={`inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm ${
+              tutorOpen
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border hover:bg-surface-2"
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Ask AI</span>
+          </button>
+          <button
             onClick={toggleFullscreen}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-surface-2"
           >
@@ -205,6 +255,70 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
 
       {showCelebration && saved && (
         <Celebration saved={saved} skill={skill} onClose={doExit} />
+      )}
+
+      {tutorOpen && (
+        <div className="absolute bottom-0 right-0 top-12 z-30 flex w-full flex-col border-l border-border bg-surface shadow-elevated sm:w-[380px]">
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+            <span className="flex items-center gap-1.5 text-sm font-semibold">
+              <Sparkles className="h-4 w-4 text-primary" /> AI tutor
+            </span>
+            <button onClick={() => setTutorOpen(false)} aria-label="Close tutor">
+              <X className="h-4 w-4 text-muted hover:text-foreground" />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-3 overflow-y-auto p-3">
+            {tutorMsgs.length === 0 && (
+              <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">
+                Ask me anything about this test — why an answer is correct, a tricky
+                word, paraphrasing, or strategy.
+              </p>
+            )}
+            {tutorMsgs.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-surface-2 text-foreground"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {tutorSending && (
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
+              </div>
+            )}
+            <div ref={tutorEndRef} />
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendTutor();
+            }}
+            className="flex shrink-0 gap-2 border-t border-border p-3"
+          >
+            <input
+              value={tutorInput}
+              onChange={(e) => setTutorInput(e.target.value)}
+              placeholder="Ask about this test…"
+              className="h-9 flex-1 rounded-lg border border-border bg-surface-2 px-3 text-sm outline-none focus:border-primary/40"
+            />
+            <button
+              type="submit"
+              disabled={tutorSending || !tutorInput.trim()}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
+              aria-label="Send"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );
