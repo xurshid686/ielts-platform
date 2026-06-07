@@ -11,6 +11,7 @@ import {
   Sparkles,
   Lock,
   Crown,
+  Repeat2,
 } from "lucide-react";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
@@ -23,6 +24,7 @@ export type BrowserItem = {
   passage: number | null;
   level: string | null;
   questionTypes: string[];
+  timesDone: number;
   attempts: number;
   best: number | null;
   createdAt: string;
@@ -195,6 +197,14 @@ export function TestBrowser({
                         </span>
                       )}
                       <Badge kind={t.kind} passage={t.passage} skill={skill} />
+                      {t.timesDone > 0 && (
+                        <span
+                          title={`Completed ${t.timesDone} time${t.timesDone > 1 ? "s" : ""}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                        >
+                          <Repeat2 className="h-3 w-3" /> {t.timesDone}
+                        </span>
+                      )}
                       {t.level && (
                         <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
                           {t.level}

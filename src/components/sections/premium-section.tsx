@@ -13,6 +13,7 @@ import {
   Zap,
   Loader2,
   Check,
+  Repeat2,
 } from "lucide-react";
 import type { BrowserItem } from "@/components/sections/test-browser";
 import { unlockCost } from "@/lib/premium";
@@ -119,6 +120,14 @@ export function PremiumSection({
                         : "Passage"
                       : "Section"}
                 </span>
+                {t.timesDone > 0 && (
+                  <span
+                    title={`Completed ${t.timesDone} time${t.timesDone > 1 ? "s" : ""}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                  >
+                    <Repeat2 className="h-3 w-3" /> {t.timesDone}
+                  </span>
+                )}
               </div>
             </div>
           );

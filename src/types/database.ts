@@ -27,6 +27,7 @@ export type Test = {
   kind: "single" | "full"; // single passage/section, or a full test
   tier: "free" | "premium";
   question_types: string[];
+  times_done: number; // total completions across all users
   level: string | null;
   passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;
