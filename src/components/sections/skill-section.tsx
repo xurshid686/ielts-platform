@@ -17,7 +17,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const profile = await requireProfile();
   const supabase = await createClient();
 
-  const [{ data: tests }, { data: results }] = await Promise.all([
+  const [{ data: tests }, { data: results }, { data: unlocks }] = await Promise.all([
     // Note: file_url/file_path are intentionally NOT selected — premium content
     // is fetched only via /api/test-html (which gates access).
     supabase
@@ -31,7 +31,10 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       .eq("user_id", profile.id)
       .eq("skill", skill)
       .order("submitted_at", { ascending: false }),
+    supabase.from("unlocks").select("test_id").eq("user_id", profile.id),
   ]);
+
+  const unlockedIds = ((unlocks ?? []) as { test_id: string }[]).map((u) => u.test_id);
 
   const testList = (tests ?? []) as Test[];
   const res = (results ?? []) as Result[];
@@ -121,6 +124,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         items={items.filter((i) => i.tier === "premium")}
         skill={skill}
         canAccess={canAccessPremium}
+        unlockedIds={unlockedIds}
+        xp={profile.xp}
       />
 
       {/* Free tests with search + filter */}

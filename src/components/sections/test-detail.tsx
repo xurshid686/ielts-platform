@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canAccessTest } from "@/lib/premium";
+import { canAccessTest, unlockCost } from "@/lib/premium";
 import { TestRunner } from "@/components/test-runner";
+import { UnlockButton } from "@/components/sections/unlock-button";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
@@ -27,8 +28,21 @@ export async function TestDetail({
   if (!test) notFound();
   const t = test as Test;
 
-  // Premium tests are locked to subscribers (admins exempt).
-  if (!canAccessTest(profile, t)) {
+  // Has the user unlocked this specific premium test with XP?
+  let unlocked = false;
+  if (t.tier === "premium") {
+    const { data: u } = await supabase
+      .from("unlocks")
+      .select("id")
+      .eq("user_id", profile.id)
+      .eq("test_id", t.id)
+      .limit(1);
+    unlocked = Array.isArray(u) && u.length > 0;
+  }
+
+  // Premium tests are locked unless subscriber/admin/unlocked.
+  if (!canAccessTest(profile, t, unlocked)) {
+    const cost = unlockCost(t);
     return (
       <div className="mx-auto max-w-md py-12 text-center">
         <Link
@@ -43,9 +57,10 @@ export async function TestDetail({
           </div>
           <h1 className="mt-4 text-xl font-bold">This is a Premium test</h1>
           <p className="mt-2 text-sm text-muted">
-            “{t.title}” is available to Premium members. Ask an administrator to upgrade
-            your account to unlock premium {skill} tests.
+            “{t.title}” is available to Premium members. Unlock it with{" "}
+            <strong>{cost} XP</strong>, or ask an administrator to upgrade your account.
           </p>
+          <UnlockButton testId={t.id} cost={cost} xp={profile.xp} />
         </div>
       </div>
     );

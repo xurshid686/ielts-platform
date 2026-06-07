@@ -12,6 +12,7 @@ export type Profile = {
   role: Role;
   is_owner: boolean;
   premium_until: string | null; // ISO date; active premium while in the future
+  premium_announce: boolean; // show the one-time "you're premium" congrats
   streak: number;
   longest_streak: number;
   last_activity_date: string | null;

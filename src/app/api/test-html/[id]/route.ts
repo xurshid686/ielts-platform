@@ -26,18 +26,25 @@ export async function GET(
   const fileUrl = row?.file_url;
   if (!fileUrl) return new Response("Not found", { status: 404 });
 
-  // Premium gate: premium test content is served only to subscribers/admins.
+  // Premium gate: premium content is served only to subscribers, admins, or
+  // users who unlocked this specific test with XP.
   if (row?.tier === "premium") {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("role, premium_until")
-      .eq("id", user.id)
-      .single();
+    const [{ data: prof }, { data: unlock }] = await Promise.all([
+      supabase.from("profiles").select("role, premium_until").eq("id", user.id).single(),
+      supabase.from("unlocks").select("id").eq("user_id", user.id).eq("test_id", id).limit(1),
+    ]);
     const profile = (prof as { role?: string; premium_until?: string | null } | null) ?? {
       role: "student",
       premium_until: null,
     };
-    if (!canAccessTest({ role: profile.role ?? "student", premium_until: profile.premium_until ?? null }, { tier: "premium" })) {
+    const unlocked = Array.isArray(unlock) && unlock.length > 0;
+    if (
+      !canAccessTest(
+        { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
+        { tier: "premium" },
+        unlocked,
+      )
+    ) {
       return new Response("Premium membership required", { status: 403 });
     }
   }

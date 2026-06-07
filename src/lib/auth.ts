@@ -27,6 +27,7 @@ export async function requireProfile(): Promise<Profile> {
       role: "student",
       is_owner: false,
       premium_until: null,
+      premium_announce: false,
       streak: 0,
       longest_streak: 0,
       last_activity_date: null,
