@@ -50,6 +50,22 @@ export type Result = {
   submitted_at: string;
 };
 
+export type WritingCriterion = { band: number; comment: string };
+
+export type WritingFeedback = {
+  overallBand: number;
+  criteria: {
+    task: WritingCriterion; // Task Achievement/Response
+    coherence: WritingCriterion; // Coherence & Cohesion
+    lexical: WritingCriterion; // Lexical Resource
+    grammar: WritingCriterion; // Grammatical Range & Accuracy
+  };
+  strengths: string[];
+  improvements: string[];
+  corrections: { original: string; better: string }[];
+  comment: string;
+};
+
 export type WritingSubmission = {
   id: string;
   user_id: string;
@@ -57,7 +73,7 @@ export type WritingSubmission = {
   prompt: string | null;
   content: string | null;
   score: number | null;
-  feedback: unknown | null;
+  feedback: WritingFeedback | null;
   status: "draft" | "submitted";
   created_at: string;
 };
