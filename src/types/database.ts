@@ -11,6 +11,7 @@ export type Profile = {
   avatar_url: string | null;
   role: Role;
   is_owner: boolean;
+  premium_until: string | null; // ISO date; active premium while in the future
   streak: number;
   longest_streak: number;
   last_activity_date: string | null;
@@ -23,6 +24,8 @@ export type Test = {
   title: string;
   skill: "reading" | "listening";
   kind: "single" | "full"; // single passage/section, or a full test
+  tier: "free" | "premium";
+  question_types: string[];
   level: string | null;
   passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;

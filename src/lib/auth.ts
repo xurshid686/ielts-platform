@@ -26,6 +26,7 @@ export async function requireProfile(): Promise<Profile> {
       avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
       role: "student",
       is_owner: false,
+      premium_until: null,
       streak: 0,
       longest_streak: 0,
       last_activity_date: null,

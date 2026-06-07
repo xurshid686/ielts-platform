@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UploadCloud } from "lucide-react";
 import { uploadTest } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
+import { QUESTION_TYPES } from "@/lib/ielts/question-types";
 
 export function UploadForm() {
   const router = useRouter();
@@ -75,14 +76,39 @@ export function UploadForm() {
           </label>
         )}
         <label className="space-y-1.5">
+          <span className="text-sm font-medium">Access</span>
+          <select name="tier" required className="admin-input" defaultValue="free">
+            <option value="free">Free — everyone</option>
+            <option value="premium">Premium — subscribers only</option>
+          </select>
+        </label>
+        <label className="space-y-1.5">
           <span className="text-sm font-medium">Level (optional)</span>
           <input name="level" placeholder="Band 6–7" className="admin-input" />
         </label>
-        <label className="space-y-1.5">
+        <label className="space-y-1.5 sm:col-span-2">
           <span className="text-sm font-medium">HTML file</span>
           <input name="file" type="file" accept=".html,text/html" required className="admin-input pt-2" />
         </label>
       </div>
+
+      {/* Question types in this test */}
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">
+          Question types <span className="text-muted">(optional — used for filtering)</span>
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {QUESTION_TYPES[skill === "listening" ? "listening" : "reading"].map((qt) => (
+            <label
+              key={qt}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs hover:bg-surface-2 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
+            >
+              <input type="checkbox" name="question_types" value={qt} className="sr-only" />
+              {qt}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {msg && (
         <p className={`text-sm ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>

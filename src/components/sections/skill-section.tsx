@@ -2,6 +2,7 @@ import { BookOpen, Headphones } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { avg } from "@/lib/utils";
+import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import type { Result, Test } from "@/types/database";
@@ -16,7 +17,13 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const supabase = await createClient();
 
   const [{ data: tests }, { data: results }] = await Promise.all([
-    supabase.from("tests").select("*").eq("skill", skill).order("created_at", { ascending: false }),
+    // Note: file_url/file_path are intentionally NOT selected — premium content
+    // is fetched only via /api/test-html (which gates access).
+    supabase
+      .from("tests")
+      .select("id, title, skill, kind, tier, question_types, level, passage, created_at")
+      .eq("skill", skill)
+      .order("created_at", { ascending: false }),
     supabase
       .from("results")
       .select("*")
@@ -27,6 +34,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
 
   const testList = (tests ?? []) as Test[];
   const res = (results ?? []) as Result[];
+  const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
 
   // Enrich each test with the user's attempt count + best band, then order
   // full tests first, then passages by number.
@@ -42,8 +50,10 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         id: t.id,
         title: t.title,
         kind: t.kind ?? "single",
+        tier: t.tier ?? "free",
         passage: t.passage,
         level: t.level,
+        questionTypes: t.question_types ?? [],
         attempts: attempts.length,
         best: bandAttempts.length ? Math.max(...bandAttempts) : null,
         createdAt: t.created_at,
@@ -106,7 +116,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       )}
 
       {/* Test list with search + filter */}
-      <TestBrowser items={items} skill={skill} />
+      <TestBrowser items={items} skill={skill} canAccessPremium={canAccessPremium} />
     </div>
   );
 }

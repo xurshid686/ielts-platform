@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck } from "lucide-react";
+import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck, Crown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
@@ -48,6 +48,21 @@ export default async function AdminPage() {
             Open <ArrowRight className="h-4 w-4" />
           </Link>
         </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Crown className="h-4 w-4 text-amber-500" /> Members &amp; premium
+            </h2>
+            <p className="text-sm text-muted">Grant premium access to students.</p>
+          </div>
+          <Link
+            href="/admin/members"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+
         {me.is_owner && (
           <Card className="flex items-center justify-between">
             <div>

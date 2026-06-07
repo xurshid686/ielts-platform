@@ -35,6 +35,11 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   const title = String(formData.get("title") || "").trim();
   const skill = String(formData.get("skill") || "");
   const kind = String(formData.get("kind") || "single") === "full" ? "full" : "single";
+  const tier = String(formData.get("tier") || "free") === "premium" ? "premium" : "free";
+  const questionTypes = formData
+    .getAll("question_types")
+    .map((v) => String(v))
+    .filter(Boolean);
   const level = String(formData.get("level") || "").trim() || null;
   const passageRaw = String(formData.get("passage") || "").trim();
   // A passage number only applies to a single reading passage.
@@ -69,6 +74,8 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     title,
     skill,
     kind,
+    tier,
+    question_types: questionTypes,
     level,
     passage,
     file_url: publicUrl,
@@ -129,6 +136,65 @@ export async function setUserRole(
   revalidatePath("/admin");
   revalidatePath("/admin/team");
   return { ok: true, email: resolvedEmail, name, emailed, emailNote };
+}
+
+export type MemberRow = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: string;
+  premium_until: string | null;
+};
+
+// Search accounts by email or name (admin-only). Empty query returns recent users.
+export async function searchUsers(
+  query: string,
+): Promise<{ ok: true; users: MemberRow[] } | { ok: false; error: string }> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  // Strip characters with meaning in PostgREST filter syntax before interpolating.
+  const q = query.trim().replace(/[,()*\\]/g, "");
+  let req = supabase
+    .from("profiles")
+    .select("id, email, name, role, premium_until")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
+
+  const { data, error } = await req;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, users: (data ?? []) as MemberRow[] };
+}
+
+export type SetPremiumResult =
+  | { ok: true; email: string; name: string | null; premium_until: string | null }
+  | { ok: false; error: string };
+
+// Grant/extend (months > 0) or revoke (months <= 0) premium for a user by email.
+export async function setPremium(email: string, months: number): Promise<SetPremiumResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.rpc("set_premium", {
+    target_email: email.trim(),
+    months,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { email: string; name: string | null; premium_until: string | null }
+    | undefined;
+  revalidatePath("/admin/members");
+  revalidatePath("/admin");
+  return {
+    ok: true,
+    email: row?.email ?? email,
+    name: row?.name ?? null,
+    premium_until: row?.premium_until ?? null,
+  };
 }
 
 export async function deleteTest(id: string): Promise<ActionResult> {
