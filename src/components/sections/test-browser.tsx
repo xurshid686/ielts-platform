@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, FileText, Layers, ArrowRight, X } from "lucide-react";
+import { Search, FileText, Layers, ArrowRight, X, Sparkles } from "lucide-react";
+
+const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
 export type BrowserItem = {
   id: string;
@@ -12,6 +14,7 @@ export type BrowserItem = {
   level: string | null;
   attempts: number;
   best: number | null;
+  createdAt: string;
 };
 
 type Filter = "all" | "single" | "full";
@@ -25,6 +28,8 @@ export function TestBrowser({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  // Captured once at mount so "new" is stable across re-renders (search/filter).
+  const [now] = useState(() => Date.now());
 
   const singleLabel = skill === "reading" ? "Passages" : "Sections";
   const counts = useMemo(
@@ -128,6 +133,11 @@ export function TestBrowser({
                     )}
                   </span>
                   <div className="flex items-center gap-1.5">
+                    {now - new Date(t.createdAt).getTime() < NEW_WINDOW_MS && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                        <Sparkles className="h-3 w-3" /> NEW
+                      </span>
+                    )}
                     <Badge kind={t.kind} passage={t.passage} skill={skill} />
                     {t.level && (
                       <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">

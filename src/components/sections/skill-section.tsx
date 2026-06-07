@@ -46,6 +46,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         level: t.level,
         attempts: attempts.length,
         best: bandAttempts.length ? Math.max(...bandAttempts) : null,
+        createdAt: t.created_at,
       };
     });
 
