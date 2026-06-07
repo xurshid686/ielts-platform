@@ -5,6 +5,7 @@ import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
+import { PremiumSection } from "@/components/sections/premium-section";
 import type { Result, Test } from "@/types/database";
 
 const META = {
@@ -115,8 +116,19 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         </Card>
       )}
 
-      {/* Test list with search + filter */}
-      <TestBrowser items={items} skill={skill} canAccessPremium={canAccessPremium} />
+      {/* Premium materials — their own highlighted section */}
+      <PremiumSection
+        items={items.filter((i) => i.tier === "premium")}
+        skill={skill}
+        canAccess={canAccessPremium}
+      />
+
+      {/* Free tests with search + filter */}
+      <TestBrowser
+        items={items.filter((i) => i.tier === "free")}
+        skill={skill}
+        canAccessPremium={canAccessPremium}
+      />
     </div>
   );
 }
