@@ -31,7 +31,7 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Reading / listening live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }, { data: writing }] = await Promise.all([
+  const [{ data: results }, { data: speaking }] = await Promise.all([
     supabase
       .from("results")
       .select("*")
@@ -42,17 +42,10 @@ export default async function DashboardPage() {
       .select("id, score, created_at")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("writing_submissions")
-      .select("id, score, created_at")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false }),
   ]);
 
   const all = (results ?? []) as Result[];
   const speak = (speaking ?? []) as Pick<SpeakingSubmission, "id" | "score" | "created_at">[];
-  const write = (writing ?? []) as { id: string; score: number | null; created_at: string }[];
-  const writingAvg = avg(write.filter((w) => w.score != null).map((w) => Number(w.score)));
 
   const bands = (skill: string) =>
     all.filter((r) => r.skill === skill && r.band != null).map((r) => Number(r.band));
@@ -62,7 +55,7 @@ export default async function DashboardPage() {
   const speakingBands = speak.filter((s) => s.score != null).map((s) => Number(s.score));
   const speakingAvg = avg(speakingBands);
 
-  const totalCompleted = all.length + speak.length + write.length;
+  const totalCompleted = all.length + speak.length;
 
   // Reading band history as a chronological series (oldest first) for the trend.
   const readingSeries: BandPoint[] = all
@@ -88,14 +81,6 @@ export default async function DashboardPage() {
       raw: null,
       total: null,
       at: s.created_at,
-    })),
-    ...write.map((w) => ({
-      id: w.id,
-      skill: "writing",
-      band: w.score != null ? Number(w.score) : null,
-      raw: null,
-      total: null,
-      at: w.created_at,
     })),
   ]
     .sort((a, b) => +new Date(b.at) - +new Date(a.at))
@@ -174,8 +159,8 @@ export default async function DashboardPage() {
             href="/writing"
             icon={<PenLine className="h-5 w-5" />}
             title="Writing"
-            metric={writingAvg != null ? `Band ${writingAvg}` : `${write.length} submissions`}
-            sub={write.length ? `${write.length} submissions` : "Task 1 & 2 · AI feedback"}
+            metric="Coming soon"
+            sub="Task 1 & 2"
           />
         </div>
       </section>
