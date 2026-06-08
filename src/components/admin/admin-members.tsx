@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Crown, Loader2, X } from "lucide-react";
-import { searchUsers, setPremium, type MemberRow } from "@/app/actions/admin";
+import { Search, Crown, Loader2, X, Zap } from "lucide-react";
+import { searchUsers, setPremium, giftXp, type MemberRow } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { isPremiumActive } from "@/lib/premium";
 
@@ -19,6 +19,8 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [months, setMonths] = useState<Record<string, number>>({});
+  const [giftBusyId, setGiftBusyId] = useState<string | null>(null);
+  const [giftAmount, setGiftAmount] = useState<Record<string, number>>({});
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -50,6 +52,22 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
         ? `${res.email} is Premium until ${new Date(res.premium_until).toLocaleDateString()}.`
         : `Premium removed from ${res.email}.`,
     });
+  }
+
+  async function gift(u: MemberRow) {
+    if (!u.email) return;
+    const amount = giftAmount[u.id] ?? 100;
+    if (!amount) return;
+    setGiftBusyId(u.id);
+    setMsg(null);
+    const res = await giftXp(u.email, amount);
+    setGiftBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, xp: res.xp } : x)));
+    setMsg({ ok: true, text: `Gifted ${amount} XP to ${res.email} (now ${res.xp} XP).` });
   }
 
   return (
@@ -110,7 +128,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         )}
                       </p>
                       <p className="truncate text-xs text-muted">
-                        {u.email}
+                        {u.email} · {u.xp} XP
                         {premium && u.premium_until
                           ? ` · until ${new Date(u.premium_until).toLocaleDateString()}`
                           : " · Free"}
@@ -118,7 +136,8 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Premium */}
                     <select
                       value={m}
                       onChange={(e) =>
@@ -149,6 +168,32 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         Revoke
                       </button>
                     )}
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
+                    {/* Gift XP */}
+                    <input
+                      type="number"
+                      value={giftAmount[u.id] ?? 100}
+                      step={50}
+                      onChange={(e) =>
+                        setGiftAmount((prev) => ({ ...prev, [u.id]: Number(e.target.value) }))
+                      }
+                      className="h-9 w-20 rounded-lg border border-border bg-surface-2 px-2 text-sm outline-none focus:border-primary/40"
+                      aria-label="XP amount"
+                    />
+                    <button
+                      onClick={() => gift(u)}
+                      disabled={giftBusyId === u.id}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 text-sm font-medium text-amber-600 hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-400"
+                    >
+                      {giftBusyId === u.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Zap className="h-3.5 w-3.5" />
+                      )}
+                      Gift XP
+                    </button>
                   </div>
                 </li>
               );

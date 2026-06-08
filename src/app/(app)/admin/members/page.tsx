@@ -10,7 +10,7 @@ export default async function AdminMembersPage() {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, name, role, premium_until")
+    .select("id, email, name, role, premium_until, xp")
     .order("created_at", { ascending: false })
     .limit(20);
 

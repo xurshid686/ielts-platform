@@ -144,6 +144,7 @@ export type MemberRow = {
   name: string | null;
   role: string;
   premium_until: string | null;
+  xp: number;
 };
 
 // Search accounts by email or name (admin-only). Empty query returns recent users.
@@ -158,7 +159,7 @@ export async function searchUsers(
   const q = query.trim().replace(/[,()*\\]/g, "");
   let req = supabase
     .from("profiles")
-    .select("id, email, name, role, premium_until")
+    .select("id, email, name, role, premium_until, xp")
     .order("created_at", { ascending: false })
     .limit(20);
   if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
@@ -195,6 +196,30 @@ export async function setPremium(email: string, months: number): Promise<SetPrem
     name: row?.name ?? null,
     premium_until: row?.premium_until ?? null,
   };
+}
+
+export type GiftXpResult =
+  | { ok: true; email: string; name: string | null; xp: number }
+  | { ok: false; error: string };
+
+// Add (or with a negative amount, deduct) XP for a user by email.
+export async function giftXp(email: string, amount: number): Promise<GiftXpResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.rpc("gift_xp", {
+    target_email: email.trim(),
+    amount,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { email: string; name: string | null; xp: number }
+    | undefined;
+  revalidatePath("/admin/members");
+  revalidatePath("/admin");
+  return { ok: true, email: row?.email ?? email, name: row?.name ?? null, xp: row?.xp ?? 0 };
 }
 
 export async function deleteTest(id: string): Promise<ActionResult> {
