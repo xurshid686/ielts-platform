@@ -40,13 +40,10 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const res = (results ?? []) as Result[];
   const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
 
-  // Enrich each test with the user's attempt count + best band, then order
-  // full tests first, then passages by number.
+  // Enrich each test with the user's attempt count + best band. Newest uploads
+  // first so freshly added tests appear at the top.
   const items: BrowserItem[] = [...testList]
-    .sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === "full" ? -1 : 1;
-      return (a.passage ?? 99) - (b.passage ?? 99);
-    })
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
     .map((t) => {
       const attempts = res.filter((r) => r.test_id === t.id);
       const bandAttempts = attempts.filter((a) => a.band != null).map((a) => Number(a.band));
