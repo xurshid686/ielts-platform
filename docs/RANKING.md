@@ -190,7 +190,34 @@ fresh notification.
 UI: `NotificationBell` (header), `/reports` (history), `/reports/[id]`
 (`WeeklyReportView`), "Send report" button in `admin-members`.
 
-## 10. Security checklist
+## 10. Learning, sharing & timezone (migration `0018`)
+
+**Per-question-type analytics + recommendations** (`src/lib/analytics.ts`,
+`FocusArea`). A result only stores an aggregate score, so a test's accuracy is
+attributed to every type it's tagged with (`tests.question_types`); averaged
+over many tests this reliably surfaces the **weakest type**. The dashboard then
+recommends unattempted, accessible reading tests carrying that type, ordered by
+**closest difficulty to the user's rating** — so the next test is both relevant
+and appropriately challenging.
+
+**Rating history graph** (`RatingTrend`). Plots `results.rating_after` over time
+for rated reading attempts — no new storage, it reads what `apply_rating`
+already records. Shown on the dashboard and the public profile.
+
+**Public shareable profile** `/u/[id]` (top-level, no auth). Backed by
+`public_profile(uuid)` — a SECURITY DEFINER function returning a **safe** JSON
+snapshot (name, avatar, rating, tier, peak, rank, best band, rating history,
+achievements — **no email**), granted to `anon` + `authenticated`. Has
+`generateMetadata`/OG tags for link previews, a share button, and CTAs — built
+for word-of-mouth growth. Linked from the account menu and every leaderboard row.
+
+**Per-user timezone.** `profiles.timezone` (IANA) is auto-captured from the
+browser (`TimezoneSync` → `setTimezone`). `record_activity` (streaks) and the
+weekly-report functions now compute the day/Sunday/week boundaries in the
+**user's** zone instead of UTC, so a UTC+5 student's streak rolls over at their
+local midnight and the report lands on their local Sunday.
+
+## 11. Security checklist
 
 - ✅ Rating columns server-only (0014 trigger + RLS).
 - ✅ Only keyed, first-attempt reading results are rated (no client trust).

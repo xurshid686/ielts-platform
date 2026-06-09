@@ -21,6 +21,7 @@ export type Profile = {
   rating: number; // competitive Reading rating (Bronze … Legend)
   peak_rating: number; // highest rating ever reached
   rated_count: number; // # of first-attempt, rated reading tests
+  timezone: string; // IANA tz (e.g. 'Asia/Tashkent'); drives streak/report day boundaries
   created_at: string;
 };
 
@@ -135,6 +136,28 @@ export type LeaderboardPeriodRow = {
   points: number;
   tests: number;
   rank: number;
+};
+
+// Shape returned by the public_profile(uuid) RPC — safe, no PII.
+export type PublicProfile = {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  rating: number;
+  peak_rating: number;
+  rated_count: number;
+  member_since: string;
+  tests_completed: number;
+  global_rank: number | null;
+  best_band: number | null;
+  history: { r: number; at: string }[];
+  achievements: {
+    id: string;
+    name: string;
+    icon: string;
+    category: string;
+    earned_at: string;
+  }[];
 };
 
 export type ProfileStats = {

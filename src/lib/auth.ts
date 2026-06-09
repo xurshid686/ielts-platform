@@ -36,6 +36,7 @@ export async function requireProfile(): Promise<Profile> {
       rating: 1000,
       peak_rating: 1000,
       rated_count: 0,
+      timezone: "UTC",
       created_at: new Date().toISOString(),
     };
   }

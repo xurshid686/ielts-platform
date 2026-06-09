@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { PremiumWelcome } from "@/components/premium-welcome";
+import { TimezoneSync } from "@/components/timezone-sync";
 import { requireProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
 import { createClient } from "@/lib/supabase/server";
@@ -24,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppShell profile={profile} notifications={(notifications ?? []) as Notification[]}>
+      <TimezoneSync current={profile.timezone ?? "UTC"} />
       <PremiumWelcome
         show={profile.premium_announce && isPremiumActive(profile)}
         until={profile.premium_until}

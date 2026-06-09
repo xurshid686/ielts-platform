@@ -27,7 +27,11 @@ import { CriteriaBars } from "@/components/dashboard/criteria-bars";
 import { computeBadges } from "@/lib/badges";
 import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
 import { RatingCard } from "@/components/rating/rating-card";
-import type { Result, SpeakingSubmission, LeaderboardGlobalRow } from "@/types/database";
+import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
+import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
+import { computeTypeStats, weakestType } from "@/lib/analytics";
+import { isPremiumActive } from "@/lib/premium";
+import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 
 type Activity = {
   id: string;
@@ -48,19 +52,24 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Reading / listening / writing live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }, { data: rankRow }] = await Promise.all([
-    supabase
-      .from("results")
-      .select("*")
-      .eq("user_id", profile.id)
-      .order("submitted_at", { ascending: false }),
-    supabase
-      .from("speaking_submissions")
-      .select("id, score, created_at, feedback")
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false }),
-    supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
-  ]);
+  const [{ data: results }, { data: speaking }, { data: rankRow }, { data: readingTests }] =
+    await Promise.all([
+      supabase
+        .from("results")
+        .select("*")
+        .eq("user_id", profile.id)
+        .order("submitted_at", { ascending: false }),
+      supabase
+        .from("speaking_submissions")
+        .select("id, score, created_at, feedback")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false }),
+      supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
+      supabase
+        .from("tests")
+        .select("id, title, kind, tier, passage, question_types, difficulty")
+        .eq("skill", "reading"),
+    ]);
 
   const globalRank = (rankRow as Pick<LeaderboardGlobalRow, "rank"> | null)?.rank ?? null;
 
@@ -252,6 +261,43 @@ export default async function DashboardPage() {
     .sort((a, b) => +new Date(b.at) - +new Date(a.at))
     .slice(0, 8);
 
+  // ---- Question-type analytics + recommended next reading test ----
+  const readingTestList = (readingTests ?? []) as Pick<
+    Test,
+    "id" | "title" | "kind" | "tier" | "passage" | "question_types" | "difficulty"
+  >[];
+  const typeStats = computeTypeStats(all, readingTestList, "reading");
+  const weakQType = weakestType(typeStats);
+  const attemptedReadingIds = new Set(
+    all.filter((r) => r.skill === "reading").map((r) => r.test_id),
+  );
+  const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
+  const userRating = profile.rating ?? 1000;
+  const recommended: RecommendedTest[] = readingTestList
+    .filter((t) => !attemptedReadingIds.has(t.id))
+    .filter((t) => (t.tier ?? "free") === "free" || canAccessPremium)
+    .filter((t) => (weakQType ? (t.question_types ?? []).includes(weakQType.type) : true))
+    .sort(
+      (a, b) =>
+        Math.abs((a.difficulty ?? 1500) - userRating) -
+        Math.abs((b.difficulty ?? 1500) - userRating),
+    )
+    .slice(0, 3)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      kind: t.kind ?? "single",
+      passage: t.passage,
+      difficulty: t.difficulty ?? 1500,
+    }));
+
+  // ---- Rating history (rated reading results, oldest first) ----
+  const ratingPoints: RatingPoint[] = all
+    .filter((r) => r.skill === "reading" && r.rated && r.rating_after != null)
+    .slice()
+    .reverse()
+    .map((r) => ({ rating: r.rating_after as number, at: r.submitted_at }));
+
   return (
     <div className="space-y-8">
       <div>
@@ -375,6 +421,12 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {/* Focus area: weakest question types + recommended next test */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">What to practise next</h2>
+        <FocusArea stats={typeStats} weakest={weakQType} recommended={recommended} />
+      </section>
+
       {/* Badges showcase */}
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -414,11 +466,14 @@ export default async function DashboardPage() {
         </Link>
       </section>
 
-      {/* Trend + activity heatmap */}
+      {/* Band trend + rating history */}
       <section className="grid gap-4 lg:grid-cols-2">
         <ProgressTrends series={series} />
-        <ActivityHeatmap dates={allDates} />
+        <RatingTrend points={ratingPoints} />
       </section>
+
+      {/* Activity heatmap */}
+      <ActivityHeatmap dates={allDates} />
 
       {/* Speaking breakdown + recent activity */}
       <section className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">

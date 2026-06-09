@@ -44,3 +44,22 @@ export async function setTargetBand(band: number | null): Promise<SetTargetResul
   revalidatePath("/dashboard");
   return { ok: true };
 }
+
+// Store the user's IANA timezone (auto-detected by the browser). Day/week
+// boundaries for streaks and weekly reports are computed in this zone. It's a
+// user-owned, non-privileged field, so a plain self-update (RLS) is enough.
+export async function setTimezone(tz: string): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false };
+
+  // Basic IANA shape ("Area/Location") or "UTC" — reject anything else.
+  if (tz !== "UTC" && !/^[A-Za-z][A-Za-z_+-]*\/[A-Za-z0-9_+\-/]+$/.test(tz)) {
+    return { ok: false };
+  }
+
+  await supabase.from("profiles").update({ timezone: tz }).eq("id", user.id);
+  return { ok: true };
+}

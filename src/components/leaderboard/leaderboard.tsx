@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Globe, CalendarDays, CalendarRange, Trophy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { RankBadge, TierChip } from "@/components/rating/rank-badge";
@@ -159,7 +160,9 @@ function RowItem({ row, me }: { row: Row; me: boolean }) {
       <Avatar name={row.name} url={row.avatar_url} />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 truncate text-sm font-medium">
-          {row.name || "Anonymous"}
+          <Link href={`/u/${row.id}`} className="truncate hover:underline">
+            {row.name || "Anonymous"}
+          </Link>
           {me && (
             <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
               YOU
@@ -226,15 +229,18 @@ function Podium({ rows, meId }: { rows: Row[]; meId: string }) {
       {order.map((r, i) =>
         r ? (
           <div key={r.id} className="flex flex-col items-center">
-            <RankBadge rating={r.rating} size={i === 1 ? "lg" : "md"} />
-            <p
+            <Link href={`/u/${r.id}`}>
+              <RankBadge rating={r.rating} size={i === 1 ? "lg" : "md"} />
+            </Link>
+            <Link
+              href={`/u/${r.id}`}
               className={cn(
-                "mt-2 max-w-full truncate text-center text-sm font-semibold",
+                "mt-2 max-w-full truncate text-center text-sm font-semibold hover:underline",
                 r.id === meId && "text-primary",
               )}
             >
               {r.name || "Anonymous"}
-            </p>
+            </Link>
             <p className="text-xs text-muted">{tierForRating(r.rating).label}</p>
             <div
               className={cn(
