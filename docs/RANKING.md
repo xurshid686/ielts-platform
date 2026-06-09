@@ -157,7 +157,40 @@ select-own policy and **no** client insert policy.
 - **Seasons:** add a `season_id` and snapshot final standings per period if you
   want a permanent winners archive.
 
-## 9. Security checklist
+## 9. Weekly progress reports (migration `0017_weekly_reports.sql`)
+
+A once-a-week digest per user (ISO week, **Mon–Sun**), delivered as an in-app
+**notification** (bell in the header).
+
+**Contents** (`weekly_reports` row): tests completed, average band, best band,
+accuracy %, rating change (start → end + delta), league points, streak, and new
+achievements for the week.
+
+**Delivery — lazy + idempotent.** `ensure_weekly_report()` runs from the app
+layout on every page load. It finds the most recent week whose **Sunday** has
+arrived, and if that week has no report yet *and* the user did ≥1 test, it builds
+one + posts a notification — exactly once (unique on `(user, period_start)`). So
+the report appears on Sunday; if the user wasn't around, they still get it the
+next day they open the app. No cron required.
+
+**Admin override ("second chance").** `admin_send_weekly_report(user[, monday])`
+(admin-gated) lets an admin send any user a report on any day, from
+**Admin → Members → "Send report"**. Defaults to the current week; pass a Monday
+to target another week. Re-sending refreshes the numbers (upsert) and posts a
+fresh notification.
+
+| Object | Purpose |
+|---|---|
+| `notifications` | generic in-app inbox (select/update/delete own; insert only by definer funcs) |
+| `weekly_reports` | one digest per `(user, week)` (select own/admin only) |
+| `build_weekly_report(user, monday, by)` | **internal** compute+store+notify (execute revoked from clients) |
+| `ensure_weekly_report()` | lazy auto-delivery for the caller |
+| `admin_send_weekly_report(user, monday?)` | admin manual send |
+
+UI: `NotificationBell` (header), `/reports` (history), `/reports/[id]`
+(`WeeklyReportView`), "Send report" button in `admin-members`.
+
+## 10. Security checklist
 
 - ✅ Rating columns server-only (0014 trigger + RLS).
 - ✅ Only keyed, first-attempt reading results are rated (no client trust).

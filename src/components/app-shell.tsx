@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
-import type { Profile } from "@/types/database";
+import type { Profile, Notification } from "@/types/database";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -34,9 +35,11 @@ const NAV = [
 
 export function AppShell({
   profile,
+  notifications = [],
   children,
 }: {
   profile: Profile;
+  notifications?: Notification[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -115,7 +118,8 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="hidden lg:block" />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <NotificationBell notifications={notifications} />
             <ThemeToggle />
             <AccountMenu profile={profile} />
           </div>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Crown, Loader2, X, Zap } from "lucide-react";
+import { Search, Crown, Loader2, X, Zap, BarChart3 } from "lucide-react";
 import { searchUsers, setPremium, giftXp, type MemberRow } from "@/app/actions/admin";
+import { adminSendWeeklyReport } from "@/app/actions/reports";
 import { Button } from "@/components/ui/button";
 import { isPremiumActive } from "@/lib/premium";
 
@@ -21,6 +22,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [months, setMonths] = useState<Record<string, number>>({});
   const [giftBusyId, setGiftBusyId] = useState<string | null>(null);
   const [giftAmount, setGiftAmount] = useState<Record<string, number>>({});
+  const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -68,6 +70,23 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     }
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, xp: res.xp } : x)));
     setMsg({ ok: true, text: `Gifted ${amount} XP to ${res.email} (now ${res.xp} XP).` });
+  }
+
+  async function sendReport(u: MemberRow) {
+    setReportBusyId(u.id);
+    setMsg(null);
+    const res = await adminSendWeeklyReport(u.id);
+    setReportBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setMsg({
+      ok: true,
+      text: `Weekly report sent to ${u.name || u.email} (${res.tests} test${
+        res.tests === 1 ? "" : "s"
+      }${res.avgBand != null ? `, avg band ${res.avgBand}` : ""}).`,
+    });
   }
 
   return (
@@ -193,6 +212,23 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         <Zap className="h-3.5 w-3.5" />
                       )}
                       Gift XP
+                    </button>
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
+                    {/* Weekly report — admins can send any day (the "second chance") */}
+                    <button
+                      onClick={() => sendReport(u)}
+                      disabled={reportBusyId === u.id}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                      title="Send this user their weekly progress report now"
+                    >
+                      {reportBusyId === u.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <BarChart3 className="h-3.5 w-3.5" />
+                      )}
+                      Send report
                     </button>
                   </div>
                 </li>

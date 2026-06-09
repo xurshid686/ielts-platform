@@ -85,6 +85,36 @@ export type UserAchievement = {
   earned_at: string;
 };
 
+export type Notification = {
+  id: string;
+  user_id: string;
+  type: "weekly_report" | "info" | string;
+  title: string;
+  body: string | null;
+  data: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type WeeklyReport = {
+  id: string;
+  user_id: string;
+  period_start: string; // Monday (ISO date)
+  period_end: string; // Sunday (ISO date)
+  tests_completed: number;
+  avg_band: number | null;
+  best_band: number | null;
+  avg_accuracy: number | null; // percent
+  points: number;
+  rating_start: number | null;
+  rating_end: number | null;
+  rating_delta: number;
+  new_achievements: number;
+  streak: number;
+  generated_by: "auto" | "admin";
+  created_at: string;
+};
+
 // Safe public projection exposed by the leaderboard_* views (no email/auth).
 export type LeaderboardGlobalRow = {
   id: string;
