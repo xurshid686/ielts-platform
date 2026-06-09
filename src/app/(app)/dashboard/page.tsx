@@ -26,7 +26,8 @@ import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
 import { computeBadges } from "@/lib/badges";
 import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
-import type { Result, SpeakingSubmission } from "@/types/database";
+import { RatingCard } from "@/components/rating/rating-card";
+import type { Result, SpeakingSubmission, LeaderboardGlobalRow } from "@/types/database";
 
 type Activity = {
   id: string;
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Reading / listening / writing live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }] = await Promise.all([
+  const [{ data: results }, { data: speaking }, { data: rankRow }] = await Promise.all([
     supabase
       .from("results")
       .select("*")
@@ -58,7 +59,10 @@ export default async function DashboardPage() {
       .select("id, score, created_at, feedback")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false }),
+    supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
   ]);
+
+  const globalRank = (rankRow as Pick<LeaderboardGlobalRow, "rank"> | null)?.rank ?? null;
 
   const all = (results ?? []) as Result[];
   const speak = (speaking ?? []) as Pick<
@@ -324,6 +328,14 @@ export default async function DashboardPage() {
           />
         </div>
       </div>
+
+      {/* Competitive reading rating (defaults guard the pre-migration window) */}
+      <RatingCard
+        rating={profile.rating ?? 1000}
+        peak={profile.peak_rating ?? 1000}
+        ratedCount={profile.rated_count ?? 0}
+        globalRank={globalRank}
+      />
 
       {/* Goal tracker + study plan */}
       <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />

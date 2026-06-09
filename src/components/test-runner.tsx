@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft } from "lucide-react";
-import { saveResult } from "@/app/actions/results";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
+import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { Button } from "@/components/ui/button";
+import { tierForRating } from "@/lib/rating";
 
 type Props = {
   testId: string;
@@ -24,6 +25,7 @@ type Saved = {
   longest_streak: number;
   xp: number;
   firstToday: boolean;
+  rating: RatingOutcome | null;
 };
 
 type Answers = Record<string, string>;
@@ -64,6 +66,9 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handled = useRef(false);
   const celebrated = useRef(false);
+  // When the test iframe first loads — used to measure completion time.
+  // Set on mount (and refined on iframe load) to keep render pure.
+  const startedAt = useRef<number>(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Saved | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -79,7 +84,8 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
     handled.current = true;
     setSaving(true);
     setError(null);
-    const res = await saveResult({ testId, skill, raw, total, band, answers });
+    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt.current) / 1000));
+    const res = await saveResult({ testId, skill, raw, total, band, answers, durationSeconds });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -96,6 +102,7 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
       longest_streak: res.longest_streak,
       xp: res.xp,
       firstToday: res.firstToday,
+      rating: res.rating,
     });
     router.refresh();
   }
@@ -111,6 +118,10 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
     return () => window.removeEventListener("message", onMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expectedOrigin]);
+
+  useEffect(() => {
+    startedAt.current = Date.now();
+  }, []);
 
   useEffect(() => {
     function onFs() {
@@ -160,6 +171,23 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
               <CheckCircle2 className="h-3.5 w-3.5" /> Saved · Band {saved.band}
             </span>
           )}
+          {saved?.rating?.rated && (
+            <span
+              className={`hidden items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums sm:inline-flex ${
+                saved.rating.delta >= 0
+                  ? "bg-primary/10 text-primary"
+                  : "bg-danger/10 text-danger"
+              }`}
+            >
+              {saved.rating.delta >= 0 ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5" />
+              )}
+              {saved.rating.delta >= 0 ? `+${saved.rating.delta}` : saved.rating.delta} ·{" "}
+              {saved.rating.rating} {tierForRating(saved.rating.rating ?? 0).emoji}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!graded && (
@@ -185,6 +213,9 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
         title={title}
         className="min-h-0 w-full flex-1 bg-white"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        onLoad={() => {
+          startedAt.current = Date.now();
+        }}
       />
 
       {manual && !saved && (
@@ -274,6 +305,30 @@ function Celebration({
             <p className="text-xs text-muted">total XP</p>
           </div>
         </div>
+
+        {saved.rating?.rated && saved.rating.rating != null && (
+          <div className="mt-3 flex items-center justify-between rounded-xl bg-primary/5 px-4 py-3 text-sm">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="text-lg">{tierForRating(saved.rating.rating).emoji}</span>
+              {tierForRating(saved.rating.rating).label} · {saved.rating.rating}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 font-semibold tabular-nums ${
+                saved.rating.delta >= 0 ? "text-success" : "text-danger"
+              }`}
+            >
+              {saved.rating.delta >= 0 ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : (
+                <TrendingDown className="h-4 w-4" />
+              )}
+              {saved.rating.delta >= 0 ? `+${saved.rating.delta}` : saved.rating.delta}
+              {saved.rating.points > 0 && (
+                <span className="ml-1 text-muted">· {saved.rating.points} pts</span>
+              )}
+            </span>
+          </div>
+        )}
         <Button className="mt-6 w-full" onClick={onClose}>
           Back to {skill}
         </Button>

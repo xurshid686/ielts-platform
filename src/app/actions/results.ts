@@ -15,6 +15,20 @@ export type SaveResultInput = {
   total: number;
   band?: number;
   answers?: Answers;
+  // Seconds the student spent on the test (TestRunner measures iframe-load →
+  // result). Drives the "completed too fast" anti-cheat check. Optional.
+  durationSeconds?: number;
+};
+
+// What the rating engine did with this attempt (null when it wasn't eligible —
+// e.g. a retake, a non-reading skill, or a keyless test).
+export type RatingOutcome = {
+  rated: boolean;
+  rating: number | null; // new rating after this attempt
+  delta: number; // rating change (may be negative)
+  points: number; // weekly/monthly points earned
+  flagged: boolean;
+  reason: string | null;
 };
 
 export type SaveResultResult =
@@ -26,6 +40,7 @@ export type SaveResultResult =
       streak: number;
       longest_streak: number;
       xp: number;
+      rating: RatingOutcome | null;
     }
   | { ok: false; error: string };
 
@@ -85,7 +100,16 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     : recentQuery.is("test_id", null);
   const { data: recent } = await recentQuery;
   if (recent && recent.length > 0) {
-    return { ok: true, deduped: true, firstToday: false, band, streak: 0, longest_streak: 0, xp: 0 };
+    return {
+      ok: true,
+      deduped: true,
+      firstToday: false,
+      band,
+      streak: 0,
+      longest_streak: 0,
+      xp: 0,
+      rating: null,
+    };
   }
 
   // Was this the first completed activity today? (drives the once-a-day celebration)
@@ -101,6 +125,11 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   // (The answer key already lives on the test; we only store what they typed.)
   const storedAnswers = asAnswers(input.answers);
 
+  const duration =
+    typeof input.durationSeconds === "number" && input.durationSeconds >= 0
+      ? Math.round(input.durationSeconds)
+      : null;
+
   const baseRow = {
     user_id: user.id,
     test_id: input.testId,
@@ -110,20 +139,60 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     band,
   };
 
-  let { error } = await supabase
+  // Insert and grab the new row's id so the rating engine can grade it.
+  let resultId: string | null = null;
+  let { data: inserted, error } = await supabase
     .from("results")
-    .insert({ ...baseRow, answers: storedAnswers });
-  // Graceful fallback if the 0013 migration hasn't been applied yet
-  // (42703 = undefined_column): save the result without the answers.
-  if (error && (error.code === "42703" || /answers/i.test(error.message))) {
-    ({ error } = await supabase.from("results").insert(baseRow));
+    .insert({ ...baseRow, answers: storedAnswers, duration_seconds: duration })
+    .select("id")
+    .single();
+  // Graceful fallback if migration 0013/0016 hasn't been applied yet
+  // (42703 = undefined_column): retry without the newer columns.
+  if (error && (error.code === "42703" || /answers|duration_seconds/i.test(error.message))) {
+    ({ data: inserted, error } = await supabase
+      .from("results")
+      .insert(baseRow)
+      .select("id")
+      .single());
   }
   if (error) return { ok: false, error: error.message };
+  resultId = (inserted as { id?: string } | null)?.id ?? null;
+
+  // --- Rating: only the FIRST attempt of a server-graded reading test moves
+  // the standing. apply_rating() is the single trusted place for that logic
+  // (it also runs every anti-cheat rule). Degrades gracefully pre-0016. ---
+  let rating: RatingOutcome | null = null;
+  if (resultId) {
+    const { data: rate, error: rateErr } = await supabase.rpc("apply_rating", {
+      p_result_id: resultId,
+    });
+    const row = (rate as
+      | {
+          rated: boolean;
+          rating: number | null;
+          rating_delta: number;
+          points: number;
+          flagged: boolean;
+          reason: string | null;
+        }[]
+      | null)?.[0];
+    if (!rateErr && row) {
+      rating = {
+        rated: row.rated,
+        rating: row.rating,
+        delta: row.rating_delta ?? 0,
+        points: row.points ?? 0,
+        flagged: row.flagged,
+        reason: row.reason,
+      };
+    }
+  }
 
   const { data: act } = await supabase.rpc("record_activity", { p_xp: 20 });
   const a = act?.[0];
 
   revalidatePath("/dashboard");
+  revalidatePath("/leaderboard");
   revalidatePath(`/${input.skill}`);
 
   return {
@@ -134,5 +203,6 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     streak: a?.streak ?? 0,
     longest_streak: a?.longest_streak ?? 0,
     xp: a?.xp ?? 0,
+    rating,
   };
 }

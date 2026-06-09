@@ -18,6 +18,9 @@ export type Profile = {
   longest_streak: number;
   last_activity_date: string | null;
   xp: number;
+  rating: number; // competitive Reading rating (Bronze … Legend)
+  peak_rating: number; // highest rating ever reached
+  rated_count: number; // # of first-attempt, rated reading tests
   created_at: string;
 };
 
@@ -29,6 +32,7 @@ export type Test = {
   tier: "free" | "premium";
   question_types: string[];
   times_done: number; // total completions across all users
+  difficulty: number; // self-tuning Elo difficulty (reading); 1500 = average
   level: string | null;
   passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;
@@ -52,7 +56,68 @@ export type Result = {
   // Submitted answers for review: { "1": "terminal", ... }. NULL for legacy
   // results saved before migration 0013.
   answers: Record<string, string> | null;
+  // Ranking bookkeeping (migration 0016). Only the first attempt of a
+  // server-graded reading test is `rated`; retakes/flagged runs are not.
+  duration_seconds: number | null;
+  rated: boolean;
+  points: number; // weekly/monthly points earned (>= 0)
+  rating_before: number | null;
+  rating_after: number | null;
+  rating_delta: number | null;
+  flagged: boolean;
+  flag_reason: string | null;
   submitted_at: string;
+};
+
+export type Achievement = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: "rating" | "activity" | "accuracy" | "streak";
+  threshold: number | null;
+  sort: number;
+};
+
+export type UserAchievement = {
+  user_id: string;
+  achievement_id: string;
+  earned_at: string;
+};
+
+// Safe public projection exposed by the leaderboard_* views (no email/auth).
+export type LeaderboardGlobalRow = {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  rating: number;
+  peak_rating: number;
+  rated_count: number;
+  tests_completed: number;
+  rank: number;
+};
+
+export type LeaderboardPeriodRow = {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  rating: number;
+  points: number;
+  tests: number;
+  rank: number;
+};
+
+export type ProfileStats = {
+  id: string;
+  rating: number;
+  peak_rating: number;
+  rated_count: number;
+  reading_attempts: number;
+  total_attempts: number;
+  total_questions: number;
+  total_correct: number;
+  first_attempt_avg_band: number | null;
+  best_band: number | null;
 };
 
 export type WritingSubmission = {
@@ -117,6 +182,12 @@ export type Database = {
         Insert: Insert<SpeakingSubmission>;
         Update: Update<SpeakingSubmission>;
       };
+      achievements: { Row: Row<Achievement>; Insert: Insert<Achievement>; Update: Update<Achievement> };
+      user_achievements: {
+        Row: Row<UserAchievement>;
+        Insert: Insert<UserAchievement>;
+        Update: Update<UserAchievement>;
+      };
     };
     Functions: {
       record_activity: {
@@ -124,6 +195,17 @@ export type Database = {
         Returns: { streak: number; longest_streak: number; xp: number }[];
       };
       is_admin: { Args: { uid: string }; Returns: boolean };
+      apply_rating: {
+        Args: { p_result_id: string };
+        Returns: {
+          rated: boolean;
+          rating: number | null;
+          rating_delta: number;
+          points: number;
+          flagged: boolean;
+          reason: string | null;
+        }[];
+      };
     };
   };
 };

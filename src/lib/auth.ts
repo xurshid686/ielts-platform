@@ -33,6 +33,9 @@ export async function requireProfile(): Promise<Profile> {
       longest_streak: 0,
       last_activity_date: null,
       xp: 0,
+      rating: 1000,
+      peak_rating: 1000,
+      rated_count: 0,
       created_at: new Date().toISOString(),
     };
   }

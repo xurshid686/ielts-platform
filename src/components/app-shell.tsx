@@ -15,6 +15,7 @@ import {
   X,
   GraduationCap,
   Award,
+  Trophy,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/listening", label: "Listening", icon: Headphones },
   { href: "/writing", label: "Writing", icon: PenLine },
   { href: "/speaking", label: "Speaking", icon: Mic },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/badges", label: "Badges", icon: Award },
 ];
 
