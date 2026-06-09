@@ -11,7 +11,9 @@
     "seed": "node scripts/seed-tests.mjs",
     "backfill:keys": "node scripts/backfill-keys.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "save-dev": "node scripts/save-dev.mjs",
+    "go-live": "node scripts/go-live.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
