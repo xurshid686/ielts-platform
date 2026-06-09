@@ -50,7 +50,7 @@ export function AppShell({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-[260px] border-r border-border bg-surface p-4 transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-[260px] border-r border-border bg-surface p-4 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:self-start lg:overflow-y-auto",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
