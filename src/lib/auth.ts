@@ -28,6 +28,7 @@ export async function requireProfile(): Promise<Profile> {
       is_owner: false,
       premium_until: null,
       premium_announce: false,
+      target_band: null,
       streak: 0,
       longest_streak: 0,
       last_activity_date: null,

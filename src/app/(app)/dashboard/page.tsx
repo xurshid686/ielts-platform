@@ -25,6 +25,7 @@ import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
 import { computeBadges } from "@/lib/badges";
+import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
 import type { Result, SpeakingSubmission } from "@/types/database";
 
 type Activity = {
@@ -176,6 +177,14 @@ export default async function DashboardPage() {
   const strongest = ranked[0];
   const weakest = ranked[ranked.length - 1];
 
+  // Goal tracker: per-skill averages for the study plan.
+  const goalSkills: GoalSkill[] = skillStats.map((s) => ({
+    key: s.key,
+    title: s.title,
+    href: s.href,
+    avg: s.avg,
+  }));
+
   // ---- This week vs last week ----------------------------------------------
   const allDates = [...all.map((r) => r.submitted_at), ...speak.map((s) => s.created_at)];
   const now = Date.now();
@@ -316,8 +325,11 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Insights */}
-      {strongest && weakest && (
+      {/* Goal tracker + study plan */}
+      <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
+
+      {/* Insights (only when no goal is set — the tracker covers "focus next" otherwise) */}
+      {profile.target_band == null && strongest && weakest && (
         <Card className="flex items-start gap-3 border-primary/30 bg-primary/5">
           <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <p className="text-sm">

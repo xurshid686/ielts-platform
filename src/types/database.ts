@@ -13,6 +13,7 @@ export type Profile = {
   is_owner: boolean;
   premium_until: string | null; // ISO date; active premium while in the future
   premium_announce: boolean; // show the one-time "you're premium" congrats
+  target_band: number | null; // the student's goal band (1.0–9.0), or null
   streak: number;
   longest_streak: number;
   last_activity_date: string | null;
