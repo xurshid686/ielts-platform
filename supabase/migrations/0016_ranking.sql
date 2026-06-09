@@ -248,9 +248,9 @@ begin
   -- (C) DAILY FARM CAP — at most 15 rated tests per UTC day.
   if not v_flagged then
     select count(*) into v_today_rated
-    from public.results
-    where user_id = v_uid and rated
-      and (submitted_at at time zone 'utc')::date = (r.submitted_at at time zone 'utc')::date;
+    from public.results res
+    where res.user_id = v_uid and res.rated
+      and (res.submitted_at at time zone 'utc')::date = (r.submitted_at at time zone 'utc')::date;
     if v_today_rated >= 15 then
       v_flagged := true;
       v_reason  := 'daily rated-test cap reached';
@@ -280,10 +280,10 @@ begin
   -- ---- Consistency reward (applied to GAINS only) ----
   -- Mean accuracy of the user's last up-to-5 rated reading tests.
   select avg(x.acc) into v_recent_acc from (
-    select least(1.0, greatest(0.0, coalesce(raw,0)::double precision / greatest(coalesce(total,1),1))) as acc
-    from public.results
-    where user_id = v_uid and rated and skill = 'reading'
-    order by submitted_at desc
+    select least(1.0, greatest(0.0, coalesce(res.raw,0)::double precision / greatest(coalesce(res.total,1),1))) as acc
+    from public.results res
+    where res.user_id = v_uid and res.rated and res.skill = 'reading'
+    order by res.submitted_at desc
     limit 5
   ) x;
   v_consistency := case
@@ -333,9 +333,9 @@ begin
   if v_acc >= 1.0 then
     declare v_perfect int;
     begin
-      select count(*) into v_perfect from public.results
-      where user_id = v_uid and rated and skill = 'reading'
-        and total > 0 and raw = total;
+      select count(*) into v_perfect from public.results res
+      where res.user_id = v_uid and res.rated and res.skill = 'reading'
+        and res.total > 0 and res.raw = res.total;
       if v_perfect >= 1  then perform public.grant_achievement(v_uid, 'perfect_1');  end if;
       if v_perfect >= 3  then perform public.grant_achievement(v_uid, 'perfect_3');  end if;
       if v_perfect >= 10 then perform public.grant_achievement(v_uid, 'perfect_10'); end if;
