@@ -48,6 +48,9 @@ export type Result = {
   raw: number | null;
   total: number | null;
   band: number | null;
+  // Submitted answers for review: { "1": "terminal", ... }. NULL for legacy
+  // results saved before migration 0013.
+  answers: Record<string, string> | null;
   submitted_at: string;
 };
 

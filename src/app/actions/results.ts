@@ -97,14 +97,27 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     .single();
   const firstToday = (prof as { last_activity_date?: string | null } | null)?.last_activity_date !== today;
 
-  const { error } = await supabase.from("results").insert({
+  // Persist the student's answers so they can reopen the test for review.
+  // (The answer key already lives on the test; we only store what they typed.)
+  const storedAnswers = asAnswers(input.answers);
+
+  const baseRow = {
     user_id: user.id,
     test_id: input.testId,
     skill: input.skill,
     raw,
     total,
     band,
-  });
+  };
+
+  let { error } = await supabase
+    .from("results")
+    .insert({ ...baseRow, answers: storedAnswers });
+  // Graceful fallback if the 0013 migration hasn't been applied yet
+  // (42703 = undefined_column): save the result without the answers.
+  if (error && (error.code === "42703" || /answers/i.test(error.message))) {
+    ({ error } = await supabase.from("results").insert(baseRow));
+  }
   if (error) return { ok: false, error: error.message };
 
   const { data: act } = await supabase.rpc("record_activity", { p_xp: 20 });

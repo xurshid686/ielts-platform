@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   GraduationCap,
+  Award,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/listening", label: "Listening", icon: Headphones },
   { href: "/writing", label: "Writing", icon: PenLine },
   { href: "/speaking", label: "Speaking", icon: Mic },
+  { href: "/badges", label: "Badges", icon: Award },
 ];
 
 export function AppShell({

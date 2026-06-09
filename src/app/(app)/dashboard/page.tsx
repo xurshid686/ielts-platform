@@ -15,6 +15,7 @@ import {
   Lightbulb,
   TrendingUp,
   TrendingDown,
+  Award,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
@@ -23,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-trends";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
+import { computeBadges } from "@/lib/badges";
 import type { Result, SpeakingSubmission } from "@/types/database";
 
 type Activity = {
@@ -188,6 +190,19 @@ export default async function DashboardPage() {
 
   const totalCompleted = all.length + speak.length;
 
+  // ---- Badges ---------------------------------------------------------------
+  const badges = computeBadges({
+    streak: profile.streak,
+    longestStreak: profile.longest_streak,
+    xp: profile.xp,
+    results: all,
+    speaking: speak,
+  });
+  const earnedBadges = badges.filter((b) => b.earned);
+  const showcaseBadges = [...earnedBadges]
+    .sort((a, b) => +new Date(b.earnedAt ?? 0) - +new Date(a.earnedAt ?? 0))
+    .slice(0, 8);
+
   // ---- Speaking criteria averages (from stored Gemini feedback) ------------
   const critKeys = [
     ["fluency", "Fluency & Coherence"],
@@ -336,6 +351,45 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      {/* Badges showcase */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Badges</h2>
+          <Link
+            href="/badges"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            View all <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <Link href="/badges">
+          <Card interactive className="flex flex-wrap items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Award className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold tabular-nums">
+                {earnedBadges.length}
+                <span className="font-medium text-muted"> / {badges.length} earned</span>
+              </p>
+              {showcaseBadges.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1.5 text-2xl">
+                  {showcaseBadges.map((b) => (
+                    <span key={b.def.id} title={`${b.def.name} — ${b.def.description}`}>
+                      {b.def.emoji}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-0.5 text-sm text-muted">
+                  Complete your first test to earn a badge.
+                </p>
+              )}
+            </div>
+          </Card>
+        </Link>
+      </section>
+
       {/* Trend + activity heatmap */}
       <section className="grid gap-4 lg:grid-cols-2">
         <ProgressTrends series={series} />
@@ -360,28 +414,52 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <ul className="divide-y divide-border border-t border-border">
-              {activity.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-surface-2/60"
-                >
-                  <div className="flex items-center gap-3">
-                    <SkillDot skill={a.skill} />
-                    <div>
-                      <p className="text-sm font-medium capitalize">{a.skill}</p>
-                      <p className="text-xs text-muted">{timeAgo(a.at)}</p>
+              {activity.map((a) => {
+                const reviewable = a.skill === "reading" || a.skill === "listening";
+                const inner = (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <SkillDot skill={a.skill} />
+                      <div>
+                        <p className="text-sm font-medium capitalize">{a.skill}</p>
+                        <p className="text-xs text-muted">{timeAgo(a.at)}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    {a.band != null && <p className="font-semibold tabular-nums">Band {a.band}</p>}
-                    {a.raw != null && a.total != null && (
-                      <p className="text-xs text-muted tabular-nums">
-                        {a.raw}/{a.total}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        {a.band != null && (
+                          <p className="font-semibold tabular-nums">Band {a.band}</p>
+                        )}
+                        {a.raw != null && a.total != null && (
+                          <p className="text-xs text-muted tabular-nums">
+                            {a.raw}/{a.total}
+                          </p>
+                        )}
+                      </div>
+                      {reviewable && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                          Review
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </>
+                );
+                return (
+                  <li key={a.id}>
+                    {reviewable ? (
+                      <Link
+                        href={`/review/${a.id}`}
+                        className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-surface-2/60"
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div className="flex items-center justify-between px-5 py-3">{inner}</div>
                     )}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
