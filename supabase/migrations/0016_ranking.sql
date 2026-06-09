@@ -265,9 +265,9 @@ begin
   end if;
 
   -- ---- Standing snapshot ----
-  select rating, peak_rating, rated_count
+  select pr.rating, pr.peak_rating, pr.rated_count
     into v_rating, v_peak, v_count
-  from public.profiles where id = v_uid for update;
+  from public.profiles pr where pr.id = v_uid for update;
   v_rating := coalesce(v_rating, 1000);
   v_peak   := coalesce(v_peak, v_rating);
   v_count  := coalesce(v_count, 0);
