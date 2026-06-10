@@ -20,11 +20,11 @@ export function RecentBandsChart({
   if (points.length < 2) return null;
 
   const W = 560;
-  const H = 218;
+  const H = 168;
   const padL = 38;
   const padR = 16;
-  const padT = 18;
-  const padB = 30;
+  const padT = 14;
+  const padB = 26;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
 
@@ -72,7 +72,7 @@ export function RecentBandsChart({
   const midIdx = points.length >= 5 ? Math.floor((points.length - 1) / 2) : null;
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-medium text-muted">
           <Activity className="h-4 w-4" /> Recent bands
@@ -103,7 +103,11 @@ export function RecentBandsChart({
         <span>
           Average <strong className="text-foreground tabular-nums">{average}</strong>
         </span>
-        <span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ background: "var(--warning)" }}
+          />
           Best <strong className="text-foreground tabular-nums">{best}</strong>
         </span>
       </div>
@@ -217,14 +221,6 @@ export function RecentBandsChart({
           {fmt(points[points.length - 1].at)}
         </text>
       </svg>
-
-      <p className="mt-2 text-right text-[11px] text-muted">
-        <span
-          className="mr-1 inline-block h-2 w-2 rounded-full"
-          style={{ background: "var(--warning)" }}
-        />
-        personal best
-      </p>
     </Card>
   );
 }

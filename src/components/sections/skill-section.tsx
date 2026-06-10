@@ -88,28 +88,33 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <p className="text-sm text-muted">Average band</p>
-          <p className="mt-1 text-2xl font-bold">{average ?? "—"}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">Best band</p>
-          <p className="mt-1 text-2xl font-bold">{best ?? "—"}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">Tests taken</p>
-          <p className="mt-1 text-2xl font-bold">{res.length}</p>
-        </Card>
-      </div>
+      {/* Stats + compact progress graph side by side, so tests stay above the fold */}
+      <section
+        className={recent.length >= 2 ? "grid gap-4 lg:grid-cols-[1fr_1.7fr]" : undefined}
+      >
+        <div
+          className={`grid grid-cols-3 gap-4 ${recent.length >= 2 ? "lg:grid-cols-1" : ""}`}
+        >
+          <Card className="flex flex-col justify-center">
+            <p className="text-sm text-muted">Average band</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{average ?? "—"}</p>
+          </Card>
+          <Card className="flex flex-col justify-center">
+            <p className="text-sm text-muted">Best band</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{best ?? "—"}</p>
+          </Card>
+          <Card className="flex flex-col justify-center">
+            <p className="text-sm text-muted">Tests taken</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{res.length}</p>
+          </Card>
+        </div>
 
-      {/* Progress graph */}
-      <RecentBandsChart
-        points={recent}
-        color={skill === "reading" ? "var(--primary)" : "var(--accent)"}
-        avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
-      />
+        <RecentBandsChart
+          points={recent}
+          color={skill === "reading" ? "var(--primary)" : "var(--accent)"}
+          avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
+        />
+      </section>
 
       {/* Premium materials — their own highlighted section */}
       <PremiumSection
