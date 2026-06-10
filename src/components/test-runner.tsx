@@ -193,9 +193,10 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
           {!graded && (
             <button
               onClick={() => setManual((m) => !m)}
-              className="hidden h-8 items-center rounded-lg px-2 text-xs text-muted hover:bg-surface-2 hover:text-foreground sm:inline-flex"
+              className="inline-flex h-8 items-center rounded-lg px-2 text-xs text-muted hover:bg-surface-2 hover:text-foreground"
             >
-              Score didn&apos;t save?
+              <span className="sm:hidden">Manual score</span>
+              <span className="hidden sm:inline">Score didn&apos;t save?</span>
             </button>
           )}
           <button
@@ -253,7 +254,7 @@ function ManualEntry({
   const [raw, setRaw] = useState("");
   const [total, setTotal] = useState("40");
   return (
-    <div className="absolute right-3 top-14 z-10 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4 shadow-xl">
+    <div className="absolute left-3 right-3 top-14 z-10 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4 shadow-xl sm:left-auto">
       <label className="text-sm">
         <span className="mb-1 block text-muted">Correct</span>
         <input type="number" min={0} value={raw} onChange={(e) => setRaw(e.target.value)} className="h-9 w-24 rounded-lg border border-border bg-surface-2 px-3" />

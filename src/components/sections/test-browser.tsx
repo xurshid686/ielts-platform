@@ -13,6 +13,7 @@ import {
   Crown,
   Repeat2,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
@@ -153,11 +154,31 @@ export function TestBrowser({
 
       {/* Results */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
-          {items.length === 0
-            ? `No ${skill} tests have been uploaded yet.`
-            : "No tests match your search or filters."}
-        </div>
+        items.length === 0 ? (
+          <EmptyState
+            icon={<FileText />}
+            title={`No ${skill} tests yet`}
+            desc="New tests are added regularly — check back soon."
+          />
+        ) : (
+          <EmptyState
+            icon={<Search />}
+            title="No tests match"
+            desc="Try a different search term or reset the filters below."
+            action={
+              <button
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                  setQType("all");
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium shadow-soft transition-colors hover:bg-surface-2"
+              >
+                <X className="h-4 w-4" /> Clear filters
+              </button>
+            }
+          />
+        )
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((t) => {

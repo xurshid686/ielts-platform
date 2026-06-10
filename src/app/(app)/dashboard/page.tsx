@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { avg, timeAgo } from "@/lib/utils";
+import { avg, timeAgo, weeklyActivity } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-trends";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
@@ -29,6 +30,7 @@ import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker
 import { RatingCard } from "@/components/rating/rating-card";
 import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
 import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
+import { Onboarding } from "@/components/dashboard/onboarding";
 import { computeTypeStats, weakestType } from "@/lib/analytics";
 import { isPremiumActive } from "@/lib/premium";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
@@ -200,14 +202,7 @@ export default async function DashboardPage() {
 
   // ---- This week vs last week ----------------------------------------------
   const allDates = [...all.map((r) => r.submitted_at), ...speak.map((s) => s.created_at)];
-  const now = Date.now();
-  const WEEK = 7 * 86_400_000;
-  const inRange = (iso: string, from: number, to: number) => {
-    const t = new Date(iso).getTime();
-    return t >= from && t < to;
-  };
-  const thisWeek = allDates.filter((d) => inRange(d, now - WEEK, now + 1)).length;
-  const lastWeek = allDates.filter((d) => inRange(d, now - 2 * WEEK, now - WEEK)).length;
+  const { thisWeek, lastWeek } = weeklyActivity(allDates);
   const weekDelta = thisWeek - lastWeek;
 
   const totalCompleted = all.length + speak.length;
@@ -377,6 +372,11 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* First-session checklist — gone after the first completed test */}
+      {totalCompleted === 0 && (
+        <Onboarding targetSet={profile.target_band != null} spoke={speak.length > 0} />
+      )}
+
       {/* Competitive reading rating (defaults guard the pre-migration window) */}
       <RatingCard
         rating={profile.rating ?? 1000}
@@ -386,7 +386,9 @@ export default async function DashboardPage() {
       />
 
       {/* Goal tracker + study plan */}
-      <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
+      <div id="goal" className="scroll-mt-20">
+        <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
+      </div>
 
       {/* Insights (only when no goal is set — the tracker covers "focus next" otherwise) */}
       {profile.target_band == null && strongest && weakest && (
@@ -487,11 +489,21 @@ export default async function DashboardPage() {
             <span className="text-xs text-muted tabular-nums">{totalCompleted} total</span>
           </div>
           {activity.length === 0 ? (
-            <div className="border-t border-border p-8 text-center text-muted">
-              No activity yet.{" "}
-              <Link href="/reading" className="font-medium text-primary hover:underline">
-                Take your first test →
-              </Link>
+            <div className="border-t border-border p-5">
+              <EmptyState
+                icon={<BookOpen />}
+                title="No activity yet"
+                desc="Your completed tests will show up here, newest first."
+                action={
+                  <Link
+                    href="/reading"
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-110"
+                  >
+                    Take your first test <ArrowRight className="h-4 w-4" />
+                  </Link>
+                }
+                className="border-0 bg-transparent py-8"
+              />
             </div>
           ) : (
             <ul className="divide-y divide-border border-t border-border">

@@ -23,7 +23,7 @@ export function ProgressTrends({ series }: { series: Record<string, BandPoint[]>
   const firstDrawable = available.find((s) => (series[s]?.length ?? 0) >= 2);
   const [active, setActive] = useState(firstDrawable ?? available[0] ?? "reading");
 
-  const points = series[active] ?? [];
+  const points = useMemo(() => series[active] ?? [], [series, active]);
   const meta = SKILL_META[active] ?? SKILL_META.reading;
 
   const chart = useMemo(() => buildChart(points), [points]);

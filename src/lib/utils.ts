@@ -10,6 +10,20 @@ export function avg(nums: number[]): number | null {
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
 }
 
+// Counts activity timestamps falling in the current vs previous 7-day window.
+export function weeklyActivity(dates: string[]): { thisWeek: number; lastWeek: number } {
+  const now = Date.now();
+  const WEEK = 7 * 86_400_000;
+  const inRange = (iso: string, from: number, to: number) => {
+    const t = new Date(iso).getTime();
+    return t >= from && t < to;
+  };
+  return {
+    thisWeek: dates.filter((d) => inRange(d, now - WEEK, now + 1)).length,
+    lastWeek: dates.filter((d) => inRange(d, now - 2 * WEEK, now - WEEK)).length,
+  };
+}
+
 export function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
