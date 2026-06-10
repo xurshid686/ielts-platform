@@ -5,6 +5,7 @@ import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
+import { RecentBandsChart, type RecentBandPoint } from "@/components/sections/recent-bands";
 import { PremiumSection } from "@/components/sections/premium-section";
 import type { Result, Test } from "@/types/database";
 
@@ -68,7 +69,12 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
 
   const Meta = META[skill];
   const Icon = Meta.icon;
-  const recent = [...bands].slice(0, 12).reverse();
+  // Last 12 scored attempts with dates, oldest first (chart order).
+  const recent: RecentBandPoint[] = res
+    .filter((r) => r.band != null)
+    .slice(0, 12)
+    .reverse()
+    .map((r) => ({ band: Number(r.band), at: r.submitted_at }));
 
   return (
     <div className="space-y-8">
@@ -99,23 +105,11 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       </div>
 
       {/* Progress graph */}
-      {recent.length > 1 && (
-        <Card>
-          <p className="mb-3 text-sm font-medium text-muted">Recent bands</p>
-          <div className="flex h-28 items-end gap-2">
-            {recent.map((b, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-t bg-primary/70"
-                  style={{ height: `${(b / 9) * 100}%` }}
-                  title={`Band ${b}`}
-                />
-                <span className="text-[10px] text-muted">{b}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      <RecentBandsChart
+        points={recent}
+        color={skill === "reading" ? "var(--primary)" : "var(--accent)"}
+        avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
+      />
 
       {/* Premium materials — their own highlighted section */}
       <PremiumSection
