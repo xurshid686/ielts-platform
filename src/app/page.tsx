@@ -249,7 +249,10 @@ function Feature({
 }) {
   const t = tones[tone];
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]">
+    <Link
+      href="/register"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
+    >
       {/* Accent edge that lights up on hover */}
       <span
         className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${t.edge} to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
@@ -268,7 +271,10 @@ function Feature({
       </div>
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
-    </div>
+      <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+        Start now <ArrowRight className="h-3.5 w-3.5" />
+      </span>
+    </Link>
   );
 }
 
