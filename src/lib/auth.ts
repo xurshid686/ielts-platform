@@ -37,6 +37,8 @@ export async function requireProfile(): Promise<Profile> {
       peak_rating: 1000,
       rated_count: 0,
       timezone: "UTC",
+      referral_code: null,
+      referred_by: null,
       created_at: new Date().toISOString(),
     };
   }

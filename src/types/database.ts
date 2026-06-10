@@ -22,7 +22,19 @@ export type Profile = {
   peak_rating: number; // highest rating ever reached
   rated_count: number; // # of first-attempt, rated reading tests
   timezone: string; // IANA tz (e.g. 'Asia/Tashkent'); drives streak/report day boundaries
+  referral_code: string | null; // the user's own shareable invite code (migration 0019)
+  referred_by: string | null; // profile id of whoever invited this user, or null
   created_at: string;
+};
+
+export type Referral = {
+  id: string;
+  referrer_id: string;
+  referred_id: string;
+  status: "pending" | "qualified";
+  reward_months: number;
+  created_at: string;
+  qualified_at: string | null;
 };
 
 export type Test = {
@@ -89,7 +101,7 @@ export type UserAchievement = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: "weekly_report" | "info" | string;
+  type: "weekly_report" | "info" | "referral" | string;
   title: string;
   body: string | null;
   data: Record<string, unknown> | null;

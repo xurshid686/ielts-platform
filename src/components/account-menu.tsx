@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, LayoutDashboard, Shield, LogOut, Crown, X, UserCircle } from "lucide-react";
+import { ChevronDown, LayoutDashboard, Shield, LogOut, Crown, X, UserCircle, Gift } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
 import type { Profile } from "@/types/database";
 
@@ -99,6 +99,9 @@ export function AccountMenu({ profile }: { profile: Profile }) {
             </MenuItem>
             <MenuItem href={`/u/${profile.id}`} icon={<UserCircle className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Public profile
+            </MenuItem>
+            <MenuItem href="/refer" icon={<Gift className="h-4 w-4" />} onClick={() => setOpen(false)}>
+              Invite friends
             </MenuItem>
             {profile.role === "admin" && (
               <MenuItem href="/admin" icon={<Shield className="h-4 w-4" />} onClick={() => setOpen(false)}>

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { GraduationCap, BookOpen, Headphones, Mic, Flame } from "lucide-react";
+import { BookOpen, Headphones, Mic, Flame } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 
 const PERKS = [
   { icon: BookOpen, text: "Exam-style Reading tests, graded instantly" },
@@ -19,8 +20,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="orb -right-24 bottom-10 h-96 w-96 bg-white/10" />
 
         <Link href="/" className="relative flex items-center gap-2.5 text-lg font-semibold">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-            <GraduationCap className="h-5 w-5" />
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm">
+            <Logo size={38} />
           </span>
           IELTS Practice
         </Link>

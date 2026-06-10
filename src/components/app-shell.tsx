@@ -13,11 +13,12 @@ import {
   Flame,
   Menu,
   X,
-  GraduationCap,
   Award,
   Trophy,
   Zap,
+  Gift,
 } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -45,6 +46,7 @@ const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
     items: [
       { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
       { href: "/badges", label: "Badges", icon: Award },
+      { href: "/refer", label: "Invite friends", icon: Gift },
     ],
   },
 ];
@@ -80,9 +82,7 @@ export function AppShell({
       >
         <div className="flex items-center justify-between p-4 pb-2">
           <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-[var(--shadow-primary)]">
-              <GraduationCap className="h-5 w-5" />
-            </span>
+            <Logo size={36} />
             IELTS
           </Link>
           <button

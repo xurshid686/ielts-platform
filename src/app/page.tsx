@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  GraduationCap,
   BookOpen,
   Headphones,
   PenLine,
@@ -18,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/logo";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -38,9 +38,7 @@ export default async function Home() {
       <header className="sticky top-0 z-30 border-b border-border/60 glass">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="flex items-center gap-2.5 text-lg font-semibold">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-[var(--shadow-primary)]">
-              <GraduationCap className="h-5 w-5" />
-            </span>
+            <Logo size={38} priority />
             IELTS Practice
           </span>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -208,7 +206,7 @@ export default async function Home() {
       <footer className="border-t border-border/60">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-muted sm:flex-row">
           <span className="flex items-center gap-2 font-medium text-foreground">
-            <GraduationCap className="h-4 w-4 text-primary" /> IELTS Practice
+            <Logo size={22} /> IELTS Practice
           </span>
           <p>© {new Date().getFullYear()} IELTS Practice Platform. Practise daily, test confidently.</p>
         </div>

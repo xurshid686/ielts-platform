@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { GraduationCap, Trophy, Target, CheckCircle2, CalendarDays, Sparkles } from "lucide-react";
+import { Trophy, Target, CheckCircle2, CalendarDays, Sparkles } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { RankBadge } from "@/components/rating/rank-badge";
@@ -60,9 +61,7 @@ export default async function PublicProfilePage({
       {/* Slim public header */}
       <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:px-8">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient text-white">
-            <GraduationCap className="h-5 w-5" />
-          </span>
+          <Logo size={34} />
           IELTS
         </Link>
         <Link
