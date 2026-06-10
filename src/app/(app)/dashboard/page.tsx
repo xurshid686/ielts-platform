@@ -300,17 +300,19 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+      <div className="animate-fade-in-up">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Hi {profile.name?.split(" ")[0] || "there"} 👋
         </h1>
-        <p className="text-muted">Here&apos;s your progress. Keep the streak alive!</p>
+        <p className="mt-1 text-muted">Here&apos;s your progress. Keep the streak alive!</p>
       </div>
 
       {/* Streak hero + overall band + key stats */}
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated">
           <div className="ring-hairline absolute inset-0 rounded-2xl" />
+          <div className="orb -right-12 -top-16 h-48 w-48 bg-white/15" />
+          <div className="orb -bottom-20 left-1/4 h-44 w-44 bg-white/10" />
           <div className="relative flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-sm font-medium text-white/85">

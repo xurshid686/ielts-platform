@@ -22,12 +22,14 @@
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.05);
   --shadow-elevated: 0 6px 18px rgba(15, 23, 42, 0.08), 0 18px 40px rgba(15, 23, 42, 0.09);
   --shadow-primary: 0 6px 16px rgba(79, 70, 229, 0.25);
+  --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.08), 0 8px 32px rgba(99, 102, 241, 0.18);
 
   /* Brand gradient + a faint page wash */
   --gradient-brand: linear-gradient(135deg, #6366f1 0%, #7c5cf0 45%, #14b8a6 100%);
   --page-wash:
-    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.06), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 0%, rgba(13, 148, 136, 0.05), transparent 55%);
+    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.07), transparent 60%),
+    radial-gradient(50rem 35rem at -10% 0%, rgba(13, 148, 136, 0.06), transparent 55%),
+    radial-gradient(40rem 30rem at 50% 120%, rgba(124, 92, 240, 0.04), transparent 60%);
 }
 
 .dark {
@@ -49,11 +51,13 @@
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
   --shadow-elevated: 0 10px 28px rgba(0, 0, 0, 0.5), 0 24px 56px rgba(0, 0, 0, 0.45);
   --shadow-primary: 0 6px 22px rgba(99, 102, 241, 0.4);
+  --shadow-glow: 0 0 0 1px rgba(129, 140, 248, 0.12), 0 8px 36px rgba(99, 102, 241, 0.3);
 
   --gradient-brand: linear-gradient(135deg, #818cf8 0%, #a78bfa 45%, #2dd4bf 100%);
   --page-wash:
-    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 0%, rgba(45, 212, 191, 0.08), transparent 55%);
+    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
+    radial-gradient(50rem 35rem at -10% 0%, rgba(45, 212, 191, 0.09), transparent 55%),
+    radial-gradient(40rem 30rem at 50% 120%, rgba(167, 139, 250, 0.07), transparent 60%);
 }
 
 @theme inline {
@@ -74,6 +78,7 @@
   --shadow-soft: var(--shadow-soft);
   --shadow-elevated: var(--shadow-elevated);
   --shadow-primary: var(--shadow-primary);
+  --shadow-glow: var(--shadow-glow);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -81,6 +86,10 @@
 
 * {
   border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -91,6 +100,10 @@ body {
   font-family: var(--font-sans), system-ui, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 /* Numeric stats line up crisply */
@@ -110,6 +123,13 @@ body {
   color: transparent;
 }
 
+/* Frosted-glass surface for sticky headers / floating chrome */
+.glass {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+}
+
 /* A hairline highlight on top edges of elevated surfaces (premium depth cue) */
 .ring-hairline {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
@@ -118,11 +138,31 @@ body {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Faint blueprint grid for hero sections (fades out via mask) */
+.bg-grid-faint {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+}
+
+/* Soft glowing orb — position/size/color with utilities */
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  pointer-events: none;
+}
+
 /* Scrollbars (both themes) */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 ::-webkit-scrollbar-track { background: transparent; }
 .dark ::-webkit-scrollbar-thumb { background: #233052; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #2e3d63; }
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes fade-in-up {
@@ -130,4 +170,31 @@ body {
     to { opacity: 1; transform: translateY(0); }
   }
   .animate-fade-in-up { animation: fade-in-up 0.4s ease both; }
+
+  /* Staggered entrance for hero/landing content */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-rise {
+    animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+
+  /* Gentle float for decorative elements */
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .animate-float-slow { animation: float-slow 7s ease-in-out infinite; }
+
+  /* Slow hue drift on gradient text for living headlines */
+  @keyframes gradient-pan {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .animate-gradient-pan {
+    background-size: 200% 200%;
+    animation: gradient-pan 8s ease-in-out infinite;
+  }
 }
