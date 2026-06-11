@@ -35,10 +35,12 @@ export function TestBrowser({
   items,
   skill,
   canAccessPremium,
+  isAdmin = false,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
   canAccessPremium: boolean;
+  isAdmin?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -218,14 +220,25 @@ export function TestBrowser({
                         </span>
                       )}
                       <Badge kind={t.kind} passage={t.passage} skill={skill} />
-                      {t.timesDone > 0 && (
-                        <span
-                          title={`Completed ${t.timesDone} time${t.timesDone > 1 ? "s" : ""}`}
-                          className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
-                        >
-                          <Repeat2 className="h-3 w-3" /> {t.timesDone}
-                        </span>
-                      )}
+                      {/* Admins see the global completion count; students see
+                          their own attempt count instead. */}
+                      {isAdmin
+                        ? t.timesDone > 0 && (
+                            <span
+                              title={`Completed ${t.timesDone} time${t.timesDone > 1 ? "s" : ""} across all students`}
+                              className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                            >
+                              <Repeat2 className="h-3 w-3" /> {t.timesDone}
+                            </span>
+                          )
+                        : t.attempts > 0 && (
+                            <span
+                              title={`Your attempts: ${t.attempts}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary tabular-nums"
+                            >
+                              <Repeat2 className="h-3 w-3" /> {t.attempts}
+                            </span>
+                          )}
                       {t.level && (
                         <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
                           {t.level}
@@ -247,9 +260,9 @@ export function TestBrowser({
                       {locked
                         ? "Subscribers only"
                         : t.attempts
-                          ? `${t.attempts} attempt${t.attempts > 1 ? "s" : ""}${
-                              t.best != null ? ` · best ${t.best}` : ""
-                            }`
+                          ? t.best != null
+                            ? `Best band ${t.best}`
+                            : "Attempted"
                           : "Not attempted"}
                     </span>
                     {locked ? (

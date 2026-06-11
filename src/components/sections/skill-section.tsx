@@ -123,6 +123,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         canAccess={canAccessPremium}
         unlockedIds={unlockedIds}
         xp={profile.xp}
+        isAdmin={profile.role === "admin"}
       />
 
       {/* Free tests with search + filter */}
@@ -130,6 +131,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         items={items.filter((i) => i.tier === "free")}
         skill={skill}
         canAccessPremium={canAccessPremium}
+        isAdmin={profile.role === "admin"}
       />
     </div>
   );
