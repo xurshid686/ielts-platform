@@ -24,6 +24,7 @@ export type Profile = {
   timezone: string; // IANA tz (e.g. 'Asia/Tashkent'); drives streak/report day boundaries
   referral_code: string | null; // the user's own shareable invite code (migration 0019)
   referred_by: string | null; // profile id of whoever invited this user, or null
+  hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
   created_at: string;
 };
 

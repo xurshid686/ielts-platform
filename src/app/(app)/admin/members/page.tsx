@@ -8,13 +8,29 @@ export default async function AdminMembersPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email, name, role, premium_until, xp")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  // Include hidden_from_leaderboard (0020); fall back without it if the
+  // migration hasn't been applied yet so this page never hard-fails.
+  let rows: Record<string, unknown>[] = [];
+  for (const cols of [
+    "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
+    "id, email, name, role, premium_until, xp",
+  ]) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(cols)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!error) {
+      rows = (data ?? []) as unknown as Record<string, unknown>[];
+      break;
+    }
+    if (!/hidden_from_leaderboard/.test(error.message)) break;
+  }
 
-  const initialUsers = (data ?? []) as MemberRow[];
+  const initialUsers = rows.map((u) => ({
+    hidden_from_leaderboard: false,
+    ...u,
+  })) as unknown as MemberRow[];
 
   return (
     <div className="space-y-8">

@@ -39,6 +39,7 @@ export async function requireProfile(): Promise<Profile> {
       timezone: "UTC",
       referral_code: null,
       referred_by: null,
+      hidden_from_leaderboard: false,
       created_at: new Date().toISOString(),
     };
   }

@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Crown, Loader2, X, Zap, BarChart3 } from "lucide-react";
-import { searchUsers, setPremium, giftXp, type MemberRow } from "@/app/actions/admin";
+import { Search, Crown, Loader2, X, Zap, BarChart3, EyeOff, Eye } from "lucide-react";
+import {
+  searchUsers,
+  setPremium,
+  giftXp,
+  setLeaderboardHidden,
+  type MemberRow,
+} from "@/app/actions/admin";
 import { adminSendWeeklyReport } from "@/app/actions/reports";
 import { Button } from "@/components/ui/button";
 import { isPremiumActive } from "@/lib/premium";
@@ -23,6 +29,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [giftBusyId, setGiftBusyId] = useState<string | null>(null);
   const [giftAmount, setGiftAmount] = useState<Record<string, number>>({});
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
+  const [hideBusyId, setHideBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -70,6 +77,28 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     }
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, xp: res.xp } : x)));
     setMsg({ ok: true, text: `Gifted ${amount} XP to ${res.email} (now ${res.xp} XP).` });
+  }
+
+  async function toggleHidden(u: MemberRow) {
+    if (!u.email) return;
+    const next = !u.hidden_from_leaderboard;
+    setHideBusyId(u.id);
+    setMsg(null);
+    const res = await setLeaderboardHidden(u.email, next);
+    setHideBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((x) => (x.id === u.id ? { ...x, hidden_from_leaderboard: res.hidden } : x)),
+    );
+    setMsg({
+      ok: true,
+      text: res.hidden
+        ? `${res.name || res.email} is now hidden from the leaderboard.`
+        : `${res.name || res.email} is back on the leaderboard.`,
+    });
   }
 
   async function sendReport(u: MemberRow) {
@@ -143,6 +172,11 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         {premium && (
                           <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                             <Crown className="h-2.5 w-2.5" /> Premium
+                          </span>
+                        )}
+                        {u.hidden_from_leaderboard && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                            <EyeOff className="h-2.5 w-2.5" /> Hidden
                           </span>
                         )}
                       </p>
@@ -229,6 +263,33 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         <BarChart3 className="h-3.5 w-3.5" />
                       )}
                       Send report
+                    </button>
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
+                    {/* Leaderboard visibility — reversible, no data deleted */}
+                    <button
+                      onClick={() => toggleHidden(u)}
+                      disabled={hideBusyId === u.id}
+                      className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium disabled:opacity-50 ${
+                        u.hidden_from_leaderboard
+                          ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+                          : "border-border text-muted hover:bg-surface-2 hover:text-foreground"
+                      }`}
+                      title={
+                        u.hidden_from_leaderboard
+                          ? "Show this user on the leaderboard again"
+                          : "Temporarily hide this user from the leaderboard"
+                      }
+                    >
+                      {hideBusyId === u.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : u.hidden_from_leaderboard ? (
+                        <Eye className="h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      )}
+                      {u.hidden_from_leaderboard ? "Show in rating" : "Hide from rating"}
                     </button>
                   </div>
                 </li>

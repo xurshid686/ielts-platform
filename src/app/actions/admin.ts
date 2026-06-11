@@ -145,6 +145,7 @@ export type MemberRow = {
   role: string;
   premium_until: string | null;
   xp: number;
+  hidden_from_leaderboard: boolean;
 };
 
 // Search accounts by email or name (admin-only). Empty query returns recent users.
@@ -157,16 +158,35 @@ export async function searchUsers(
 
   // Strip characters with meaning in PostgREST filter syntax before interpolating.
   const q = query.trim().replace(/[,()*\\]/g, "");
-  let req = supabase
-    .from("profiles")
-    .select("id, email, name, role, premium_until, xp")
-    .order("created_at", { ascending: false })
-    .limit(20);
-  if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
 
-  const { data, error } = await req;
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, users: (data ?? []) as MemberRow[] };
+  // Select including hidden_from_leaderboard (0020); fall back without it if the
+  // migration hasn't been applied yet, so the admin page keeps working.
+  for (const cols of [
+    "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
+    "id, email, name, role, premium_until, xp",
+  ]) {
+    let req = supabase
+      .from("profiles")
+      .select(cols)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
+
+    const { data, error } = await req;
+    if (!error) {
+      const rows = (data ?? []) as unknown as Record<string, unknown>[];
+      const users = rows.map((u) => ({
+        hidden_from_leaderboard: false,
+        ...u,
+      })) as unknown as MemberRow[];
+      return { ok: true, users };
+    }
+    // Only retry on a missing-column error; otherwise surface it.
+    if (!/hidden_from_leaderboard/.test(error.message)) {
+      return { ok: false, error: error.message };
+    }
+  }
+  return { ok: false, error: "Could not load accounts." };
 }
 
 export type SetPremiumResult =
@@ -220,6 +240,39 @@ export async function giftXp(email: string, amount: number): Promise<GiftXpResul
   revalidatePath("/admin/members");
   revalidatePath("/admin");
   return { ok: true, email: row?.email ?? email, name: row?.name ?? null, xp: row?.xp ?? 0 };
+}
+
+export type SetHiddenResult =
+  | { ok: true; email: string; name: string | null; hidden: boolean }
+  | { ok: false; error: string };
+
+// Temporarily hide (or re-show) a user on the public leaderboard. Reversible;
+// no data is deleted. Enforced admin-only in the DB by set_leaderboard_hidden.
+export async function setLeaderboardHidden(
+  email: string,
+  hidden: boolean,
+): Promise<SetHiddenResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.rpc("set_leaderboard_hidden", {
+    target_email: email.trim(),
+    hidden,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { email: string; name: string | null; hidden_from_leaderboard: boolean }
+    | undefined;
+  revalidatePath("/admin/members");
+  revalidatePath("/leaderboard");
+  return {
+    ok: true,
+    email: row?.email ?? email,
+    name: row?.name ?? null,
+    hidden: row?.hidden_from_leaderboard ?? hidden,
+  };
 }
 
 export async function deleteTest(id: string): Promise<ActionResult> {
