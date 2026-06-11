@@ -121,6 +121,27 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     .single();
   const firstToday = (prof as { last_activity_date?: string | null } | null)?.last_activity_date !== today;
 
+  // --- XP award: tie XP to genuine practice so it can't be farmed into free
+  // premium unlocks. Full XP for the FIRST attempt of a real test; a small
+  // amount for an occasional retake (at most once per test per day); nothing
+  // for keyless / no-test submissions (those scores are unverifiable). The
+  // rating engine is unaffected — it independently gates on server-grading. ---
+  let xpAward = 0;
+  if (input.testId) {
+    const { data: priorRows } = await supabase
+      .from("results")
+      .select("submitted_at")
+      .eq("user_id", user.id)
+      .eq("test_id", input.testId);
+    const prior = (priorRows ?? []) as { submitted_at: string }[];
+    if (prior.length === 0) {
+      xpAward = serverGraded ? 20 : 10; // first time on this test
+    } else {
+      const doneToday = prior.some((r) => String(r.submitted_at).slice(0, 10) === today);
+      xpAward = doneToday ? 0 : 5; // a retake — capped to once per day
+    }
+  }
+
   // Persist the student's answers so they can reopen the test for review.
   // (The answer key already lives on the test; we only store what they typed.)
   const storedAnswers = asAnswers(input.answers);
@@ -188,7 +209,7 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     }
   }
 
-  const { data: act } = await supabase.rpc("record_activity", { p_xp: 20 });
+  const { data: act } = await supabase.rpc("record_activity", { p_xp: xpAward });
   const a = act?.[0];
 
   revalidatePath("/dashboard");
