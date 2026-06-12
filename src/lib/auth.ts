@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/types/database";
+import type { Level, Profile } from "@/types/database";
 
 /** Returns the signed-in user's profile or redirects to /login. */
 export async function requireProfile(): Promise<Profile> {
@@ -25,6 +25,7 @@ export async function requireProfile(): Promise<Profile> {
       email: user.email ?? null,
       avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
       role: "student",
+      level: "regular",
       is_owner: false,
       premium_until: null,
       premium_announce: false,
@@ -57,5 +58,15 @@ export async function requireAdmin(): Promise<Profile> {
 export async function requireOwner(): Promise<Profile> {
   const profile = await requireAdmin();
   if (!profile.is_owner) redirect("/admin");
+  return profile;
+}
+
+/**
+ * Gate a page to students of a given level. Admins always pass (so they can
+ * preview the content). Everyone else is sent back to their dashboard.
+ */
+export async function requireLevel(level: Exclude<Level, "regular">): Promise<Profile> {
+  const profile = await requireProfile();
+  if (profile.role !== "admin" && profile.level !== level) redirect("/dashboard");
   return profile;
 }

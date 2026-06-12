@@ -17,12 +17,15 @@ import {
   Trophy,
   Zap,
   Gift,
+  GraduationCap,
+  Compass,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
+import { LEVELS } from "@/lib/levels";
 import type { Profile, Notification } from "@/types/database";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -64,6 +67,16 @@ export function AppShell({
   const [open, setOpen] = useState(false);
 
   const groups = [...NAV_GROUPS];
+  // Beginner-track menu — visible only to students assigned that level. Sits
+  // right under Dashboard, above the full IELTS "Practise" group.
+  if (profile.level === "pre_ielts" || profile.level === "intro") {
+    const meta = LEVELS[profile.level];
+    const Icon = profile.level === "pre_ielts" ? GraduationCap : Compass;
+    groups.splice(1, 0, {
+      label: "My level",
+      items: [{ href: meta.href, label: meta.label, icon: Icon }],
+    });
+  }
   if (profile.role === "admin") {
     groups.push({
       label: "Manage",

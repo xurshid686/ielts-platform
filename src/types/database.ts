@@ -3,6 +3,8 @@
 
 export type Skill = "reading" | "listening" | "writing" | "speaking";
 export type Role = "student" | "admin";
+/** A student's learning track. Beginners get a tailored materials menu. */
+export type Level = "regular" | "pre_ielts" | "intro";
 
 export type Profile = {
   id: string;
@@ -10,6 +12,7 @@ export type Profile = {
   email: string | null;
   avatar_url: string | null;
   role: Role;
+  level: Level; // learning track (migration 0021); 'regular' = full IELTS
   is_owner: boolean;
   premium_until: string | null; // ISO date; active premium while in the future
   premium_announce: boolean; // show the one-time "you're premium" congrats
@@ -25,6 +28,20 @@ export type Profile = {
   referral_code: string | null; // the user's own shareable invite code (migration 0019)
   referred_by: string | null; // profile id of whoever invited this user, or null
   hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
+  created_at: string;
+};
+
+/** A learning material in the Pre-IELTS / Intro library (migration 0021). */
+export type Material = {
+  id: string;
+  title: string;
+  description: string | null;
+  level: Exclude<Level, "regular">; // 'pre_ielts' | 'intro'
+  kind: "file" | "link";
+  file_path: string | null; // storage path in the private 'materials' bucket
+  url: string | null; // external link (kind === 'link')
+  sort: number;
+  created_by: string | null;
   created_at: string;
 };
 

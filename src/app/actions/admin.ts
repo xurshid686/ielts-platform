@@ -143,6 +143,7 @@ export type MemberRow = {
   email: string | null;
   name: string | null;
   role: string;
+  level: string;
   premium_until: string | null;
   xp: number;
   hidden_from_leaderboard: boolean;
@@ -159,9 +160,10 @@ export async function searchUsers(
   // Strip characters with meaning in PostgREST filter syntax before interpolating.
   const q = query.trim().replace(/[,()*\\]/g, "");
 
-  // Select including hidden_from_leaderboard (0020); fall back without it if the
-  // migration hasn't been applied yet, so the admin page keeps working.
+  // Select including level (0021) + hidden_from_leaderboard (0020); fall back
+  // without them if those migrations haven't run yet, so the page keeps working.
   for (const cols of [
+    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp",
   ]) {
@@ -177,12 +179,13 @@ export async function searchUsers(
       const rows = (data ?? []) as unknown as Record<string, unknown>[];
       const users = rows.map((u) => ({
         hidden_from_leaderboard: false,
+        level: "regular",
         ...u,
       })) as unknown as MemberRow[];
       return { ok: true, users };
     }
     // Only retry on a missing-column error; otherwise surface it.
-    if (!/hidden_from_leaderboard/.test(error.message)) {
+    if (!/hidden_from_leaderboard|level/.test(error.message)) {
       return { ok: false, error: error.message };
     }
   }
@@ -296,4 +299,132 @@ export async function deleteTest(id: string): Promise<ActionResult> {
   revalidatePath("/admin/tests");
   if (test?.skill) revalidatePath(`/${test.skill}`);
   return { ok: true };
+}
+
+// ----------------------------------------------------------- student levels
+export type SetLevelResult =
+  | { ok: true; email: string; level: string }
+  | { ok: false; error: string };
+
+// Move a student between learning tracks (regular / pre_ielts / intro).
+// Enforced admin-only in the DB by set_user_level (SECURITY DEFINER).
+export async function setUserLevel(email: string, level: string): Promise<SetLevelResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.rpc("set_user_level", {
+    target_email: email.trim(),
+    new_level: level,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/members");
+  revalidatePath("/pre-ielts");
+  revalidatePath("/intro");
+  return { ok: true, email: email.trim(), level: (data as string) ?? level };
+}
+
+// ------------------------------------------------------- materials library
+export async function uploadMaterial(formData: FormData): Promise<ActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase, user } = gate;
+
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim() || null;
+  const level = String(formData.get("level") || "");
+  const url = String(formData.get("url") || "").trim();
+  const file = formData.get("file") as File | null;
+  const hasFile = file && file.size > 0;
+
+  if (!title) return { ok: false, error: "Title is required." };
+  if (level !== "pre_ielts" && level !== "intro")
+    return { ok: false, error: "Choose a level (Pre-IELTS or Introduction)." };
+  if (!hasFile && !url) return { ok: false, error: "Add a file or a link." };
+
+  let kind: "file" | "link" = "link";
+  let filePath: string | null = null;
+
+  if (hasFile) {
+    kind = "file";
+    // Keep the original extension so downloads open in the right app.
+    const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+    filePath = `${level}/${crypto.randomUUID()}${ext ? `.${ext}` : ""}`;
+    const { error: upErr } = await supabase.storage
+      .from("materials")
+      .upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+    if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
+  }
+
+  const { error: insErr } = await supabase.from("materials").insert({
+    title,
+    description,
+    level,
+    kind,
+    file_path: filePath,
+    url: kind === "link" ? url : null,
+    created_by: user!.id,
+  });
+  if (insErr) {
+    if (filePath) await supabase.storage.from("materials").remove([filePath]);
+    return { ok: false, error: `Saving material failed: ${insErr.message}` };
+  }
+
+  revalidatePath("/admin/materials");
+  revalidatePath(level === "pre_ielts" ? "/pre-ielts" : "/intro");
+  return { ok: true };
+}
+
+export async function deleteMaterial(id: string): Promise<ActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data: row } = await supabase
+    .from("materials")
+    .select("file_path, level")
+    .eq("id", id)
+    .single();
+
+  const mat = row as { file_path?: string | null; level?: string } | null;
+  if (mat?.file_path) {
+    await supabase.storage.from("materials").remove([mat.file_path]);
+  }
+  const { error } = await supabase.from("materials").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/materials");
+  if (mat?.level) revalidatePath(mat.level === "pre_ielts" ? "/pre-ielts" : "/intro");
+  return { ok: true };
+}
+
+// Mint a short-lived signed URL for a material file. RLS on storage.objects
+// ensures the caller is an admin or a student of the material's level.
+export async function getMaterialFileUrl(
+  id: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  // RLS on `materials` already restricts this select to the right viewers.
+  const { data: row, error } = await supabase
+    .from("materials")
+    .select("file_path")
+    .eq("id", id)
+    .single();
+  if (error || !row) return { ok: false, error: "Material not found." };
+
+  const path = (row as { file_path: string | null }).file_path;
+  if (!path) return { ok: false, error: "This material has no file." };
+
+  const { data: signed, error: signErr } = await supabase.storage
+    .from("materials")
+    .createSignedUrl(path, 60 * 10); // 10 minutes
+  if (signErr || !signed) return { ok: false, error: "Could not open file." };
+
+  return { ok: true, url: signed.signedUrl };
 }

@@ -1,17 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Crown, Loader2, X, Zap, BarChart3, EyeOff, Eye } from "lucide-react";
+import {
+  Search,
+  Crown,
+  Loader2,
+  X,
+  Zap,
+  BarChart3,
+  EyeOff,
+  Eye,
+  GraduationCap,
+} from "lucide-react";
 import {
   searchUsers,
   setPremium,
   giftXp,
   setLeaderboardHidden,
+  setUserLevel,
   type MemberRow,
 } from "@/app/actions/admin";
 import { adminSendWeeklyReport } from "@/app/actions/reports";
 import { Button } from "@/components/ui/button";
 import { isPremiumActive } from "@/lib/premium";
+import { ALL_LEVELS, levelLabel } from "@/lib/levels";
 
 const PERIODS = [
   { months: 1, label: "1 month" },
@@ -30,6 +42,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [giftAmount, setGiftAmount] = useState<Record<string, number>>({});
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [hideBusyId, setHideBusyId] = useState<string | null>(null);
+  const [levelBusyId, setLevelBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -98,6 +111,23 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
       text: res.hidden
         ? `${res.name || res.email} is now hidden from the leaderboard.`
         : `${res.name || res.email} is back on the leaderboard.`,
+    });
+  }
+
+  async function changeLevel(u: MemberRow, level: string) {
+    if (!u.email || level === u.level) return;
+    setLevelBusyId(u.id);
+    setMsg(null);
+    const res = await setUserLevel(u.email, level);
+    setLevelBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, level: res.level } : x)));
+    setMsg({
+      ok: true,
+      text: `${u.name || u.email} is now ${levelLabel(res.level)}.`,
     });
   }
 
@@ -179,6 +209,11 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                             <EyeOff className="h-2.5 w-2.5" /> Hidden
                           </span>
                         )}
+                        {u.level && u.level !== "regular" && (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                            <GraduationCap className="h-2.5 w-2.5" /> {levelLabel(u.level)}
+                          </span>
+                        )}
                       </p>
                       <p className="truncate text-xs text-muted">
                         {u.email} · {u.xp} XP
@@ -190,6 +225,30 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Learning level (track) */}
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 pl-2 pr-1 text-sm">
+                      {levelBusyId === u.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />
+                      ) : (
+                        <GraduationCap className="h-3.5 w-3.5 text-muted" />
+                      )}
+                      <select
+                        value={u.level || "regular"}
+                        onChange={(e) => changeLevel(u, e.target.value)}
+                        disabled={levelBusyId === u.id}
+                        className="h-9 rounded-lg bg-transparent px-1 text-sm outline-none focus:border-primary/40"
+                        title="Set this student's learning level"
+                      >
+                        {ALL_LEVELS.map((l) => (
+                          <option key={l.value} value={l.value}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
                     {/* Premium */}
                     <select
                       value={m}
