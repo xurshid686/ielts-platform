@@ -23,7 +23,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
     // is fetched only via /api/test-html (which gates access).
     supabase
       .from("tests")
-      .select("id, title, skill, kind, tier, question_types, times_done, level, passage, created_at")
+      .select("id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at")
       .eq("skill", skill)
       .order("created_at", { ascending: false }),
     supabase
@@ -56,6 +56,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         passage: t.passage,
         level: t.level,
         questionTypes: t.question_types ?? [],
+        questionCount: t.total ?? null,
         timesDone: t.times_done ?? 0,
         attempts: attempts.length,
         best: bandAttempts.length ? Math.max(...bandAttempts) : null,

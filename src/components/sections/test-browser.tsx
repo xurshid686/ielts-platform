@@ -12,6 +12,7 @@ import {
   Lock,
   Crown,
   Repeat2,
+  ListChecks,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -25,6 +26,7 @@ export type BrowserItem = {
   passage: number | null;
   level: string | null;
   questionTypes: string[];
+  questionCount: number | null;
   timesDone: number;
   attempts: number;
   best: number | null;
@@ -220,6 +222,14 @@ export function TestBrowser({
                         </span>
                       )}
                       <Badge kind={t.kind} passage={t.passage} skill={skill} />
+                      {t.questionCount != null && t.questionCount > 0 && (
+                        <span
+                          title={`${t.questionCount} question${t.questionCount > 1 ? "s" : ""}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                        >
+                          <ListChecks className="h-3 w-3" /> {t.questionCount}
+                        </span>
+                      )}
                       {/* Admins see the global completion count; students see
                           their own attempt count instead. */}
                       {isAdmin

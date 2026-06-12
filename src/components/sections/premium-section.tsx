@@ -14,6 +14,7 @@ import {
   Loader2,
   Check,
   Repeat2,
+  ListChecks,
 } from "lucide-react";
 import type { BrowserItem } from "@/components/sections/test-browser";
 import { unlockCost } from "@/lib/premium";
@@ -122,6 +123,14 @@ export function PremiumSection({
                         : "Passage"
                       : "Section"}
                 </span>
+                {t.questionCount != null && t.questionCount > 0 && (
+                  <span
+                    title={`${t.questionCount} question${t.questionCount > 1 ? "s" : ""}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                  >
+                    <ListChecks className="h-3 w-3" /> {t.questionCount}
+                  </span>
+                )}
                 {/* Admins see the global completion count; students see
                     their own attempt count instead. */}
                 {isAdmin
