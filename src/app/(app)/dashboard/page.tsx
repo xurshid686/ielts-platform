@@ -293,14 +293,67 @@ export default async function DashboardPage() {
     .reverse()
     .map((r) => ({ rating: r.rating_after as number, at: r.submitted_at }));
 
+  // ---- Quick-start band: has the user practised today (their timezone)? -----
+  const tz = profile.timezone || "UTC";
+  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  const practicedToday = allDates.some(
+    (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: tz }) === todayKey,
+  );
+  const nextTest = recommended[0] ?? null;
+  const firstName = profile.name?.split(" ")[0] || "there";
+
+  // The single most useful "do this next" action.
+  const primaryAction =
+    totalCompleted === 0
+      ? { href: "/reading", label: "Take your first test" }
+      : nextTest
+        ? { href: `/reading/${nextTest.id}`, label: `Continue: ${nextTest.title}` }
+        : { href: "/reading", label: "Start a new test" };
+
+  // A short, contextual nudge line.
+  const nudge =
+    totalCompleted === 0
+      ? "Take your first test to start your streak and see your estimated band."
+      : practicedToday
+        ? `Nice — you've practised today. ${profile.streak}-day streak going strong. 🔥`
+        : profile.streak > 0
+          ? `Keep your ${profile.streak}-day streak alive — take a test today. 🔥`
+          : "Take a test today to start a new streak. 🔥";
+
   return (
     <div className="space-y-8">
-      <div className="animate-fade-in-up">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Hi {profile.name?.split(" ")[0] || "there"} 👋
-        </h1>
-        <p className="mt-1 text-muted">Here&apos;s your progress. Keep the streak alive!</p>
-      </div>
+      {/* Quick-start: action-first welcome band */}
+      <section className="animate-fade-in-up relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/8 via-surface to-surface p-6 shadow-soft">
+        <div className="orb -right-10 -top-14 h-44 w-44 bg-primary/10" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Welcome back, {firstName} 👋
+            </h1>
+            <p className="mt-1.5 text-muted">{nudge}</p>
+          </div>
+
+          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            <Link
+              href={primaryAction.href}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-110"
+            >
+              <Target className="h-4 w-4 shrink-0" />
+              <span className="truncate">{primaryAction.label}</span>
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </Link>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <QuickLink href="/reading" icon={<BookOpen className="h-4 w-4" />} label="Reading" />
+              <QuickLink
+                href="/listening"
+                icon={<Headphones className="h-4 w-4" />}
+                label="Listening"
+              />
+              <QuickLink href="/speaking" icon={<Mic className="h-4 w-4" />} label="Speaking" />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Streak hero + overall band + key stats */}
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -581,6 +634,26 @@ function Stat({
       <p className="mt-2 text-2xl font-bold tabular-nums">{value}</p>
       {hint && <p className="mt-0.5 text-xs font-medium">{hint}</p>}
     </Card>
+  );
+}
+
+function QuickLink({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-muted shadow-soft transition-colors hover:border-primary/40 hover:text-foreground"
+    >
+      {icon}
+      {label}
+    </Link>
   );
 }
 
