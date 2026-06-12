@@ -156,8 +156,18 @@ export function PremiumSection({
 
           const body = (
             <>
-              <h3 className="mt-3 font-semibold leading-snug">{t.title}</h3>
-              {t.questionTypes.length > 0 && (
+              {accessible ? (
+                <h3 className="mt-3 font-semibold leading-snug">{t.title}</h3>
+              ) : (
+                <h3
+                  aria-hidden
+                  title="Unlock to reveal"
+                  className="mt-3 select-none truncate font-semibold leading-snug text-foreground/80 blur-sm"
+                >
+                  {t.title}
+                </h3>
+              )}
+              {accessible && t.questionTypes.length > 0 && (
                 <p className="mt-1 line-clamp-1 text-xs text-muted">
                   {t.questionTypes.join(" · ")}
                 </p>

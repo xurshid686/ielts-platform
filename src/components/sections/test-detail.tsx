@@ -58,8 +58,18 @@ export async function TestDetail({
           </div>
           <h1 className="mt-4 text-xl font-bold">This is a Premium test</h1>
           <p className="mt-2 text-sm text-muted">
-            “{t.title}” is available to Premium members. Unlock it with{" "}
-            <strong>{cost} XP</strong>, or ask an administrator to upgrade your account.
+            This{" "}
+            <strong>
+              {t.kind === "full"
+                ? "full test"
+                : skill === "reading"
+                  ? t.passage
+                    ? `Passage ${t.passage}`
+                    : "passage"
+                  : "section"}
+            </strong>{" "}
+            is available to Premium members. Unlock it with <strong>{cost} XP</strong>, or
+            ask an administrator to upgrade your account.
           </p>
           <UnlockButton testId={t.id} cost={cost} xp={profile.xp} />
         </div>
