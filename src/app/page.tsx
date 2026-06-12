@@ -13,11 +13,53 @@ import {
   BarChart3,
   Zap,
   CheckCircle2,
+  Bot,
+  ShieldCheck,
+  CalendarDays,
+  Gauge,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
+import { TIERS, type TierName } from "@/lib/rating";
+
+// One representative division per metal, lowest first — drives the rank ladder.
+// Pulled from the real tier table so it can never drift from the live system.
+const METAL_ORDER: TierName[] = [
+  "Bronze",
+  "Silver",
+  "Gold",
+  "Platinum",
+  "Diamond",
+  "Master",
+  "Grandmaster",
+  "Legend",
+];
+const rankLadder = METAL_ORDER.map((name) => TIERS.find((t) => t.name === name)!);
+
+const FAQS: { q: string; a: string }[] = [
+  {
+    q: "Is it really free?",
+    a: "Yes. You can create an account and practise Reading, Listening and Speaking tests for free. Premium unlocks extra exclusive materials, and you can also unlock individual premium tests with the XP you earn from practising.",
+  },
+  {
+    q: "How is my band score calculated?",
+    a: "Reading and Listening are graded automatically on the server against a hidden answer key the moment you submit, then converted to an IELTS band. Speaking is assessed by an AI examiner across fluency, vocabulary, grammar and pronunciation.",
+  },
+  {
+    q: "Are the tests in the real exam format?",
+    a: "Yes — passages, audio, timing and question types follow the computer-delivered IELTS format, so practising here feels like the real thing on test day.",
+  },
+  {
+    q: "What is the rating and leaderboard?",
+    a: "Every rated Reading test adjusts your rating with an Elo system — harder passages are worth more. You climb through eight tiers from Bronze to Legend and compete on global, weekly and monthly leaderboards.",
+  },
+  {
+    q: "Do I need to install anything?",
+    a: "No. It runs entirely in your browser on desktop or mobile. Just sign up and start your first test.",
+  },
+];
 
 export default async function Home() {
   const supabase = await createClient();
@@ -138,6 +180,49 @@ export default async function Home() {
           />
         </section>
 
+        {/* ---- Feature deep-dive ---- */}
+        <section className="pt-20 sm:pt-24">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+              <Sparkles className="h-3.5 w-3.5" /> Everything in one place
+            </span>
+            <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              Built to feel like the real exam
+            </h2>
+            <p className="mt-3 text-muted">
+              Not a quiz app — a full practice system that scores you honestly and shows
+              you exactly what to fix next.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-4 sm:grid-cols-2">
+            <Highlight
+              icon={<Bot className="h-5 w-5" />}
+              title="A live AI examiner"
+              desc="Have a real spoken conversation with an AI examiner — it asks follow-ups, listens, and you talk back, just like Speaking parts 1–3. Or record a full mock for detailed band feedback."
+              tone="rose"
+            />
+            <Highlight
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="Honest server-side scoring"
+              desc="Reading and Listening are graded on the server against a hidden answer key the instant you submit — scores can't be faked, so your band actually means something."
+              tone="indigo"
+            />
+            <Highlight
+              icon={<Gauge className="h-5 w-5" />}
+              title="Know your weak spots"
+              desc="Per-question-type analytics pinpoint where you lose marks and recommend the exact tests to fix them — true/false, matching headings, maps, and more."
+              tone="teal"
+            />
+            <Highlight
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="Weekly progress reports"
+              desc="Every week you get a digest: tests done, average band, rating change and new achievements — delivered to your in-app inbox so you stay accountable."
+              tone="amber"
+            />
+          </div>
+        </section>
+
         {/* ---- How it works ---- */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
@@ -174,6 +259,75 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* ---- Rank ladder ---- */}
+        <section className="pb-20 sm:pb-24">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-8 shadow-soft sm:p-12">
+            <div className="orb -right-10 -top-16 h-56 w-56 bg-accent/10" />
+            <div className="relative grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
+                  <Trophy className="h-3.5 w-3.5" /> Competitive ranking
+                </span>
+                <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                  Climb from Bronze to Legend
+                </h2>
+                <p className="mt-3 text-pretty text-muted">
+                  Every rated Reading test moves your rating with a chess-style Elo
+                  system — beat harder passages, climb faster. Eight tiers, global and
+                  weekly leaderboards, and badges for every milestone keep practice
+                  addictive.
+                </p>
+                <Button asChild size="lg" className="mt-7">
+                  <Link href="/register">
+                    Claim your rank <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+                {rankLadder.map((tier) => (
+                  <li
+                    key={tier.name}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 transition-transform duration-200 hover:-translate-y-0.5"
+                  >
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-base shadow-sm ${tier.gradient}`}
+                    >
+                      {tier.emoji}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{tier.name}</p>
+                      <p className="text-xs tabular-nums text-muted">
+                        {tier.floor === 0 ? "Start here" : `${tier.floor.toLocaleString()}+`}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* ---- FAQ ---- */}
+        <section className="pb-20 sm:pb-24">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              Questions, answered
+            </h2>
+          </div>
+          <div className="mx-auto mt-10 max-w-3xl divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface shadow-soft">
+            {FAQS.map((f) => (
+              <details key={f.q} className="group px-6 py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium">
+                  {f.q}
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted transition-transform duration-200 group-open:rotate-90 group-open:text-primary" />
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
         {/* ---- CTA band ---- */}
         <section className="pb-20 sm:pb-24">
           <div className="relative overflow-hidden rounded-3xl bg-brand-gradient p-8 text-center text-white shadow-elevated sm:p-14">
@@ -204,11 +358,35 @@ export default async function Home() {
       </main>
 
       <footer className="border-t border-border/60">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-muted sm:flex-row">
-          <span className="flex items-center gap-2 font-medium text-foreground">
-            <Logo size={22} /> IELTS Practice
-          </span>
-          <p>© {new Date().getFullYear()} IELTS Practice Platform. Practise daily, test confidently.</p>
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-sm">
+              <span className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Logo size={24} /> IELTS Practice
+              </span>
+              <p className="mt-2 text-sm text-muted">
+                Real exam-style practice with instant band scores, a live AI examiner and
+                a competitive ranking that keeps you coming back.
+              </p>
+            </div>
+            <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+              <Link href="/register" className="text-muted transition-colors hover:text-foreground">
+                Get started
+              </Link>
+              <Link href="/login" className="text-muted transition-colors hover:text-foreground">
+                Sign in
+              </Link>
+              <Link href="/register" className="text-muted transition-colors hover:text-foreground">
+                Reading & Listening
+              </Link>
+              <Link href="/register" className="text-muted transition-colors hover:text-foreground">
+                Speaking with AI
+              </Link>
+            </nav>
+          </div>
+          <div className="mt-8 border-t border-border/60 pt-6 text-center text-sm text-muted">
+            © {new Date().getFullYear()} IELTS Practice Platform. Practise daily, test confidently.
+          </div>
         </div>
       </footer>
     </div>
@@ -275,6 +453,33 @@ function Feature({
         Start now <ArrowRight className="h-3.5 w-3.5" />
       </span>
     </Link>
+  );
+}
+
+function Highlight({
+  icon,
+  title,
+  desc,
+  tone,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  tone: keyof typeof tones;
+}) {
+  const t = tones[tone];
+  return (
+    <div className="group flex gap-4 rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-elevated">
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${t.chip}`}
+      >
+        {icon}
+      </div>
+      <div>
+        <h3 className="font-semibold">{title}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</p>
+      </div>
+    </div>
   );
 }
 
