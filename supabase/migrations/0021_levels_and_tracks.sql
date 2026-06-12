@@ -1,5 +1,5 @@
 -- ============================================================
--- IELTS Platform — 0021: student levels (tracks) + materials library
+-- IELTS Platform — 0021: student levels + per-level test tracks
 -- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
 -- Safe to re-run.
 -- ============================================================
@@ -12,10 +12,12 @@
 -- 2. set_user_level() — admin-only, trusted setter (mirrors set_premium).
 -- 3. level is added to the privileged-field guard so students can't
 --    self-assign a level via the public REST API.
--- 4. materials — an admin-curated library of files/links, each tagged to a
---    level. Students see only their own level's materials (RLS); admins see
---    all. Files live in a private 'materials' storage bucket served via
---    short-lived signed URLs.
+-- 4. tests.track — which audience a reading/listening test is FOR:
+--      'regular'   shows on the normal /reading & /listening pages
+--      'pre_ielts' shows only in the Pre-IELTS menu, to Pre-IELTS students
+--      'intro'     shows only in the Introduction menu, to Intro students
+--    (Access is gated app-side in the test pages + /api/test-html, the same
+--     way premium is — non-matching students never get the file_url.)
 -- ============================================================
 
 set check_function_bodies = off;
@@ -24,7 +26,6 @@ set check_function_bodies = off;
 alter table public.profiles
   add column if not exists level text not null default 'regular';
 
--- (re-runnable) ensure the check constraint exists exactly once
 alter table public.profiles drop constraint if exists profiles_level_check;
 alter table public.profiles
   add constraint profiles_level_check
@@ -67,7 +68,6 @@ revoke all on function public.set_user_level(text, text) from public, anon;
 grant execute on function public.set_user_level(text, text) to authenticated;
 
 -- 3. ------------------------------------ block self-escalation of `level`
--- Extend the 0014 guard so the public REST roles can't change their level.
 create or replace function public.protect_profile_privileged_fields()
 returns trigger
 language plpgsql
@@ -91,91 +91,26 @@ begin
   return new;
 end;
 $$;
--- trigger itself is unchanged (still bound from 0014); recreate defensively
 drop trigger if exists trg_protect_profile_privileged on public.profiles;
 create trigger trg_protect_profile_privileged
   before update on public.profiles
   for each row execute function public.protect_profile_privileged_fields();
 
--- 4. ------------------------------------------------------ materials table
-create table if not exists public.materials (
-  id          uuid primary key default gen_random_uuid(),
-  title       text not null,
-  description text,
-  level       text not null check (level in ('pre_ielts', 'intro')),
-  kind        text not null check (kind in ('file', 'link')),
-  file_path   text,        -- storage path in the 'materials' bucket (kind='file')
-  url         text,        -- external link (kind='link')
-  sort        int  not null default 0,
-  created_by  uuid references public.profiles(id) on delete set null,
-  created_at  timestamptz not null default now()
-);
+-- 4. ------------------------------------------------ test audience / track
+alter table public.tests
+  add column if not exists track text not null default 'regular';
 
-create index if not exists materials_level_idx on public.materials (level, sort, created_at desc);
+alter table public.tests drop constraint if exists tests_track_check;
+alter table public.tests
+  add constraint tests_track_check
+  check (track in ('regular', 'pre_ielts', 'intro'));
 
-alter table public.materials enable row level security;
-
--- Students read only their OWN level's materials; admins read everything.
-drop policy if exists materials_select on public.materials;
-create policy materials_select on public.materials
-  for select to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid()
-        and (p.role = 'admin' or p.level = materials.level)
-    )
-  );
-
--- Only admins create / update / delete materials.
-drop policy if exists materials_admin_write on public.materials;
-create policy materials_admin_write on public.materials
-  for all to authenticated
-  using (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
-  )
-  with check (
-    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
-
--- 5. -------------------------------------------------- private storage bucket
-insert into storage.buckets (id, name, public)
-values ('materials', 'materials', false)
-on conflict (id) do nothing;
-
--- Read an object only if a materials row points at it AND the viewer is an
--- admin or a student of that material's level. This lets the user's own
--- session mint a signed URL (no service-role key needed at runtime).
-drop policy if exists "materials read by level" on storage.objects;
-create policy "materials read by level" on storage.objects
-  for select to authenticated
-  using (
-    bucket_id = 'materials'
-    and exists (
-      select 1
-      from public.materials m
-      join public.profiles p on p.id = auth.uid()
-      where m.file_path = storage.objects.name
-        and (p.role = 'admin' or p.level = m.level)
-    )
-  );
-
--- Only admins may upload / overwrite / delete material files.
-drop policy if exists "materials write by admin" on storage.objects;
-create policy "materials write by admin" on storage.objects
-  for all to authenticated
-  using (
-    bucket_id = 'materials'
-    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
-  )
-  with check (
-    bucket_id = 'materials'
-    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
-  );
+create index if not exists tests_track_skill_idx on public.tests (track, skill);
 
 -- ============================================================
 -- VERIFY (optional):
 --   select level, count(*) from public.profiles group by level;
+--   select track, skill, count(*) from public.tests group by track, skill;
 --   -- as a non-admin this must FAIL:
 --   select public.set_user_level('someone@example.com', 'pre_ielts');
 -- ============================================================

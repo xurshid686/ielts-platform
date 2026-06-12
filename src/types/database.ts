@@ -31,20 +31,6 @@ export type Profile = {
   created_at: string;
 };
 
-/** A learning material in the Pre-IELTS / Intro library (migration 0021). */
-export type Material = {
-  id: string;
-  title: string;
-  description: string | null;
-  level: Exclude<Level, "regular">; // 'pre_ielts' | 'intro'
-  kind: "file" | "link";
-  file_path: string | null; // storage path in the private 'materials' bucket
-  url: string | null; // external link (kind === 'link')
-  sort: number;
-  created_by: string | null;
-  created_at: string;
-};
-
 export type Referral = {
   id: string;
   referrer_id: string;
@@ -64,7 +50,8 @@ export type Test = {
   question_types: string[];
   times_done: number; // total completions across all users
   difficulty: number; // self-tuning Elo difficulty (reading); 1500 = average
-  level: string | null;
+  level: string | null; // free-text band label shown on the card, e.g. "Band 6–7"
+  track: Level; // audience: 'regular' (normal pages) | 'pre_ielts' | 'intro' (migration 0021)
   passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;
   file_path: string;

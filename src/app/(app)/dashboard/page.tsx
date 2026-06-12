@@ -33,6 +33,7 @@ import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-ar
 import { Onboarding } from "@/components/dashboard/onboarding";
 import { computeTypeStats, weakestType } from "@/lib/analytics";
 import { isPremiumActive } from "@/lib/premium";
+import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 
 type Activity = {
@@ -53,8 +54,25 @@ export default async function DashboardPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
+  // Fetch reading tests incl. `track` (0021), with a graceful pre-migration fallback.
+  const readingCols = "id, title, kind, tier, passage, question_types, difficulty";
+  type ReadingTestRow = Pick<
+    Test,
+    "id" | "title" | "kind" | "tier" | "passage" | "question_types" | "difficulty" | "track"
+  >;
+  async function fetchReadingTests(): Promise<ReadingTestRow[]> {
+    const withTrack = await supabase
+      .from("tests")
+      .select(`${readingCols}, track`)
+      .eq("skill", "reading");
+    if (!withTrack.error) return (withTrack.data ?? []) as unknown as ReadingTestRow[];
+    if (!/track/.test(withTrack.error.message)) return [];
+    const fallback = await supabase.from("tests").select(readingCols).eq("skill", "reading");
+    return (fallback.data ?? []) as unknown as ReadingTestRow[];
+  }
+
   // Reading / listening / writing live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }, { data: rankRow }, { data: readingTests }] =
+  const [{ data: results }, { data: speaking }, { data: rankRow }, readingTests] =
     await Promise.all([
       supabase
         .from("results")
@@ -67,10 +85,7 @@ export default async function DashboardPage() {
         .eq("user_id", profile.id)
         .order("created_at", { ascending: false }),
       supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
-      supabase
-        .from("tests")
-        .select("id, title, kind, tier, passage, question_types, difficulty")
-        .eq("skill", "reading"),
+      fetchReadingTests(),
     ]);
 
   const globalRank = (rankRow as Pick<LeaderboardGlobalRow, "rank"> | null)?.rank ?? null;
@@ -257,10 +272,9 @@ export default async function DashboardPage() {
     .slice(0, 8);
 
   // ---- Question-type analytics + recommended next reading test ----
-  const readingTestList = (readingTests ?? []) as Pick<
-    Test,
-    "id" | "title" | "kind" | "tier" | "passage" | "question_types" | "difficulty"
-  >[];
+  // Only consider tests the student can actually open: their own track
+  // (regular students → regular tests; pre_ielts/intro → their level's tests).
+  const readingTestList = readingTests.filter((t) => canAccessTrack(profile, t.track));
   const typeStats = computeTypeStats(all, readingTestList, "reading");
   const weakQType = weakestType(typeStats);
   const attemptedReadingIds = new Set(

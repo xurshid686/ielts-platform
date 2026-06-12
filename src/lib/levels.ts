@@ -18,15 +18,13 @@ export const LEVELS: Record<ContentLevel, LevelMeta> = {
   pre_ielts: {
     slug: "pre_ielts",
     label: "Pre-IELTS",
-    blurb:
-      "Foundation materials to get you ready for IELTS — vocabulary task books, grammar and study basics.",
+    blurb: "Foundation reading and listening tests to get you ready for IELTS.",
     href: "/pre-ielts",
   },
   intro: {
     slug: "intro",
     label: "Introduction",
-    blurb:
-      "Your gentle introduction to the IELTS exam — formats, question types and what to expect on test day.",
+    blurb: "Gentle introductory reading and listening tests to ease you into the IELTS format.",
     href: "/intro",
   },
 };
@@ -47,4 +45,19 @@ export function levelLabel(level: Level | string): string {
 
 export function isContentLevel(level: Level): level is ContentLevel {
   return level === "pre_ielts" || level === "intro";
+}
+
+/**
+ * Can this profile see/open a test of the given track?
+ * Regular tests are open to everyone; level tests only to matching students
+ * (admins always pass so they can review). A missing track defaults to regular.
+ */
+export function canAccessTrack(
+  profile: { role: string; level?: Level | string | null },
+  track: Level | string | null | undefined,
+): boolean {
+  const t = (track ?? "regular") as Level;
+  if (t === "regular") return true;
+  if (profile.role === "admin") return true;
+  return profile.level === t;
 }

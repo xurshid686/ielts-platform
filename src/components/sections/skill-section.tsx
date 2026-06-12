@@ -18,14 +18,29 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const profile = await requireProfile();
   const supabase = await createClient();
 
-  const [{ data: tests }, { data: results }, { data: unlocks }] = await Promise.all([
-    // Note: file_url/file_path are intentionally NOT selected — premium content
-    // is fetched only via /api/test-html (which gates access).
-    supabase
+  // Note: file_url/file_path are intentionally NOT selected — premium content
+  // is fetched only via /api/test-html (which gates access).
+  const baseCols =
+    "id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at";
+  async function fetchTests(): Promise<Test[]> {
+    // Include `track` (0021) but fall back gracefully if the migration is pending.
+    const withTrack = await supabase
       .from("tests")
-      .select("id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at")
+      .select(`${baseCols}, track`)
       .eq("skill", skill)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false });
+    if (!withTrack.error) return (withTrack.data ?? []) as unknown as Test[];
+    if (!/track/.test(withTrack.error.message)) return [];
+    const fallback = await supabase
+      .from("tests")
+      .select(baseCols)
+      .eq("skill", skill)
+      .order("created_at", { ascending: false });
+    return (fallback.data ?? []) as unknown as Test[];
+  }
+
+  const [tests, { data: results }, { data: unlocks }] = await Promise.all([
+    fetchTests(),
     supabase
       .from("results")
       .select("*")
@@ -37,7 +52,9 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
 
   const unlockedIds = ((unlocks ?? []) as { test_id: string }[]).map((u) => u.test_id);
 
-  const testList = (tests ?? []) as Test[];
+  // Only the normal IELTS tests belong on these pages; level-specific tests
+  // (pre_ielts / intro) live in their own menus. Missing track = regular.
+  const testList = ((tests ?? []) as Test[]).filter((t) => (t.track ?? "regular") === "regular");
   const res = (results ?? []) as Result[];
   const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
 

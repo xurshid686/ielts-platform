@@ -45,6 +45,9 @@ export default async function AdminTestsPage() {
                       {t.skill}
                       {t.passage ? ` · Passage ${t.passage}` : ""}
                       {t.level ? ` · ${t.level}` : ""}
+                      {t.track && t.track !== "regular"
+                        ? ` · ${t.track === "pre_ielts" ? "Pre-IELTS" : "Intro"}`
+                        : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

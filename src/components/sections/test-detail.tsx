@@ -4,6 +4,7 @@ import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canAccessTest, unlockCost } from "@/lib/premium";
+import { canAccessTrack } from "@/lib/levels";
 import { TestRunner } from "@/components/test-runner";
 import { UnlockButton } from "@/components/sections/unlock-button";
 import { PremiumContact } from "@/components/premium-contact";
@@ -28,6 +29,10 @@ export async function TestDetail({
 
   if (!test) notFound();
   const t = test as Test;
+
+  // Level gate: a Pre-IELTS / Intro test is only openable by students of that
+  // level (admins pass). Treat it as not-found for everyone else.
+  if (!canAccessTrack(profile, t.track)) notFound();
 
   // Has the user unlocked this specific premium test with XP?
   let unlocked = false;

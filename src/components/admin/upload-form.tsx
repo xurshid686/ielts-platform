@@ -83,6 +83,14 @@ export function UploadForm() {
           </select>
         </label>
         <label className="space-y-1.5">
+          <span className="text-sm font-medium">For</span>
+          <select name="track" required className="admin-input" defaultValue="regular">
+            <option value="regular">Regular IELTS — normal pages</option>
+            <option value="pre_ielts">Pre-IELTS students only</option>
+            <option value="intro">Introduction students only</option>
+          </select>
+        </label>
+        <label className="space-y-1.5">
           <span className="text-sm font-medium">Level (optional)</span>
           <input name="level" placeholder="Band 6–7" className="admin-input" />
         </label>
