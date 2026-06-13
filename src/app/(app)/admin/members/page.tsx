@@ -20,7 +20,7 @@ export default async function AdminMembersPage() {
       .from("profiles")
       .select(cols)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(500);
     if (!error) {
       rows = (data ?? []) as unknown as Record<string, unknown>[];
       break;

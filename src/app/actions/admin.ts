@@ -182,7 +182,7 @@ export async function searchUsers(
       .from("profiles")
       .select(cols)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(500);
     if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
 
     const { data, error } = await req;
