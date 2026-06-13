@@ -55,64 +55,6 @@ const shell = (inner: string) => `
     </p>
   </div>`;
 
-/** Weekly progress digest. Mirrors the in-app weekly_report notification. */
-export function sendWeeklyReportEmail(
-  to: string,
-  opts: { name?: string | null; tests: number; avgBand: number | null; bestBand: number | null },
-): Promise<SendResult> {
-  const greeting = opts.name ? `Hi ${opts.name.split(" ")[0]},` : "Hi,";
-  const stat = (label: string, value: string) => `
-    <td style="padding:10px 14px;background:#f8fafc;border:1px solid #e6e9f0;border-radius:10px;text-align:center">
-      <div style="font-size:22px;font-weight:800;color:#0f172a">${value}</div>
-      <div style="font-size:12px;color:#64748b">${label}</div>
-    </td>`;
-  return sendEmail({
-    to,
-    subject: "📊 Your weekly IELTS progress report",
-    html: shell(`
-      <p style="margin:0 0 12px">${greeting}</p>
-      <p style="margin:0 0 16px">Here's how your week went on the IELTS Practice Platform:</p>
-      <table style="width:100%;border-collapse:separate;border-spacing:8px 0;margin:0 0 18px">
-        <tr>
-          ${stat("Tests", String(opts.tests))}
-          ${stat("Avg band", opts.avgBand != null ? opts.avgBand.toFixed(1) : "—")}
-          ${stat("Best band", opts.bestBand != null ? opts.bestBand.toFixed(1) : "—")}
-        </tr>
-      </table>
-      <a href="${SITE_URL}/dashboard"
-         style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:600">
-        See your full dashboard
-      </a>
-    `),
-  });
-}
-
-/** Daily nudge to keep a streak alive. Sent only to users who haven't practised today. */
-export function sendStreakReminderEmail(
-  to: string,
-  opts: { name?: string | null; streak: number },
-): Promise<SendResult> {
-  const greeting = opts.name ? `Hi ${opts.name.split(" ")[0]},` : "Hi,";
-  return sendEmail({
-    to,
-    subject: `🔥 Keep your ${opts.streak}-day streak alive`,
-    html: shell(`
-      <p style="margin:0 0 12px">${greeting}</p>
-      <p style="margin:0 0 16px">
-        You're on a <strong>${opts.streak}-day streak</strong> 🔥 — but you haven't
-        practised yet today. A single test keeps it going.
-      </p>
-      <a href="${SITE_URL}/reading"
-         style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:600">
-        Take a quick test
-      </a>
-      <p style="margin:16px 0 0;color:#64748b;font-size:14px">
-        You can manage email reminders in your account settings.
-      </p>
-    `),
-  });
-}
-
 /** Notifies a user that they've been granted admin access. */
 export function sendAdminPromotionEmail(to: string, name?: string | null): Promise<SendResult> {
   const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi,";
