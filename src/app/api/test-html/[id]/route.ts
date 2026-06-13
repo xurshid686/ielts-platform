@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { injectScoringBridge } from "@/lib/ielts/scoring-bridge";
 import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
@@ -19,13 +20,17 @@ export async function GET(
 
   // Fetch the test (incl. its track) with a graceful fallback if the 0021
   // migration (tests.track) hasn't been run yet.
-  let testRes = await supabase.from("tests").select("file_url, tier, track").eq("id", id).single();
+  let testRes = await supabase
+    .from("tests")
+    .select("file_path, tier, track")
+    .eq("id", id)
+    .single();
   if (testRes.error && /track/.test(testRes.error.message)) {
-    testRes = await supabase.from("tests").select("file_url, tier").eq("id", id).single();
+    testRes = await supabase.from("tests").select("file_path, tier").eq("id", id).single();
   }
-  const row = testRes.data as { file_url?: string; tier?: string; track?: string } | null;
-  const fileUrl = row?.file_url;
-  if (!fileUrl) return new Response("Not found", { status: 404 });
+  const row = testRes.data as { file_path?: string; tier?: string; track?: string } | null;
+  const filePath = row?.file_path;
+  if (!filePath) return new Response("Not found", { status: 404 });
 
   // Load the viewer's profile once (role/premium drive premium; level drives track).
   let profRes = await supabase
@@ -73,10 +78,14 @@ export async function GET(
     }
   }
 
-  const upstream = await fetch(fileUrl, { cache: "no-store" });
-  if (!upstream.ok) return new Response("Upstream error", { status: 502 });
+  // Download the file with the service-role client. This is the ONLY path that
+  // reads test HTML, so the storage bucket can stay private — a leaked public
+  // URL is useless, and the premium/track gates above can't be bypassed.
+  const admin = createAdminClient();
+  const { data: blob, error: dlErr } = await admin.storage.from("tests").download(filePath);
+  if (dlErr || !blob) return new Response("Upstream error", { status: 502 });
 
-  const raw = await upstream.text();
+  const raw = await blob.text();
   const html = injectScoringBridge(raw); // auto-scoring for every test, even uploads without a bridge
   return new Response(html, {
     status: 200,
