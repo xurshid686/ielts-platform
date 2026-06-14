@@ -16,8 +16,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Brand / hero side */}
       <div className="relative hidden flex-col justify-between overflow-hidden bg-brand-gradient p-10 text-white lg:flex">
         <div className="ring-hairline absolute inset-0" />
-        <div className="orb -left-20 top-1/4 h-80 w-80 bg-white/15" />
-        <div className="orb -right-24 bottom-10 h-96 w-96 bg-white/10" />
 
         <Link href="/" className="relative flex items-center gap-2.5 text-lg font-semibold">
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm">
@@ -28,7 +26,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <div className="relative max-w-md space-y-7">
           <h1 className="text-balance text-4xl font-bold leading-[1.15] tracking-tight">
-            Master all four IELTS skills, one streak at a time. 🔥
+            Master all four IELTS skills, one streak at a time.
           </h1>
           <ul className="space-y-3.5">
             {PERKS.map(({ icon: Icon, text }) => (

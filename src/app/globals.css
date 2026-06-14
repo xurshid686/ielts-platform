@@ -3,61 +3,63 @@
 /* next-themes toggles the `dark` class on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ----------------------------------------------------------------------------
+   Warm & human palette — terracotta / clay / cream / sage.
+   Deliberately no blue/indigo, no neon gradients: warm paper + earthy accents.
+---------------------------------------------------------------------------- */
 :root {
-  --background: #f6f7fb;
-  --surface: #ffffff;
-  --surface-2: #f1f3f9;
-  --foreground: #0f172a;
-  --muted: #64748b;
-  --border: #e6e9f0;
-  --primary: #4f46e5;      /* indigo */
-  --primary-foreground: #ffffff;
-  --accent: #0d9488;       /* teal */
-  --success: #16a34a;
-  --warning: #f59e0b;
-  --danger: #dc2626;
-  --ring: #6366f1;
+  --background: #faf6f0;   /* warm cream paper */
+  --surface: #fffdfa;      /* warm white card */
+  --surface-2: #f1e9dd;    /* warm sand */
+  --foreground: #2b2420;   /* warm near-black (espresso ink) */
+  --muted: #8a7d70;        /* warm taupe */
+  --border: #e7ddce;       /* warm hairline */
+  --primary: #c0572e;      /* terracotta */
+  --primary-foreground: #fffaf4;
+  --accent: #6b7d57;       /* sage green */
+  --success: #4f7a3f;      /* olive green */
+  --warning: #cf8a2c;      /* amber ochre */
+  --danger: #c0392b;       /* brick red */
+  --ring: #c0572e;
 
-  /* Layered shadows tuned for a light surface */
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.05);
-  --shadow-elevated: 0 6px 18px rgba(15, 23, 42, 0.08), 0 18px 40px rgba(15, 23, 42, 0.09);
-  --shadow-primary: 0 6px 16px rgba(79, 70, 229, 0.25);
-  --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.08), 0 8px 32px rgba(99, 102, 241, 0.18);
+  /* Soft, warm-gray shadows — small and single-purpose, no coloured glow */
+  --shadow-soft: 0 1px 2px rgba(64, 47, 35, 0.05), 0 3px 8px rgba(64, 47, 35, 0.06);
+  --shadow-elevated: 0 6px 16px rgba(64, 47, 35, 0.09), 0 14px 32px rgba(64, 47, 35, 0.08);
+  --shadow-primary: 0 2px 6px rgba(150, 64, 30, 0.18);
+  --shadow-glow: 0 4px 14px rgba(150, 64, 30, 0.14);
 
-  /* Brand gradient + a faint page wash */
-  --gradient-brand: linear-gradient(135deg, #6366f1 0%, #7c5cf0 45%, #14b8a6 100%);
+  /* Brand gradient — warm terracotta → clay → amber */
+  --gradient-brand: linear-gradient(135deg, #c0572e 0%, #cf7042 45%, #d99b46 100%);
+  /* A whisper-soft warm wash, no movement */
   --page-wash:
-    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.07), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 0%, rgba(13, 148, 136, 0.06), transparent 55%),
-    radial-gradient(40rem 30rem at 50% 120%, rgba(124, 92, 240, 0.04), transparent 60%);
+    radial-gradient(70rem 45rem at 100% -15%, rgba(192, 87, 46, 0.05), transparent 60%),
+    radial-gradient(55rem 40rem at -10% 5%, rgba(107, 125, 87, 0.045), transparent 60%);
 }
 
 .dark {
-  --background: #0a0f1d;
-  --surface: #111827;
-  --surface-2: #161f33;
-  --foreground: #e5e7eb;
-  --muted: #94a3b8;
-  --border: #1f2a44;
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
-  --accent: #2dd4bf;
-  --success: #22c55e;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --ring: #818cf8;
+  --background: #1c1714;   /* warm espresso */
+  --surface: #251e1a;      /* roasted brown */
+  --surface-2: #2e251f;    /* lighter roast */
+  --foreground: #ece3d8;   /* warm cream text */
+  --muted: #a89a8b;        /* warm gray */
+  --border: #3a2f27;       /* warm dark hairline */
+  --primary: #e08a5a;      /* lightened terracotta */
+  --primary-foreground: #221813;
+  --accent: #9aab82;       /* lightened sage */
+  --success: #84b06a;
+  --warning: #e0a85a;
+  --danger: #e07a6b;
+  --ring: #e08a5a;
 
-  /* On dark, lean on depth + a faint glow rather than dark drop-shadows */
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 10px 28px rgba(0, 0, 0, 0.5), 0 24px 56px rgba(0, 0, 0, 0.45);
-  --shadow-primary: 0 6px 22px rgba(99, 102, 241, 0.4);
-  --shadow-glow: 0 0 0 1px rgba(129, 140, 248, 0.12), 0 8px 36px rgba(99, 102, 241, 0.3);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.32);
+  --shadow-elevated: 0 8px 22px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.42);
+  --shadow-primary: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 4px 16px rgba(0, 0, 0, 0.4);
 
-  --gradient-brand: linear-gradient(135deg, #818cf8 0%, #a78bfa 45%, #2dd4bf 100%);
+  --gradient-brand: linear-gradient(135deg, #d9774a 0%, #e08a5a 45%, #e6b06a 100%);
   --page-wash:
-    radial-gradient(60rem 40rem at 110% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 0%, rgba(45, 212, 191, 0.09), transparent 55%),
-    radial-gradient(40rem 30rem at 50% 120%, rgba(167, 139, 250, 0.07), transparent 60%);
+    radial-gradient(70rem 45rem at 100% -15%, rgba(224, 138, 90, 0.07), transparent 60%),
+    radial-gradient(55rem 40rem at -10% 5%, rgba(154, 171, 130, 0.05), transparent 60%);
 }
 
 @theme inline {
@@ -80,7 +82,8 @@
   --shadow-primary: var(--shadow-primary);
   --shadow-glow: var(--shadow-glow);
 
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -95,11 +98,16 @@ html {
 body {
   background: var(--background);
   background-image: var(--page-wash);
-  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Headings carry the display face — the single biggest "human" signal. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
@@ -123,46 +131,33 @@ body {
   color: transparent;
 }
 
-/* Frosted-glass surface for sticky headers / floating chrome */
+/* Sticky-header chrome: an honest, solid warm surface with a hairline base.
+   (Was a frosted-glass blur — a classic "AI template" tell.) */
 .glass {
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
-/* A hairline highlight on top edges of elevated surfaces (premium depth cue) */
+/* A hairline highlight on top edges of elevated surfaces */
 .ring-hairline {
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
 }
 .dark .ring-hairline {
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
-/* Faint blueprint grid for hero sections (fades out via mask) */
-.bg-grid-faint {
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
-}
-
-/* Soft glowing orb — position/size/color with utilities */
-.orb {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(72px);
-  pointer-events: none;
-}
+/* Retired decorative clichés — kept as no-ops so any stray usage is harmless. */
+.bg-grid-faint { background-image: none; }
+.orb { display: none; }
+.animate-gradient-pan { animation: none; }
 
 /* Scrollbars (both themes) */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-thumb { background: #d8cab6; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #c2ad92; }
 ::-webkit-scrollbar-track { background: transparent; }
-.dark ::-webkit-scrollbar-thumb { background: #233052; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #2e3d63; }
+.dark ::-webkit-scrollbar-thumb { background: #3a2f27; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4a3c30; }
 
 @media (prefers-reduced-motion: no-preference) {
   @keyframes fade-in-up {
@@ -173,28 +168,11 @@ body {
 
   /* Staggered entrance for hero/landing content */
   @keyframes rise-in {
-    from { opacity: 0; transform: translateY(16px); }
+    from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: translateY(0); }
   }
   .animate-rise {
-    animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--rise-delay, 0ms);
-  }
-
-  /* Gentle float for decorative elements */
-  @keyframes float-slow {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-  .animate-float-slow { animation: float-slow 7s ease-in-out infinite; }
-
-  /* Slow hue drift on gradient text for living headlines */
-  @keyframes gradient-pan {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
-  .animate-gradient-pan {
-    background-size: 200% 200%;
-    animation: gradient-pan 8s ease-in-out infinite;
   }
 }

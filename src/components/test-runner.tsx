@@ -6,6 +6,7 @@ import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft,
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { Button } from "@/components/ui/button";
 import { tierForRating } from "@/lib/rating";
+import { RankBadge } from "@/components/rating/rank-badge";
 
 type Props = {
   testId: string;
@@ -185,7 +186,7 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
                 <TrendingDown className="h-3.5 w-3.5" />
               )}
               {saved.rating.delta >= 0 ? `+${saved.rating.delta}` : saved.rating.delta} ·{" "}
-              {saved.rating.rating} {tierForRating(saved.rating.rating ?? 0).emoji}
+              {saved.rating.rating}
             </span>
           )}
         </div>
@@ -288,7 +289,7 @@ function Celebration({
         <button onClick={onClose} className="absolute right-4 top-4 text-muted hover:text-foreground" aria-label="Close">
           <X className="h-5 w-5" />
         </button>
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">🔥</div>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary"><Flame className="h-8 w-8" /></div>
         <h3 className="mt-4 text-lg font-bold">Streak extended!</h3>
         <p className="mt-1 text-5xl font-extrabold text-primary">{saved.streak}</p>
         <p className="text-sm text-muted">day streak · keep it going tomorrow!</p>
@@ -310,7 +311,7 @@ function Celebration({
         {saved.rating?.rated && saved.rating.rating != null && (
           <div className="mt-3 flex items-center justify-between rounded-xl bg-primary/5 px-4 py-3 text-sm">
             <span className="flex items-center gap-2 font-medium">
-              <span className="text-lg">{tierForRating(saved.rating.rating).emoji}</span>
+              <RankBadge rating={saved.rating.rating} size="sm" />
               {tierForRating(saved.rating.rating).label} · {saved.rating.rating}
             </span>
             <span

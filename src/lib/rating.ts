@@ -24,22 +24,26 @@ export type Tier = {
   division: "I" | "II" | "III" | "";
   /** "Gold II" etc. */
   label: string;
-  /** Tailwind gradient classes for the badge. */
+  /**
+   * Solid warm tile classes (bg + text) for the rank badge. A cohesive earthy
+   * ramp, not rainbow medals — tiers are told apart by their monogram + depth.
+   */
   gradient: string;
   /** Solid accent (text/border) for compact chips. */
   accent: string;
+  /** Short monogram shown on the badge (B, S, G … GM, L). */
   emoji: string;
 };
 
 const METAL: Record<TierName, { gradient: string; accent: string; emoji: string }> = {
-  Bronze: { gradient: "from-amber-700 to-orange-600", accent: "text-amber-700", emoji: "🥉" },
-  Silver: { gradient: "from-slate-400 to-slate-500", accent: "text-slate-500", emoji: "🥈" },
-  Gold: { gradient: "from-yellow-400 to-amber-500", accent: "text-amber-500", emoji: "🥇" },
-  Platinum: { gradient: "from-cyan-300 to-teal-400", accent: "text-teal-500", emoji: "💠" },
-  Diamond: { gradient: "from-sky-400 to-indigo-500", accent: "text-sky-500", emoji: "💎" },
-  Master: { gradient: "from-fuchsia-500 to-purple-600", accent: "text-purple-500", emoji: "🔮" },
-  Grandmaster: { gradient: "from-rose-500 to-red-600", accent: "text-rose-500", emoji: "👑" },
-  Legend: { gradient: "from-amber-300 via-rose-400 to-violet-500", accent: "text-rose-500", emoji: "🌟" },
+  Bronze: { gradient: "bg-stone-300 text-stone-700", accent: "text-stone-600", emoji: "B" },
+  Silver: { gradient: "bg-stone-400 text-white", accent: "text-stone-500", emoji: "S" },
+  Gold: { gradient: "bg-amber-500 text-white", accent: "text-amber-600", emoji: "G" },
+  Platinum: { gradient: "bg-amber-600 text-white", accent: "text-amber-700", emoji: "P" },
+  Diamond: { gradient: "bg-orange-600 text-white", accent: "text-orange-600", emoji: "D" },
+  Master: { gradient: "bg-orange-700 text-white", accent: "text-orange-700", emoji: "M" },
+  Grandmaster: { gradient: "bg-[#c0572e] text-white", accent: "text-[#c0572e]", emoji: "GM" },
+  Legend: { gradient: "bg-[#8a3a1a] text-amber-100", accent: "text-[#8a3a1a]", emoji: "L" },
 };
 
 function t(floor: number, name: TierName, division: "I" | "II" | "III" | ""): Tier {

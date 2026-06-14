@@ -2,13 +2,13 @@ import { tierForRating, type Tier } from "@/lib/rating";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
-  sm: { box: "h-8 w-8 text-base", ring: "ring-1" },
-  md: { box: "h-12 w-12 text-2xl", ring: "ring-2" },
-  lg: { box: "h-20 w-20 text-4xl", ring: "ring-4" },
+  sm: { box: "h-8 w-8 text-xs", ring: "ring-1" },
+  md: { box: "h-12 w-12 text-base", ring: "ring-2" },
+  lg: { box: "h-20 w-20 text-2xl", ring: "ring-4" },
 } as const;
 
 /**
- * The diamond-shaped tier emblem (gradient by metal, emoji inside).
+ * The tier emblem — a solid warm tile carrying the tier monogram.
  * Pass either a `rating` or an explicit `tier`.
  */
 export function RankBadge({
@@ -27,7 +27,7 @@ export function RankBadge({
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-soft ring-white/40",
+        "relative inline-flex shrink-0 items-center justify-center rounded-xl font-bold shadow-soft ring-black/5",
         t.gradient,
         s.box,
         s.ring,
@@ -36,7 +36,7 @@ export function RankBadge({
       title={t.label}
       aria-label={t.label}
     >
-      <span className="drop-shadow-sm">{t.emoji}</span>
+      {t.emoji}
     </span>
   );
 }
@@ -52,7 +52,7 @@ export function TierChip({ rating, className }: { rating: number; className?: st
         className,
       )}
     >
-      {t.emoji} {t.label}
+      {t.label}
     </span>
   );
 }

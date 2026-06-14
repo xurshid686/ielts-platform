@@ -94,7 +94,7 @@ export default async function PublicProfilePage({
               <h1 className="text-2xl font-bold">{p.name || "Anonymous student"}</h1>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
-                  {tier.emoji} {tier.label}
+                  {tier.label}
                 </span>
                 <span className="text-2xl font-extrabold tabular-nums">{p.rating}</span>
                 {p.global_rank && (

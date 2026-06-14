@@ -63,7 +63,7 @@ export function RatingCard({
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-surface-2">
             <div
-              className={`h-full rounded-full bg-gradient-to-r ${p.next.gradient}`}
+              className={`h-full rounded-full ${p.next.gradient}`}
               style={{ width: `${p.pct}%` }}
             />
           </div>

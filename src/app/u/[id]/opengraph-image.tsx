@@ -115,7 +115,7 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
                   fontWeight: 700,
                 }}
               >
-                {tier.emoji} {tier.label}
+                {tier.label}
               </div>
               <div style={{ display: "flex", fontSize: 30, color: "#94a3b8" }}>
                 ≈ Band {estimatedBand(rating)} reading

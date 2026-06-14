@@ -108,7 +108,7 @@ export function FocusArea({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{t.title}</span>
                       <span className="text-xs text-muted">
-                        {label} · {tier.emoji} {tier.label} difficulty
+                        {label} · {tier.label} difficulty
                       </span>
                     </span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />

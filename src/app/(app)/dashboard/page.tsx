@@ -329,16 +329,15 @@ export default async function DashboardPage() {
     totalCompleted === 0
       ? "Take your first test to start your streak and see your estimated band."
       : practicedToday
-        ? `Nice — you've practised today. ${profile.streak}-day streak going strong. 🔥`
+        ? `Nice — you've practised today. ${profile.streak}-day streak going strong.`
         : profile.streak > 0
-          ? `Keep your ${profile.streak}-day streak alive — take a test today. 🔥`
-          : "Take a test today to start a new streak. 🔥";
+          ? `Keep your ${profile.streak}-day streak alive — take a test today.`
+          : "Take a test today to start a new streak.";
 
   return (
     <div className="space-y-8">
       {/* Quick-start: action-first welcome band */}
       <section className="animate-fade-in-up relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/8 via-surface to-surface p-6 shadow-soft">
-        <div className="orb -right-10 -top-14 h-44 w-44 bg-primary/10" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -350,7 +349,7 @@ export default async function DashboardPage() {
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
             <Link
               href={primaryAction.href}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-110"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-95"
             >
               <Target className="h-4 w-4 shrink-0" />
               <span className="truncate">{primaryAction.label}</span>
@@ -373,8 +372,6 @@ export default async function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated">
           <div className="ring-hairline absolute inset-0 rounded-2xl" />
-          <div className="orb -right-12 -top-16 h-48 w-48 bg-white/15" />
-          <div className="orb -bottom-20 left-1/4 h-44 w-44 bg-white/10" />
           <div className="relative flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-sm font-medium text-white/85">
@@ -382,7 +379,6 @@ export default async function DashboardPage() {
               </div>
               <p className="mt-2 flex items-end gap-2 text-5xl font-extrabold tabular-nums">
                 {profile.streak}
-                <span className="mb-1 text-2xl">🔥</span>
               </p>
               <p className="mt-1 text-sm text-white/80">
                 {profile.streak > 0

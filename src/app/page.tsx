@@ -72,12 +72,7 @@ export default async function Home() {
 
   return (
     <div className="relative min-h-screen overflow-x-clip">
-      {/* Decorative backdrop: blueprint grid + soft orbs */}
-      <div className="bg-grid-faint pointer-events-none absolute inset-x-0 top-0 h-[42rem]" />
-      <div className="orb left-[8%] top-24 h-72 w-72 bg-primary/20 dark:bg-primary/25" />
-      <div className="orb right-[6%] top-48 h-80 w-80 bg-accent/15 dark:bg-accent/20" />
-
-      <header className="sticky top-0 z-30 border-b border-border/60 glass">
+      <header className="sticky top-0 z-30 glass">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="flex items-center gap-2.5 text-lg font-semibold">
             <Logo size={38} priority />
@@ -112,7 +107,7 @@ export default async function Home() {
             style={{ "--rise-delay": "80ms" } as React.CSSProperties}
           >
             Practice IELTS the way you{" "}
-            <span className="text-brand-gradient animate-gradient-pan">actually test</span>.
+            <span className="text-primary">actually test</span>.
           </h1>
 
           <p
@@ -262,7 +257,6 @@ export default async function Home() {
         {/* ---- Rank ladder ---- */}
         <section className="pb-20 sm:pb-24">
           <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-8 shadow-soft sm:p-12">
-            <div className="orb -right-10 -top-16 h-56 w-56 bg-accent/10" />
             <div className="relative grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
@@ -291,7 +285,7 @@ export default async function Home() {
                     className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 transition-transform duration-200 hover:-translate-y-0.5"
                   >
                     <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-base shadow-sm ${tier.gradient}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold shadow-sm ${tier.gradient}`}
                     >
                       {tier.emoji}
                     </span>
@@ -332,8 +326,6 @@ export default async function Home() {
         <section className="pb-20 sm:pb-24">
           <div className="relative overflow-hidden rounded-3xl bg-brand-gradient p-8 text-center text-white shadow-elevated sm:p-14">
             <div className="ring-hairline absolute inset-0 rounded-3xl" />
-            <div className="orb -left-10 -top-16 h-56 w-56 bg-white/20" />
-            <div className="orb -bottom-20 -right-10 h-64 w-64 bg-white/15" />
             <div className="relative">
               <Zap className="mx-auto h-8 w-8 text-white/90" />
               <h2 className="mx-auto mt-4 max-w-xl text-balance text-3xl font-bold tracking-tight sm:text-4xl">
@@ -395,12 +387,12 @@ export default async function Home() {
 
 const tones = {
   indigo: {
-    chip: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-500/15",
-    edge: "from-indigo-500/60",
+    chip: "bg-primary/10 text-primary group-hover:bg-primary/15",
+    edge: "from-primary/60",
   },
   teal: {
-    chip: "bg-teal-500/10 text-teal-600 dark:text-teal-400 group-hover:bg-teal-500/15",
-    edge: "from-teal-500/60",
+    chip: "bg-accent/10 text-accent group-hover:bg-accent/15",
+    edge: "from-accent/60",
   },
   rose: {
     chip: "bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:bg-rose-500/15",

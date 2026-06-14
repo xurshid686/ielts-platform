@@ -7,7 +7,7 @@ type Size = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-primary text-primary-foreground shadow-[var(--shadow-primary)] hover:brightness-110 hover:shadow-[var(--shadow-glow)] active:translate-y-px",
+    "bg-primary text-primary-foreground shadow-[var(--shadow-primary)] hover:brightness-95 active:translate-y-px",
   outline:
     "border border-border bg-surface shadow-soft hover:bg-surface-2 hover:border-primary/30 text-foreground active:translate-y-px",
   ghost: "hover:bg-surface-2 text-foreground active:translate-y-px",

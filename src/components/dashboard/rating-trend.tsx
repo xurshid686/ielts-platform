@@ -78,8 +78,7 @@ export function RatingTrend({ points }: { points: RatingPoint[] }) {
         </span>
       </div>
       <p className="mt-0.5 text-xs text-muted">
-        Now <strong className="text-foreground tabular-nums">{latest}</strong> · {tier.emoji}{" "}
-        {tier.label}
+        Now <strong className="text-foreground tabular-nums">{latest}</strong> · {tier.label}
       </p>
 
       <svg
