@@ -9,6 +9,12 @@ export default async function LoginPage({
 }) {
   const { next, error } = await searchParams;
 
+  // Map known error codes to fixed copy — never render the raw query param.
+  const ERROR_MESSAGES: Record<string, string> = {
+    auth: "Could not sign you in. Please try again.",
+  };
+  const errorMessage = error ? ERROR_MESSAGES[error] ?? "Something went wrong. Please try again." : null;
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -16,9 +22,9 @@ export default async function LoginPage({
         <p className="text-sm text-muted">Sign in to continue your practice.</p>
       </div>
 
-      {error && (
+      {errorMessage && (
         <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {error}
+          {errorMessage}
         </div>
       )}
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeNext } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: string }) {
@@ -50,7 +51,7 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
       }
     }
 
-    router.push(next || "/dashboard");
+    router.push(safeNext(next));
     router.refresh();
   }
 

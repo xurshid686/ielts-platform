@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Sanitize a user-supplied post-auth redirect target. Only same-origin
+ * relative paths are allowed; anything else (absolute URLs, protocol-relative
+ * `//host`, backslash tricks) falls back to the default to prevent open redirects.
+ */
+export function safeNext(next: string | null | undefined, fallback = "/dashboard"): string {
+  if (!next || !next.startsWith("/")) return fallback;
+  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  return next;
+}
+
 export function avg(nums: number[]): number | null {
   if (!nums.length) return null;
   return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
