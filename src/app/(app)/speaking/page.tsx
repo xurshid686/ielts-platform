@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mic, ArrowRight, Calendar, Radio, FileAudio } from "lucide-react";
+import { Mic, ArrowRight, Calendar, Radio, FileAudio, MessagesSquare } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { SPEAKING_TOPICS } from "@/lib/ielts/speaking-prompts";
@@ -64,6 +64,25 @@ export default async function SpeakingPage() {
         <span className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-6 font-medium text-primary-foreground transition-transform group-hover:translate-x-0.5">
           <Mic className="h-5 w-5" /> Start talking
         </span>
+      </Link>
+
+      {/* Question bank — real exam questions grouped by part */}
+      <Link
+        href="/speaking/questions"
+        className="group flex items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-primary/50"
+      >
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <MessagesSquare className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="font-bold">Question bank</h2>
+            <p className="text-sm text-muted">
+              Browse real exam questions, grouped by Part 1, 2 and 3.
+            </p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 shrink-0 text-primary transition-transform group-hover:translate-x-0.5" />
       </Link>
 
       {/* Live conversation by topic */}

@@ -233,6 +233,18 @@ export type SpeakingSubmission = {
   created_at: string;
 };
 
+/** A speaking question in the browsable bank, mirrored from the Telegram channel. */
+export type SpeakingQuestion = {
+  id: string;
+  part: 1 | 2 | 3;
+  title: string;
+  number: string | null; // e.g. "Question 4"
+  content: string; // the questions / cue card text (newline-separated)
+  channel_message_id: number | null;
+  channel_link: string | null;
+  created_at: string;
+};
+
 type Row<T> = T;
 type Insert<T> = Partial<T>;
 type Update<T> = Partial<T>;
@@ -252,6 +264,11 @@ export type Database = {
         Row: Row<SpeakingSubmission>;
         Insert: Insert<SpeakingSubmission>;
         Update: Update<SpeakingSubmission>;
+      };
+      speaking_questions: {
+        Row: Row<SpeakingQuestion>;
+        Insert: Insert<SpeakingQuestion>;
+        Update: Update<SpeakingQuestion>;
       };
       achievements: { Row: Row<Achievement>; Insert: Insert<Achievement>; Update: Update<Achievement> };
       user_achievements: {
