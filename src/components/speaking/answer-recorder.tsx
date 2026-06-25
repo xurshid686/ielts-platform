@@ -52,6 +52,7 @@ export function AnswerRecorder({
   const [status, setStatus] = useState<Status>("idle");
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const blobRef = useRef<Blob | null>(null);
@@ -96,10 +97,12 @@ export function AnswerRecorder({
     setUrl(null);
     setStatus("idle");
     setError(null);
+    setConfirming(false);
   }
 
   async function send() {
     if (!blobRef.current) return;
+    setConfirming(false);
     setStatus("sending");
     setError(null);
     const fd = new FormData();
@@ -160,10 +163,10 @@ export function AnswerRecorder({
           </button>
         )}
 
-        {canSendToTeacher && status === "recorded" && (
+        {canSendToTeacher && status === "recorded" && !confirming && (
           <button
             type="button"
-            onClick={send}
+            onClick={() => setConfirming(true)}
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
           >
             <Send className="h-3.5 w-3.5" /> Send to teacher
@@ -182,6 +185,30 @@ export function AnswerRecorder({
           </span>
         )}
       </div>
+
+      {confirming && (
+        <div className="mt-3 rounded-lg border border-emerald-600/30 bg-emerald-600/5 p-3">
+          <p className="text-sm font-medium">
+            Are you sure you want to share this recording with your teacher?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={send}
+              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <Send className="h-3.5 w-3.5" /> Yes, send it
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="inline-flex items-center rounded-full border border-border px-4 py-1.5 text-xs font-medium hover:bg-surface-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
     </div>
   );
