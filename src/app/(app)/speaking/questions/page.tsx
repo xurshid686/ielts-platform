@@ -8,15 +8,25 @@ import type { SpeakingQuestion } from "@/types/database";
 export const metadata = { title: "Speaking question bank" };
 
 export default async function SpeakingQuestionsPage() {
-  await requireProfile();
+  const profile = await requireProfile();
   const supabase = await createClient();
 
+  // The list doesn't need the (large) study column — keep the payload light.
   const { data } = await supabase
     .from("speaking_questions")
-    .select("*")
+    .select("id, part, title, number, content, channel_message_id, channel_link")
     .order("channel_message_id", { ascending: true });
 
   const questions = (data as SpeakingQuestion[] | null) ?? [];
+
+  // Which topics has this student marked as completed?
+  const { data: completions } = await supabase
+    .from("speaking_completions")
+    .select("question_id")
+    .eq("user_id", profile.id);
+  const completedIds = (completions ?? []).map(
+    (c) => (c as { question_id: string }).question_id,
+  );
 
   return (
     <div className="space-y-8">
@@ -34,7 +44,7 @@ export default async function SpeakingQuestionsPage() {
           <div>
             <h1 className="text-2xl font-bold">Speaking question bank</h1>
             <p className="text-sm text-muted">
-              Real exam questions. Filter by part below.
+              Real exam questions. Filter by part and progress below.
             </p>
           </div>
         </div>
@@ -45,7 +55,7 @@ export default async function SpeakingQuestionsPage() {
           No questions yet — they will appear here automatically as they are added.
         </div>
       ) : (
-        <QuestionBank questions={questions} />
+        <QuestionBank questions={questions} completedIds={completedIds} />
       )}
     </div>
   );
