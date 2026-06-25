@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -35,6 +36,8 @@ export async function setSpeakingCompletion(
       console.error("completion upsert failed:", error.message);
       return { ok: false, error: "Couldn't save. Please try again." };
     }
+    revalidatePath("/speaking/questions");
+    revalidatePath(`/speaking/questions/${questionId}`);
     return { ok: true, completed: true };
   }
 
@@ -47,5 +50,7 @@ export async function setSpeakingCompletion(
     console.error("completion delete failed:", error.message);
     return { ok: false, error: "Couldn't update. Please try again." };
   }
+  revalidatePath("/speaking/questions");
+  revalidatePath(`/speaking/questions/${questionId}`);
   return { ok: true, completed: false };
 }
