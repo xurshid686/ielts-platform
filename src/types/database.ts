@@ -233,6 +233,13 @@ export type SpeakingSubmission = {
   created_at: string;
 };
 
+/** AI-generated practice material for a speaking topic (cached, shared). */
+export type SpeakingStudy = {
+  ideas: string[];
+  vocabulary: { term: string; meaning: string; example: string }[];
+  samples: { prompt: string; answer: string }[];
+};
+
 /** A speaking question in the browsable bank, mirrored from the Telegram channel. */
 export type SpeakingQuestion = {
   id: string;
@@ -242,6 +249,7 @@ export type SpeakingQuestion = {
   content: string; // the questions / cue card text (newline-separated)
   channel_message_id: number | null;
   channel_link: string | null;
+  study: SpeakingStudy | null; // cached practice material (null until generated)
   created_at: string;
 };
 

@@ -4,7 +4,7 @@
 //
 // Server-only. Needs GEMINI_API_KEY (https://aistudio.google.com/apikey).
 import "server-only";
-import type { SpeakingFeedback } from "@/types/database";
+import type { SpeakingFeedback, SpeakingStudy } from "@/types/database";
 
 const MODEL = "gemini-2.5-flash"; // strong audio understanding, fast + cheap
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
@@ -146,4 +146,99 @@ export async function gradeSpeaking(
     throw new GeminiError("Could not parse Gemini JSON");
   }
   return parsed;
+}
+
+// ---- Practice / study material generation --------------------------------
+
+const STUDY_SCHEMA = {
+  type: "object",
+  properties: {
+    ideas: { type: "array", items: { type: "string" } },
+    vocabulary: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          term: { type: "string" },
+          meaning: { type: "string" },
+          example: { type: "string" },
+        },
+        required: ["term", "meaning", "example"],
+      },
+    },
+    samples: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          prompt: { type: "string" },
+          answer: { type: "string" },
+        },
+        required: ["prompt", "answer"],
+      },
+    },
+  },
+  required: ["ideas", "vocabulary", "samples"],
+} as const;
+
+function studyInstruction(part: number, title: string, questions: string): string {
+  const sampleRule =
+    part === 2
+      ? `For "samples", give ONE entry: prompt = "Model long-turn answer", answer = a natural, well-organised ~220-word band 8 monologue that covers all the cue-card bullet points.`
+      : `For "samples", give one entry per question above: prompt = the question, answer = a natural, fluent band 8 spoken answer (2-4 sentences for Part 1, 4-6 sentences for Part 3) that a strong candidate might actually say.`;
+  return [
+    `You are an expert IELTS Speaking coach. Create practice material for this IELTS Speaking Part ${part} topic.`,
+    `Topic title: ${title}`,
+    `Questions:\n${questions}`,
+    ``,
+    `Return JSON with:`,
+    `- "ideas": 6-8 concise talking points / angles a candidate can use to develop answers on this topic.`,
+    `- "vocabulary": 8-12 useful topic-specific words or collocations. Each: "term", a short "meaning", and a natural "example" sentence using it on this topic.`,
+    `- "samples": ${sampleRule}`,
+    ``,
+    `Use natural, idiomatic English at IELTS band 8. Keep meanings short and clear. Do not use markdown.`,
+  ].join("\n");
+}
+
+export async function generateSpeakingStudy(
+  part: number,
+  title: string,
+  questions: string,
+): Promise<SpeakingStudy> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new GeminiKeyMissing();
+
+  const res = await fetch(`${ENDPOINT}?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: studyInstruction(part, title, questions) }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: STUDY_SCHEMA,
+        temperature: 0.7,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new GeminiError(`Gemini API ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    promptFeedback?: { blockReason?: string };
+  };
+  if (data.promptFeedback?.blockReason) {
+    throw new GeminiError(`Blocked: ${data.promptFeedback.blockReason}`);
+  }
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new GeminiError("Empty response from Gemini");
+
+  try {
+    return JSON.parse(text) as SpeakingStudy;
+  } catch {
+    throw new GeminiError("Could not parse Gemini JSON");
+  }
 }

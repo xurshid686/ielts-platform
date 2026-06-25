@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Sparkles } from "lucide-react";
 import type { SpeakingQuestion } from "@/types/database";
 
 type Filter = 0 | 1 | 2 | 3; // 0 = All
@@ -94,16 +95,24 @@ export function QuestionBank({ questions }: { questions: SpeakingQuestion[] }) {
               <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/90">
                 {q.content}
               </div>
-              {q.channel_link && (
-                <a
-                  href={q.channel_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <Link
+                  href={`/speaking/questions/${q.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90"
                 >
-                  View in channel <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
+                  <Sparkles className="h-3.5 w-3.5" /> Practice this topic
+                </Link>
+                {q.channel_link && (
+                  <a
+                    href={q.channel_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    View in channel <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
             </details>
           ))}
         </div>
