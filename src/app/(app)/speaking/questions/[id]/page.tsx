@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TopicPractice } from "@/components/speaking/topic-practice";
 import { MarkComplete } from "@/components/speaking/mark-complete";
+import { CueCardTimer } from "@/components/speaking/cue-card-timer";
 import type { SpeakingQuestion } from "@/types/database";
 
 export default async function TopicPracticePage({
@@ -76,6 +77,9 @@ export default async function TopicPracticePage({
           </a>
         )}
       </section>
+
+      {/* Exam-style timer for Part 2 cue cards */}
+      {q.part === 2 && <CueCardTimer />}
 
       {/* Practice material */}
       <TopicPractice question={q} canSendToTeacher={profile.can_send_to_teacher} />

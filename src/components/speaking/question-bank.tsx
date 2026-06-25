@@ -3,7 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ExternalLink, Sparkles, CheckCircle2, Circle } from "lucide-react";
+import {
+  ExternalLink,
+  Sparkles,
+  CheckCircle2,
+  Circle,
+  Search,
+  X,
+} from "lucide-react";
 import type { SpeakingQuestion } from "@/types/database";
 
 type Part = 0 | 1 | 2 | 3; // 0 = All parts
@@ -37,6 +44,18 @@ function parseStatus(value: string | null): Status {
   return value === "done" || value === "todo" ? value : "all";
 }
 
+function ProgressBar({ done, total }: { done: number; total: number }) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+      <div
+        className="h-full rounded-full bg-emerald-600 transition-all"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
 export function QuestionBank({
   questions,
   completedIds,
@@ -47,21 +66,22 @@ export function QuestionBank({
   const completed = new Set(completedIds);
   const isDone = (q: SpeakingQuestion) => completed.has(q.id);
 
-  // Initialise from the URL (?part= & ?status=) so returning from a topic keeps
-  // the exact filtered view.
+  // Initialise from the URL so returning from a topic keeps the exact view.
   const searchParams = useSearchParams();
   const [part, setPart] = useState<Part>(() => parsePart(searchParams.get("part")));
   const [status, setStatus] = useState<Status>(() =>
     parseStatus(searchParams.get("status")),
   );
+  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
 
-  // Update the URL without a full navigation/refetch (keeps Back working).
-  function syncUrl(nextPart: Part, nextStatus: Status) {
+  function syncUrl(nextPart: Part, nextStatus: Status, nextSearch: string) {
     const params = new URLSearchParams(window.location.search);
     if (nextPart === 0) params.delete("part");
     else params.set("part", String(nextPart));
     if (nextStatus === "all") params.delete("status");
     else params.set("status", nextStatus);
+    if (nextSearch.trim() === "") params.delete("q");
+    else params.set("q", nextSearch);
     const query = params.toString();
     window.history.replaceState(
       null,
@@ -71,37 +91,101 @@ export function QuestionBank({
   }
   function selectPart(key: Part) {
     setPart(key);
-    syncUrl(key, status);
+    syncUrl(key, status, search);
   }
   function selectStatus(key: Status) {
     setStatus(key);
-    syncUrl(part, key);
+    syncUrl(part, key, search);
+  }
+  function onSearch(value: string) {
+    setSearch(value);
+    syncUrl(part, status, value);
   }
 
+  const query = search.trim().toLowerCase();
   const matchesPart = (q: SpeakingQuestion) => part === 0 || q.part === part;
   const matchesStatus = (q: SpeakingQuestion) =>
     status === "all" || (status === "done" ? isDone(q) : !isDone(q));
+  const matchesSearch = (q: SpeakingQuestion) =>
+    query === "" ||
+    q.title.toLowerCase().includes(query) ||
+    (q.content ?? "").toLowerCase().includes(query);
 
   const partCount = (p: Part) =>
-    questions.filter((q) => (p === 0 || q.part === p) && matchesStatus(q)).length;
+    questions.filter(
+      (q) => (p === 0 || q.part === p) && matchesStatus(q) && matchesSearch(q),
+    ).length;
   const statusCount = (s: Status) =>
     questions.filter(
       (q) =>
         matchesPart(q) &&
+        matchesSearch(q) &&
         (s === "all" || (s === "done" ? isDone(q) : !isDone(q))),
     ).length;
 
-  const visible = questions.filter((q) => matchesPart(q) && matchesStatus(q));
+  const visible = questions.filter(
+    (q) => matchesPart(q) && matchesStatus(q) && matchesSearch(q),
+  );
+
+  // Progress (independent of the current filters).
   const doneTotal = questions.filter(isDone).length;
+  const partProgress = [1, 2, 3].map((p) => {
+    const inPart = questions.filter((q) => q.part === p);
+    return { p, done: inPart.filter(isDone).length, total: inPart.length };
+  });
 
   return (
     <div className="space-y-5">
-      {/* Progress summary */}
-      <p className="text-sm text-muted">
-        You've completed{" "}
-        <span className="font-semibold text-emerald-600">{doneTotal}</span> of{" "}
-        {questions.length} topics.
-      </p>
+      {/* Progress overview */}
+      <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold">Your progress</span>
+          <span className="text-muted">
+            <span className="font-semibold text-emerald-600">{doneTotal}</span> /{" "}
+            {questions.length} topics
+          </span>
+        </div>
+        <div className="mt-2">
+          <ProgressBar done={doneTotal} total={questions.length} />
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {partProgress.map(({ p, done, total }) => (
+            <div key={p}>
+              <div className="flex items-center justify-between text-xs text-muted">
+                <span className="font-medium text-foreground">Part {p}</span>
+                <span>
+                  {done}/{total}
+                </span>
+              </div>
+              <div className="mt-1">
+                <ProgressBar done={done} total={total} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search topics…"
+          className="w-full rounded-full border border-border bg-surface py-2.5 pl-10 pr-10 text-sm outline-none focus:border-primary"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearch("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       {/* Part filter */}
       <div className="flex flex-wrap gap-2">
@@ -172,7 +256,7 @@ export function QuestionBank({
       {/* Question list */}
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
-          No topics match this filter.
+          No topics match {query ? `"${search}"` : "this filter"}.
         </div>
       ) : (
         <div className="space-y-3">
