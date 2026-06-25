@@ -6,6 +6,40 @@ import { sendSpeakingRecording } from "@/app/actions/send-recording";
 
 type Status = "idle" | "recording" | "recorded" | "sending" | "sent";
 
+/** Decode the recorded audio and re-encode it as MP3 in the browser. */
+async function encodeToMp3(blob: Blob): Promise<Blob> {
+  const arrayBuf = await blob.arrayBuffer();
+  const AudioCtx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext })
+      .webkitAudioContext;
+  const ctx = new AudioCtx();
+  const audio = await ctx.decodeAudioData(arrayBuf);
+  await ctx.close();
+
+  const ch0 = audio.getChannelData(0);
+  const ch1 = audio.numberOfChannels > 1 ? audio.getChannelData(1) : null;
+  const len = ch0.length;
+  const samples = new Int16Array(len);
+  for (let i = 0; i < len; i++) {
+    let s = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]; // down-mix to mono
+    s = Math.max(-1, Math.min(1, s));
+    samples[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+
+  const lamejs = await import("@breezystack/lamejs");
+  const enc = new lamejs.Mp3Encoder(1, audio.sampleRate, 128);
+  const block = 1152;
+  const out: Uint8Array[] = [];
+  for (let i = 0; i < samples.length; i += block) {
+    const buf = enc.encodeBuffer(samples.subarray(i, i + block));
+    if (buf.length > 0) out.push(new Uint8Array(buf));
+  }
+  const end = enc.flush();
+  if (end.length > 0) out.push(new Uint8Array(end));
+  return new Blob(out as BlobPart[], { type: "audio/mpeg" });
+}
+
 export function AnswerRecorder({
   topicTitle,
   prompt,
@@ -69,8 +103,14 @@ export function AnswerRecorder({
     setStatus("sending");
     setError(null);
     const fd = new FormData();
-    const ext = blobRef.current.type.includes("ogg") ? "ogg" : "webm";
-    fd.append("audio", blobRef.current, `answer.${ext}`);
+    try {
+      const mp3 = await encodeToMp3(blobRef.current);
+      fd.append("audio", mp3, "answer.mp3");
+    } catch {
+      // If MP3 conversion isn't supported in this browser, send the original.
+      const ext = blobRef.current.type.includes("ogg") ? "ogg" : "webm";
+      fd.append("audio", blobRef.current, `answer.${ext}`);
+    }
     fd.append("topicTitle", topicTitle);
     fd.append("prompt", prompt);
     const res = await sendSpeakingRecording(fd);

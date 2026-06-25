@@ -38,6 +38,8 @@ export async function sendSpeakingRecording(formData: FormData): Promise<SendRes
     `📌 ${topicTitle}\n` +
     (prompt ? `❓ ${prompt}` : "");
 
+  // MP3 (and other audio) -> sendAudio so it shows as a playable track with a
+  // title; raw ogg/opus voice notes fall back to sendVoice.
   const isOgg = audio.type.includes("ogg");
   const method = isOgg ? "sendVoice" : "sendAudio";
   const field = isOgg ? "voice" : "audio";
@@ -45,7 +47,11 @@ export async function sendSpeakingRecording(formData: FormData): Promise<SendRes
   const tg = new FormData();
   tg.append("chat_id", chatId);
   tg.append("caption", caption.slice(0, 1024));
-  tg.append(field, audio, audio.name || (isOgg ? "answer.ogg" : "answer.webm"));
+  if (!isOgg) {
+    tg.append("title", topicTitle.slice(0, 64) || "Speaking answer");
+    tg.append("performer", student.slice(0, 64));
+  }
+  tg.append(field, audio, audio.name || (isOgg ? "answer.ogg" : "answer.mp3"));
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
