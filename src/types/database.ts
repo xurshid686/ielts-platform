@@ -3,8 +3,9 @@
 
 export type Skill = "reading" | "listening" | "writing" | "speaking";
 export type Role = "student" | "admin";
-/** A student's learning track. Beginners get a tailored materials menu. */
-export type Level = "regular" | "pre_ielts" | "intro";
+/** A student's learning track. Beginners get a tailored materials menu.
+ *  'speaking_only' restricts a student to the Speaking section only. */
+export type Level = "regular" | "pre_ielts" | "intro" | "speaking_only";
 
 export type Profile = {
   id: string;

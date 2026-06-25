@@ -354,10 +354,7 @@ body.theme-yellow .btn-retake { background:transparent !important; color:#fca5a5
 body.theme-yellow .goto-question-btn { background:#374151 !important; color:#fde047 !important; border-color:#ca8a04 !important; }
 body.theme-yellow .icon-close:hover { background:#374151; }
 body.theme-yellow .submission-modal { background:rgba(0,0,0,.7); }
-body.theme-dark .saved-highlight  { background:#FF99D6 !important; color:#111827 !important; }
-body.theme-dark .evidence-highlight { background:#4ade80 !important; color:#111827 !important; }
-body.theme-yellow .saved-highlight  { background:#FF99D6 !important; color:#111827 !important; }
-body.theme-yellow .evidence-highlight { background:#4ade80 !important; color:#111827 !important; }
+
 body.theme-dark .settings-overlay, body.theme-yellow .settings-overlay { background:#1f2937; }
 body.theme-dark .settings-header-bar, body.theme-yellow .settings-header-bar { border-color:#374151; background:#111827; }
 body.theme-dark .settings-body, body.theme-yellow .settings-body { background:#1f2937; }
@@ -367,6 +364,37 @@ body.theme-dark .settings-back, body.theme-dark .settings-title, body.theme-dark
 body.theme-yellow .settings-back, body.theme-yellow .settings-title, body.theme-yellow .settings-close, body.theme-yellow .settings-item, body.theme-yellow .settings-check, body.theme-yellow .settings-icon-placeholder { color:#fde047; }
 
 @media(max-width:800px){.header{padding:.75rem;gap:.5rem}.header__logo,.header__icons{min-width:auto}.telegram-link{display:none}.test-container{flex-direction:column}.divider{display:none}.passage-container,.questions-container{flex:1 1 50%;width:100%!important;min-height:0;border-right:0;border-bottom:1px solid var(--pale-blue-border)}.footer__questionNo{display:none}.header__center{position:static;transform:none}}
+
+
+
+
+
+
+
+body.contrast-wb span[data-highlight-id],
+body.contrast-wb .saved-highlight,
+body.contrast-wb span[data-highlight-id] *,
+body.contrast-wb .saved-highlight * {
+  background-color: #FF99D6 !important;
+  color: #111 !important;
+}
+body.contrast-yb span[data-highlight-id],
+body.contrast-yb .saved-highlight,
+body.contrast-yb span[data-highlight-id] *,
+body.contrast-yb .saved-highlight * {
+  background-color: #FF99D6 !important;
+  color: #111 !important;
+}
+body.contrast-wb .evidence-highlight,
+body.contrast-wb .evidence-highlight * {
+  background-color: #86efac !important;
+  color: #064e3b !important;
+}
+body.contrast-yb .evidence-highlight,
+body.contrast-yb .evidence-highlight * {
+  background-color: #4ade80 !important;
+  color: #052e1f !important;
+}
 </style>
 </head>
 <body>

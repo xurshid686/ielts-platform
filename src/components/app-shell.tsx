@@ -25,7 +25,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
-import { LEVELS } from "@/lib/levels";
+import { LEVELS, isSpeakingOnly } from "@/lib/levels";
 import type { Profile, Notification } from "@/types/database";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -66,22 +66,32 @@ export function AppShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const groups = [...NAV_GROUPS];
-  // Beginner-track menu — visible only to students assigned that level. Sits
-  // right under Dashboard, above the full IELTS "Practise" group.
-  if (profile.level === "pre_ielts" || profile.level === "intro") {
-    const meta = LEVELS[profile.level];
-    const Icon = profile.level === "pre_ielts" ? GraduationCap : Compass;
-    groups.splice(1, 0, {
-      label: "My level",
-      items: [{ href: meta.href, label: meta.label, icon: Icon }],
-    });
-  }
-  if (profile.role === "admin") {
-    groups.push({
-      label: "Manage",
-      items: [{ href: "/admin", label: "Admin", icon: Shield }],
-    });
+  // Speaking-only students get a stripped sidebar: just the Speaking section.
+  // proxy.ts already blocks every other route for them server-side.
+  const speakingOnly = isSpeakingOnly(profile);
+  const homeHref = speakingOnly ? "/speaking" : "/dashboard";
+
+  let groups: typeof NAV_GROUPS;
+  if (speakingOnly) {
+    groups = [{ label: null, items: [{ href: "/speaking", label: "Speaking", icon: Mic }] }];
+  } else {
+    groups = [...NAV_GROUPS];
+    // Beginner-track menu — visible only to students assigned that level. Sits
+    // right under Dashboard, above the full IELTS "Practise" group.
+    if (profile.level === "pre_ielts" || profile.level === "intro") {
+      const meta = LEVELS[profile.level];
+      const Icon = profile.level === "pre_ielts" ? GraduationCap : Compass;
+      groups.splice(1, 0, {
+        label: "My level",
+        items: [{ href: meta.href, label: meta.label, icon: Icon }],
+      });
+    }
+    if (profile.role === "admin") {
+      groups.push({
+        label: "Manage",
+        items: [{ href: "/admin", label: "Admin", icon: Shield }],
+      });
+    }
   }
 
   return (
@@ -94,7 +104,7 @@ export function AppShell({
         )}
       >
         <div className="flex items-center justify-between p-4 pb-2">
-          <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold">
+          <Link href={homeHref} className="flex items-center gap-2.5 font-semibold">
             <Logo size={36} />
             IELTS
           </Link>
