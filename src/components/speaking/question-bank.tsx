@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ExternalLink, Sparkles } from "lucide-react";
 import type { SpeakingQuestion } from "@/types/database";
 
@@ -20,8 +21,33 @@ const PART_BLURB: Record<number, string> = {
   3: "Abstract discussion follow-ups.",
 };
 
+function parsePart(value: string | null): Filter {
+  return value === "1" || value === "2" || value === "3"
+    ? (Number(value) as Filter)
+    : 0;
+}
+
 export function QuestionBank({ questions }: { questions: SpeakingQuestion[] }) {
-  const [filter, setFilter] = useState<Filter>(0);
+  // Initialise from the URL (?part=) so returning from a topic keeps the filter.
+  const searchParams = useSearchParams();
+  const [filter, setFilter] = useState<Filter>(() =>
+    parsePart(searchParams.get("part")),
+  );
+
+  function selectFilter(key: Filter) {
+    setFilter(key);
+    // Update the URL without a full navigation/refetch, so the browser Back
+    // button restores this filtered view.
+    const params = new URLSearchParams(window.location.search);
+    if (key === 0) params.delete("part");
+    else params.set("part", String(key));
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      query ? `${window.location.pathname}?${query}` : window.location.pathname,
+    );
+  }
 
   const count = (p: Filter) =>
     p === 0 ? questions.length : questions.filter((q) => q.part === p).length;
@@ -39,7 +65,7 @@ export function QuestionBank({ questions }: { questions: SpeakingQuestion[] }) {
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => selectFilter(key)}
               aria-pressed={active}
               className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                 active
