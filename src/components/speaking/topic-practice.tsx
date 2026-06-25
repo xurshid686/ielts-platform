@@ -1,56 +1,47 @@
-"use client";
+import { Lightbulb, BookA, MessageSquareQuote, GraduationCap } from "lucide-react";
+import type { SpeakingQuestion } from "@/types/database";
+import { AnswerRecorder } from "@/components/speaking/answer-recorder";
 
-import { useState, useTransition } from "react";
-import { Lightbulb, BookA, MessageSquareQuote, Sparkles, Loader2 } from "lucide-react";
-import { getOrCreateSpeakingStudy } from "@/app/actions/speaking-study";
-import type { SpeakingQuestion, SpeakingStudy } from "@/types/database";
+/** Render text with **double asterisk** spans highlighted as key language. */
+function Highlighted({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.startsWith("**") && p.endsWith("**") ? (
+          <mark
+            key={i}
+            className="rounded bg-primary/15 px-1 font-medium text-primary"
+          >
+            {p.slice(2, -2)}
+          </mark>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
+  );
+}
 
-export function TopicPractice({ question }: { question: SpeakingQuestion }) {
-  const [study, setStudy] = useState<SpeakingStudy | null>(question.study);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function generate() {
-    setError(null);
-    startTransition(async () => {
-      const res = await getOrCreateSpeakingStudy(question.id);
-      if (res.ok) setStudy(res.study);
-      else setError(res.error);
-    });
-  }
+export function TopicPractice({
+  question,
+  canSendToTeacher,
+}: {
+  question: SpeakingQuestion;
+  canSendToTeacher: boolean;
+}) {
+  const study = question.study;
 
   if (!study) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-10 text-center">
-        <Sparkles className="mx-auto h-8 w-8 text-primary" />
-        <h2 className="mt-3 font-semibold">Practice this topic</h2>
-        <p className="mx-auto mt-1 max-w-md text-sm text-muted">
-          Generate ideas, topic vocabulary and natural sample answers to help you
-          prepare for this topic.
-        </p>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={pending}
-          className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {pending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Generating…
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" /> Generate practice material
-            </>
-          )}
-        </button>
-        {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
+      <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
+        Practice material for this topic is coming soon.
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Ideas */}
       {study.ideas.length > 0 && (
         <section className="space-y-3">
@@ -71,11 +62,54 @@ export function TopicPractice({ question }: { question: SpeakingQuestion }) {
         </section>
       )}
 
-      {/* Vocabulary */}
+      {/* Sample answers — 3+ versions each, with record/replay */}
+      {study.samples.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <MessageSquareQuote className="h-5 w-5 text-primary" /> Natural sample
+            answers
+          </h2>
+          <p className="text-xs text-muted">
+            Highlighted words are useful topic vocabulary, expressions and idioms.
+            Record your own answer and play it back — practise until it feels natural.
+          </p>
+          <div className="space-y-5">
+            {study.samples.map((s, i) => (
+              <div key={i} className="rounded-2xl border border-border bg-surface p-5">
+                <p className="font-semibold">{s.prompt}</p>
+                <div className="mt-3 space-y-3">
+                  {s.versions.map((v, j) => (
+                    <div
+                      key={j}
+                      className="rounded-xl border border-border/70 bg-background/40 p-4"
+                    >
+                      <span className="mb-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        Version {j + 1}
+                      </span>
+                      <p className="text-sm leading-relaxed text-foreground/90">
+                        <Highlighted text={v} />
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <AnswerRecorder
+                    topicTitle={question.title}
+                    prompt={s.prompt}
+                    canSendToTeacher={canSendToTeacher}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Vocabulary recap */}
       {study.vocabulary.length > 0 && (
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">
-            <BookA className="h-5 w-5 text-primary" /> Topic vocabulary
+            <BookA className="h-5 w-5 text-primary" /> Vocabulary
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {study.vocabulary.map((v, i) => (
@@ -89,28 +123,24 @@ export function TopicPractice({ question }: { question: SpeakingQuestion }) {
         </section>
       )}
 
-      {/* Sample answers */}
-      {study.samples.length > 0 && (
+      {/* Grammar recap */}
+      {study.grammar.length > 0 && (
         <section className="space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">
-            <MessageSquareQuote className="h-5 w-5 text-primary" /> Natural sample answers
+            <GraduationCap className="h-5 w-5 text-primary" /> Grammar
           </h2>
-          <div className="space-y-3">
-            {study.samples.map((s, i) => (
-              <div key={i} className="rounded-xl border border-border bg-surface p-5">
-                <p className="font-medium">{s.prompt}</p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground/90">
-                  {s.answer}
+          <div className="space-y-2">
+            {study.grammar.map((g, i) => (
+              <div key={i} className="rounded-xl border border-border bg-surface p-4">
+                <p className="text-sm font-medium">{g.point}</p>
+                <p className="mt-1 text-sm italic text-foreground/80">
+                  <Highlighted text={g.example} />
                 </p>
               </div>
             ))}
           </div>
         </section>
       )}
-
-      <p className="text-center text-xs text-muted/70">
-        AI-generated study material — use it as a model, not a script.
-      </p>
     </div>
   );
 }

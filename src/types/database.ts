@@ -29,6 +29,7 @@ export type Profile = {
   referral_code: string | null; // the user's own shareable invite code (migration 0019)
   referred_by: string | null; // profile id of whoever invited this user, or null
   hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
+  can_send_to_teacher: boolean; // admin-flagged: may send speaking recordings to the teacher (migration 0027)
   created_at: string;
 };
 
@@ -233,11 +234,13 @@ export type SpeakingSubmission = {
   created_at: string;
 };
 
-/** AI-generated practice material for a speaking topic (cached, shared). */
+/** Hand-authored practice material for a speaking topic (shared). Sample answers
+ * mark key vocabulary/expressions/idioms with **double asterisks** for highlight. */
 export type SpeakingStudy = {
   ideas: string[];
+  samples: { prompt: string; versions: string[] }[]; // 3+ natural versions each
   vocabulary: { term: string; meaning: string; example: string }[];
-  samples: { prompt: string; answer: string }[];
+  grammar: { point: string; example: string }[];
 };
 
 /** A speaking question in the browsable bank, mirrored from the Telegram channel. */

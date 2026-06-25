@@ -11,7 +11,7 @@ export default async function TopicPracticePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireProfile();
+  const profile = await requireProfile();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -66,8 +66,8 @@ export default async function TopicPracticePage({
         )}
       </section>
 
-      {/* AI practice material */}
-      <TopicPractice question={q} />
+      {/* Practice material */}
+      <TopicPractice question={q} canSendToTeacher={profile.can_send_to_teacher} />
     </div>
   );
 }
