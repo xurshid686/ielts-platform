@@ -1,12 +1,17 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CompletionResult =
   | { ok: true; completed: boolean }
   | { ok: false; error: string };
 
-/** Mark a speaking topic as completed (or undo it) for the signed-in student. */
+/**
+ * Mark a speaking topic as completed (or undo it) for the signed-in student.
+ * The user id comes from the verified session; the write uses the service-role
+ * client so it works regardless of row-level-security configuration.
+ */
 export async function setSpeakingCompletion(
   questionId: string,
   completed: boolean,
@@ -17,22 +22,30 @@ export async function setSpeakingCompletion(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
+  const admin = createAdminClient();
+
   if (completed) {
-    const { error } = await supabase
+    const { error } = await admin
       .from("speaking_completions")
       .upsert(
         { user_id: user.id, question_id: questionId },
         { onConflict: "user_id,question_id" },
       );
-    if (error) return { ok: false, error: "Couldn't save. Please try again." };
+    if (error) {
+      console.error("completion upsert failed:", error.message);
+      return { ok: false, error: "Couldn't save. Please try again." };
+    }
     return { ok: true, completed: true };
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("speaking_completions")
     .delete()
     .eq("user_id", user.id)
     .eq("question_id", questionId);
-  if (error) return { ok: false, error: "Couldn't update. Please try again." };
+  if (error) {
+    console.error("completion delete failed:", error.message);
+    return { ok: false, error: "Couldn't update. Please try again." };
+  }
   return { ok: true, completed: false };
 }

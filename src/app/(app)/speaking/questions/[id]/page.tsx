@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { TopicPractice } from "@/components/speaking/topic-practice";
 import { MarkComplete } from "@/components/speaking/mark-complete";
 import type { SpeakingQuestion } from "@/types/database";
@@ -26,7 +27,7 @@ export default async function TopicPracticePage({
   const q = data as SpeakingQuestion;
 
   // Has this student already marked the topic as completed?
-  const { data: completion } = await supabase
+  const { data: completion } = await createAdminClient()
     .from("speaking_completions")
     .select("question_id")
     .eq("question_id", id)

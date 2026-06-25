@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MessagesSquare, ArrowLeft } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { QuestionBank } from "@/components/speaking/question-bank";
 import type { SpeakingQuestion } from "@/types/database";
 
@@ -20,7 +21,7 @@ export default async function SpeakingQuestionsPage() {
   const questions = (data as SpeakingQuestion[] | null) ?? [];
 
   // Which topics has this student marked as completed?
-  const { data: completions } = await supabase
+  const { data: completions } = await createAdminClient()
     .from("speaking_completions")
     .select("question_id")
     .eq("user_id", profile.id);
