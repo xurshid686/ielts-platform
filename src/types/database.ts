@@ -108,7 +108,7 @@ export type UserAchievement = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: "weekly_report" | "info" | "referral" | string;
+  type: "weekly_report" | "info" | "referral" | "teacher_feedback" | string;
   title: string;
   body: string | null;
   data: Record<string, unknown> | null;
@@ -284,6 +284,19 @@ export type AssignmentTarget = {
   submitted_at: string | null;
 };
 
+/** Written feedback from the teacher to a My-student (migration 0032). */
+export type TeacherFeedback = {
+  id: string;
+  student_id: string;
+  author_id: string;
+  body: string;
+  assignment_id: string | null;
+  skill: string | null;
+  title: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 // Row shape returned by the my_students_leaderboard() RPC (admin-only).
 export type MyStudentLeaderboardRow = {
   id: string;
@@ -337,6 +350,11 @@ export type Database = {
         Insert: Insert<AssignmentTarget>;
         Update: Update<AssignmentTarget>;
       };
+      teacher_feedback: {
+        Row: Row<TeacherFeedback>;
+        Insert: Insert<TeacherFeedback>;
+        Update: Update<TeacherFeedback>;
+      };
     };
     Functions: {
       set_my_student: {
@@ -355,6 +373,16 @@ export type Database = {
         Returns: undefined;
       };
       my_students_leaderboard: { Args: Record<string, never>; Returns: MyStudentLeaderboardRow[] };
+      admin_send_feedback: {
+        Args: {
+          p_student: string;
+          p_body: string;
+          p_assignment_id: string | null;
+          p_skill: string | null;
+          p_title: string | null;
+        };
+        Returns: string;
+      };
       record_activity: {
         Args: { p_xp?: number };
         Returns: { streak: number; longest_streak: number; xp: number }[];

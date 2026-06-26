@@ -3,6 +3,7 @@ import { Star, Flame, Zap, Trophy } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
+import { FeedbackComposer } from "@/components/feedback/feedback-composer";
 import type { MyStudentLeaderboardRow } from "@/types/database";
 
 export const metadata = { title: "My students" };
@@ -50,6 +51,7 @@ export default async function MyStudentsPage() {
                   <th className="px-5 py-3 text-right font-medium">Tests</th>
                   <th className="px-5 py-3 text-right font-medium">XP</th>
                   <th className="px-5 py-3 text-right font-medium">Streak</th>
+                  <th className="px-5 py-3 text-right font-medium">Feedback</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -87,6 +89,13 @@ export default async function MyStudentsPage() {
                       <span className="inline-flex items-center gap-1">
                         <Flame className="h-3.5 w-3.5 text-warning" /> {r.streak}
                       </span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <FeedbackComposer
+                        studentId={r.id}
+                        studentName={r.name || r.email || "Student"}
+                        size="sm"
+                      />
                     </td>
                   </tr>
                 ))}

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { FeedbackComposer } from "@/components/feedback/feedback-composer";
 import { createAssignment, deleteAssignment } from "@/app/actions/assignments";
 import type { Skill, AssignmentStatus } from "@/types/database";
 
@@ -367,6 +368,14 @@ export function AdminAssignments({
                           <span className={`inline-flex items-center gap-1 ${meta.className}`}>
                             <StatusIcon className="h-3.5 w-3.5" /> {meta.label}
                           </span>
+                          <FeedbackComposer
+                            studentId={t.user_id}
+                            studentName={nameOf(t.user_id)}
+                            assignmentId={a.id}
+                            skill={a.skill}
+                            title={a.title}
+                            size="sm"
+                          />
                         </span>
                       </li>
                     );
