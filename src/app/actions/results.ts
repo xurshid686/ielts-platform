@@ -179,6 +179,22 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   if (error) return { ok: false, error: error.message };
   resultId = (inserted as { id?: string } | null)?.id ?? null;
 
+  // Mark any matching assignment (same skill + test) as submitted for this
+  // student. Best-effort: a missing RPC (pre-0030) must not break saving.
+  if (resultId && input.testId) {
+    try {
+      await supabase.rpc("complete_assignments", {
+        p_skill: input.skill,
+        p_test_id: input.testId,
+        p_result_id: resultId,
+        p_speaking_submission_id: null,
+        p_writing_submission_id: null,
+      });
+    } catch {
+      /* assignments feature not migrated yet — ignore */
+    }
+  }
+
   // --- Rating: only the FIRST attempt of a server-graded reading test moves
   // the standing. apply_rating() is the single trusted place for that logic
   // (it also runs every anti-cheat rule). Degrades gracefully pre-0016. ---

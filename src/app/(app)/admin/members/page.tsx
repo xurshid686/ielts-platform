@@ -8,10 +8,12 @@ export default async function AdminMembersPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  // Include level (0021) + hidden_from_leaderboard (0020); fall back without
-  // them if those migrations are pending so this page never hard-fails.
+  // Include is_my_student (0029) + level (0021) + hidden_from_leaderboard (0020);
+  // fall back without them if those migrations are pending so this page never
+  // hard-fails.
   let rows: Record<string, unknown>[] = [];
   for (const cols of [
+    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, is_my_student",
     "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp",
@@ -25,11 +27,12 @@ export default async function AdminMembersPage() {
       rows = (data ?? []) as unknown as Record<string, unknown>[];
       break;
     }
-    if (!/hidden_from_leaderboard|level/.test(error.message)) break;
+    if (!/hidden_from_leaderboard|level|is_my_student/.test(error.message)) break;
   }
 
   const initialUsers = rows.map((u) => ({
     hidden_from_leaderboard: false,
+    is_my_student: false,
     level: "regular",
     ...u,
   })) as unknown as MemberRow[];

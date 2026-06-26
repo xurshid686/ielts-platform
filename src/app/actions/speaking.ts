@@ -93,16 +93,34 @@ export async function submitSpeakingMock(
     }
   }
 
-  const { error: insErr } = await supabase.from("speaking_submissions").insert({
-    user_id: user.id,
-    prompt: topic.title,
-    topic: topic.id,
-    audio_path: audioPaths[0],
-    audio_paths: audioPaths,
-    score: band,
-    feedback,
-  });
+  const { data: subRow, error: insErr } = await supabase
+    .from("speaking_submissions")
+    .insert({
+      user_id: user.id,
+      prompt: topic.title,
+      topic: topic.id,
+      audio_path: audioPaths[0],
+      audio_paths: audioPaths,
+      score: band,
+      feedback,
+    })
+    .select("id")
+    .single();
   if (insErr) return { ok: false, error: `Saving failed: ${insErr.message}` };
+
+  // Mark any speaking assignment as submitted. Best-effort: a missing RPC
+  // (pre-0030) must not break saving the recording.
+  try {
+    await supabase.rpc("complete_assignments", {
+      p_skill: "speaking",
+      p_test_id: null,
+      p_result_id: null,
+      p_speaking_submission_id: (subRow as { id?: string } | null)?.id ?? null,
+      p_writing_submission_id: null,
+    });
+  } catch {
+    /* assignments feature not migrated yet — ignore */
+  }
 
   // Speaking counts toward the daily streak / XP just like reading & listening.
   const { data: act } = await supabase.rpc("record_activity", { p_xp: 30 });

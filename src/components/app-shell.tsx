@@ -19,13 +19,14 @@ import {
   Gift,
   GraduationCap,
   Compass,
+  ClipboardList,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
-import { LEVELS, isSpeakingOnly } from "@/lib/levels";
+import { LEVELS } from "@/lib/levels";
 import type { Profile, Notification } from "@/types/database";
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -66,32 +67,31 @@ export function AppShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Speaking-only students get a stripped sidebar: just the Speaking section.
-  // proxy.ts already blocks every other route for them server-side.
-  const speakingOnly = isSpeakingOnly(profile);
-  const homeHref = speakingOnly ? "/speaking" : "/dashboard";
+  const homeHref = "/dashboard";
 
-  let groups: typeof NAV_GROUPS;
-  if (speakingOnly) {
-    groups = [{ label: null, items: [{ href: "/speaking", label: "Speaking", icon: Mic }] }];
-  } else {
-    groups = [...NAV_GROUPS];
-    // Beginner-track menu — visible only to students assigned that level. Sits
-    // right under Dashboard, above the full IELTS "Practise" group.
-    if (profile.level === "pre_ielts" || profile.level === "intro") {
-      const meta = LEVELS[profile.level];
-      const Icon = profile.level === "pre_ielts" ? GraduationCap : Compass;
-      groups.splice(1, 0, {
-        label: "My level",
-        items: [{ href: meta.href, label: meta.label, icon: Icon }],
-      });
-    }
-    if (profile.role === "admin") {
-      groups.push({
-        label: "Manage",
-        items: [{ href: "/admin", label: "Admin", icon: Shield }],
-      });
-    }
+  const groups: typeof NAV_GROUPS = [...NAV_GROUPS];
+  // My-students get an "Assignments" item right under Dashboard.
+  if (profile.is_my_student) {
+    groups.splice(1, 0, {
+      label: "My teacher",
+      items: [{ href: "/assignments", label: "Assignments", icon: ClipboardList }],
+    });
+  }
+  // Beginner-track menu — visible only to students assigned that level. Sits
+  // right under Dashboard, above the full IELTS "Practise" group.
+  if (profile.level === "pre_ielts" || profile.level === "intro") {
+    const meta = LEVELS[profile.level];
+    const Icon = profile.level === "pre_ielts" ? GraduationCap : Compass;
+    groups.splice(1, 0, {
+      label: "My level",
+      items: [{ href: meta.href, label: meta.label, icon: Icon }],
+    });
+  }
+  if (profile.role === "admin") {
+    groups.push({
+      label: "Manage",
+      items: [{ href: "/admin", label: "Admin", icon: Shield }],
+    });
   }
 
   return (

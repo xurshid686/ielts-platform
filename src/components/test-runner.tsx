@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
+import { sendTextToTeacher } from "@/app/actions/send-recording";
 import { Button } from "@/components/ui/button";
 import { tierForRating } from "@/lib/rating";
 import { RankBadge } from "@/components/rating/rank-badge";
@@ -16,6 +17,8 @@ type Props = {
   // manual "type your score" fallback is hidden for these — the score is
   // computed from the user's actual answers and can't be hand-entered.
   graded?: boolean;
+  // My-students may send their submitted answers to the teacher (Telegram).
+  isMyStudent?: boolean;
 };
 
 type Saved = {
@@ -27,6 +30,7 @@ type Saved = {
   xp: number;
   firstToday: boolean;
   rating: RatingOutcome | null;
+  answers?: Answers;
 };
 
 type Answers = Record<string, string>;
@@ -62,7 +66,7 @@ function parseMessage(
   };
 }
 
-export function TestRunner({ testId, title, skill, graded = false }: Props) {
+export function TestRunner({ testId, title, skill, graded = false, isMyStudent = false }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const handled = useRef(false);
@@ -104,6 +108,7 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
       xp: res.xp,
       firstToday: res.firstToday,
       rating: res.rating,
+      answers,
     });
     router.refresh();
   }
@@ -189,6 +194,16 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
               {saved.rating.rating}
             </span>
           )}
+          {saved && isMyStudent && (
+            <SendToTeacher
+              skill={skill}
+              title={title}
+              band={saved.band}
+              raw={saved.raw}
+              total={saved.total}
+              answers={saved.answers}
+            />
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!graded && (
@@ -240,6 +255,61 @@ export function TestRunner({ testId, title, skill, graded = false }: Props) {
         <Celebration saved={saved} skill={skill} onClose={doExit} />
       )}
     </div>
+  );
+}
+
+function SendToTeacher({
+  skill,
+  title,
+  band,
+  raw,
+  total,
+  answers,
+}: {
+  skill: "reading" | "listening";
+  title: string;
+  band: number;
+  raw: number;
+  total: number;
+  answers: Answers | undefined;
+}) {
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    setState("sending");
+    setError(null);
+    const res = await sendTextToTeacher({ skill, title, band, raw, total, answers });
+    if (res.ok) {
+      setState("sent");
+    } else {
+      setError(res.error);
+      setState("idle");
+    }
+  }
+
+  if (state === "sent") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+        <Check className="h-3.5 w-3.5" /> Sent to teacher
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={send}
+      disabled={state === "sending"}
+      title={error ?? undefined}
+      className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+    >
+      {state === "sending" ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Send className="h-3.5 w-3.5" />
+      )}
+      Send to teacher
+    </button>
   );
 }
 

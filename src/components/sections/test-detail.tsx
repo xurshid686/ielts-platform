@@ -87,5 +87,13 @@ export async function TestDetail({
   // fallback is hidden for them (their score can't be hand-entered).
   const graded = !!t.answer_key && Object.keys(t.answer_key).length > 0;
 
-  return <TestRunner testId={t.id} title={t.title} skill={skill} graded={graded} />;
+  return (
+    <TestRunner
+      testId={t.id}
+      title={t.title}
+      skill={skill}
+      graded={graded}
+      isMyStudent={profile.is_my_student}
+    />
+  );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck, Crown } from "lucide-react";
+import { Users, FileText, CheckCircle2, Flame, ArrowRight, ShieldCheck, Crown, ClipboardList, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
@@ -57,6 +57,34 @@ export default async function AdminPage() {
           </div>
           <Link
             href="/admin/members"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <ClipboardList className="h-4 w-4 text-primary" /> Assignments
+            </h2>
+            <p className="text-sm text-muted">Give your students tasks and track progress.</p>
+          </div>
+          <Link
+            href="/admin/assignments"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <Star className="h-4 w-4 text-emerald-500" /> My students
+            </h2>
+            <p className="text-sm text-muted">Private leaderboard for your students only.</p>
+          </div>
+          <Link
+            href="/admin/my-students"
             className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
           >
             Open <ArrowRight className="h-4 w-4" />

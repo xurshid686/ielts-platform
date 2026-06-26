@@ -1,26 +1,109 @@
 "use server";
 
 import { requireProfile } from "@/lib/auth";
+import type { Skill } from "@/types/database";
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB — Telegram bot upload limit
+const TG_TEXT_LIMIT = 4096; // Telegram sendMessage hard limit
 
-/**
- * Send a student's recorded speaking answer to the teacher via the Telegram bot.
- * Only available to admin-flagged students (profile.can_send_to_teacher).
- */
-export async function sendSpeakingRecording(formData: FormData): Promise<SendResult> {
+const SKILL_EMOJI: Record<Skill, string> = {
+  reading: "📖",
+  listening: "🎧",
+  writing: "✍️",
+  speaking: "🎙",
+};
+
+/** Token/chat config + a friendly student label, gated on My-student status. */
+async function teacherChannel() {
   const profile = await requireProfile();
-  if (!profile.can_send_to_teacher) {
-    return { ok: false, error: "This feature isn't enabled for your account." };
+  if (!profile.is_my_student) {
+    return { ok: false as const, error: "This feature isn't enabled for your account." };
   }
-
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TEACHER_CHAT_ID;
   if (!token || !chatId) {
-    return { ok: false, error: "Teacher delivery isn't configured yet." };
+    return { ok: false as const, error: "Teacher delivery isn't configured yet." };
   }
+  const student = profile.name || profile.email || "A student";
+  return { ok: true as const, token, chatId, student };
+}
+
+async function tgSendMessage(token: string, chatId: string, text: string): Promise<boolean> {
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: text.slice(0, TG_TEXT_LIMIT) }),
+  });
+  return res.ok;
+}
+
+/**
+ * Send a My-student's written answers/essay to the teacher via Telegram.
+ * Used by Reading/Listening (submitted answers) and Writing (essay text).
+ */
+export async function sendTextToTeacher(input: {
+  skill: Skill;
+  title: string;
+  prompt?: string;
+  band?: number | null;
+  raw?: number | null;
+  total?: number | null;
+  answers?: Record<string, string> | null;
+  text?: string | null; // free-form body (e.g. a writing essay)
+}): Promise<SendResult> {
+  const ch = await teacherChannel();
+  if (!ch.ok) return ch;
+
+  const header =
+    `${SKILL_EMOJI[input.skill] ?? "📝"} ${input.skill[0].toUpperCase()}${input.skill.slice(1)} answers from ${ch.student}\n` +
+    `📌 ${input.title}`;
+
+  const lines: string[] = [header];
+  if (input.prompt) lines.push(`❓ ${input.prompt}`);
+  if (typeof input.band === "number") {
+    const score =
+      input.raw != null && input.total != null ? ` (${input.raw}/${input.total})` : "";
+    lines.push(`📊 Band ${input.band}${score}`);
+  }
+  if (input.answers && Object.keys(input.answers).length) {
+    const compact = Object.entries(input.answers)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([q, a]) => `${q}. ${a}`)
+      .join("\n");
+    lines.push("", compact);
+  }
+  if (input.text && input.text.trim()) {
+    lines.push("", input.text.trim());
+  }
+
+  // Telegram caps a message at 4096 chars; split into chunks if needed.
+  const full = lines.join("\n");
+  try {
+    if (full.length <= TG_TEXT_LIMIT) {
+      const ok = await tgSendMessage(ch.token, ch.chatId, full);
+      if (!ok) return { ok: false, error: "Couldn't reach the teacher right now. Please try again." };
+      return { ok: true };
+    }
+    // Long body: send the header first, then the body in pieces.
+    for (let i = 0; i < full.length; i += TG_TEXT_LIMIT) {
+      const ok = await tgSendMessage(ch.token, ch.chatId, full.slice(i, i + TG_TEXT_LIMIT));
+      if (!ok) return { ok: false, error: "Couldn't reach the teacher right now. Please try again." };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error while sending. Please try again." };
+  }
+}
+
+/**
+ * Send a My-student's recorded speaking answer to the teacher via Telegram.
+ */
+export async function sendSpeakingRecording(formData: FormData): Promise<SendResult> {
+  const ch = await teacherChannel();
+  if (!ch.ok) return ch;
+  const { token, chatId, student } = ch;
 
   const audio = formData.get("audio");
   if (!(audio instanceof File) || audio.size === 0) {
@@ -32,7 +115,6 @@ export async function sendSpeakingRecording(formData: FormData): Promise<SendRes
 
   const topicTitle = String(formData.get("topicTitle") || "").slice(0, 200);
   const prompt = String(formData.get("prompt") || "").slice(0, 400);
-  const student = profile.name || profile.email || "A student";
   const caption =
     `🎙 Speaking answer from ${student}\n` +
     `📌 ${topicTitle}\n` +

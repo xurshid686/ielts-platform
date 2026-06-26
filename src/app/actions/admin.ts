@@ -158,6 +158,7 @@ export type MemberRow = {
   premium_until: string | null;
   xp: number;
   hidden_from_leaderboard: boolean;
+  is_my_student: boolean;
 };
 
 // Search accounts by email or name (admin-only). Empty query returns recent users.
@@ -171,9 +172,11 @@ export async function searchUsers(
   // Strip characters with meaning in PostgREST filter syntax before interpolating.
   const q = query.trim().replace(/[,()*\\]/g, "");
 
-  // Select including level (0021) + hidden_from_leaderboard (0020); fall back
-  // without them if those migrations haven't run yet, so the page keeps working.
+  // Select including is_my_student (0029) + level (0021) + hidden_from_leaderboard
+  // (0020); fall back without them if those migrations haven't run yet, so the
+  // page keeps working.
   for (const cols of [
+    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, is_my_student",
     "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
     "id, email, name, role, premium_until, xp",
@@ -190,13 +193,14 @@ export async function searchUsers(
       const rows = (data ?? []) as unknown as Record<string, unknown>[];
       const users = rows.map((u) => ({
         hidden_from_leaderboard: false,
+        is_my_student: false,
         level: "regular",
         ...u,
       })) as unknown as MemberRow[];
       return { ok: true, users };
     }
     // Only retry on a missing-column error; otherwise surface it.
-    if (!/hidden_from_leaderboard|level/.test(error.message)) {
+    if (!/hidden_from_leaderboard|level|is_my_student/.test(error.message)) {
       return { ok: false, error: error.message };
     }
   }
@@ -334,4 +338,35 @@ export async function setUserLevel(email: string, level: string): Promise<SetLev
   revalidatePath("/pre-ielts");
   revalidatePath("/intro");
   return { ok: true, email: email.trim(), level: (data as string) ?? level };
+}
+
+// ----------------------------------------------------------- My-students
+export type SetMyStudentResult =
+  | { ok: true; email: string; name: string | null; isMyStudent: boolean }
+  | { ok: false; error: string };
+
+// Mark/unmark a user as the teacher's "My student" (assignments + send-to-teacher
+// + private tracking). Enforced admin-only in the DB by set_my_student.
+export async function setMyStudent(email: string, flag: boolean): Promise<SetMyStudentResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { data, error } = await supabase.rpc("set_my_student", {
+    target_email: email.trim(),
+    flag,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { email: string | null; name: string | null; is_my_student: boolean }
+    | undefined;
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/my-students");
+  return {
+    ok: true,
+    email: row?.email ?? email,
+    name: row?.name ?? null,
+    isMyStudent: row?.is_my_student ?? flag,
+  };
 }

@@ -3,9 +3,8 @@
 
 export type Skill = "reading" | "listening" | "writing" | "speaking";
 export type Role = "student" | "admin";
-/** A student's learning track. Beginners get a tailored materials menu.
- *  'speaking_only' restricts a student to the Speaking section only. */
-export type Level = "regular" | "pre_ielts" | "intro" | "speaking_only";
+/** A student's learning track. Beginners get a tailored materials menu. */
+export type Level = "regular" | "pre_ielts" | "intro";
 
 export type Profile = {
   id: string;
@@ -29,7 +28,8 @@ export type Profile = {
   referral_code: string | null; // the user's own shareable invite code (migration 0019)
   referred_by: string | null; // profile id of whoever invited this user, or null
   hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
-  can_send_to_teacher: boolean; // admin-flagged: may send speaking recordings to the teacher (migration 0027)
+  is_my_student: boolean; // teacher's hand-picked student: assignments, send-to-teacher, private tracking (migration 0029)
+  can_send_to_teacher: boolean; // legacy (0027); kept in sync with is_my_student. Prefer is_my_student.
   created_at: string;
 };
 
@@ -256,6 +256,50 @@ export type SpeakingQuestion = {
   created_at: string;
 };
 
+/** A teacher-given assignment in any section (migration 0030). */
+export type Assignment = {
+  id: string;
+  created_by: string;
+  skill: Skill;
+  test_id: string | null; // reading/listening
+  speaking_question_id: string | null; // speaking (from the bank)
+  writing_prompt: string | null; // writing, or a free-text speaking prompt
+  title: string;
+  due_date: string | null; // ISO date, or null for no deadline
+  created_at: string;
+};
+
+export type AssignmentStatus = "assigned" | "in_progress" | "submitted";
+
+/** Per-student delivery + progress for an assignment (migration 0030). */
+export type AssignmentTarget = {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  status: AssignmentStatus;
+  result_id: string | null;
+  speaking_submission_id: string | null;
+  writing_submission_id: string | null;
+  started_at: string | null;
+  submitted_at: string | null;
+};
+
+// Row shape returned by the my_students_leaderboard() RPC (admin-only).
+export type MyStudentLeaderboardRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  rating: number;
+  peak_rating: number;
+  rated_count: number;
+  tests_completed: number;
+  xp: number;
+  streak: number;
+  level: string;
+  rank: number;
+};
+
 type Row<T> = T;
 type Insert<T> = Partial<T>;
 type Update<T> = Partial<T>;
@@ -287,8 +331,30 @@ export type Database = {
         Insert: Insert<UserAchievement>;
         Update: Update<UserAchievement>;
       };
+      assignments: { Row: Row<Assignment>; Insert: Insert<Assignment>; Update: Update<Assignment> };
+      assignment_targets: {
+        Row: Row<AssignmentTarget>;
+        Insert: Insert<AssignmentTarget>;
+        Update: Update<AssignmentTarget>;
+      };
     };
     Functions: {
+      set_my_student: {
+        Args: { target_email: string; flag: boolean };
+        Returns: { id: string; email: string | null; name: string | null; is_my_student: boolean }[];
+      };
+      start_assignment: { Args: { p_assignment_id: string }; Returns: undefined };
+      complete_assignments: {
+        Args: {
+          p_skill: Skill;
+          p_test_id: string | null;
+          p_result_id: string | null;
+          p_speaking_submission_id: string | null;
+          p_writing_submission_id: string | null;
+        };
+        Returns: undefined;
+      };
+      my_students_leaderboard: { Args: Record<string, never>; Returns: MyStudentLeaderboardRow[] };
       record_activity: {
         Args: { p_xp?: number };
         Returns: { streak: number; longest_streak: number; xp: number }[];
