@@ -86,12 +86,25 @@ export const SCORING_BRIDGE = `
   }
   function readScore() {
     var el = document.querySelector("#reportScore, #userScore, #finalScore, [data-ielts-score]");
-    if (!visible(el)) return null;
-    var m = (el.textContent || "").match(/(\\d+)\\s*\\/\\s*(\\d+)/);
-    if (!m) return null;
-    var total = +m[2];
-    if (!total) return null;
-    return { raw: +m[1], total: total };
+    if (visible(el)) {
+      var m = (el.textContent || "").match(/(\\d+)\\s*\\/\\s*(\\d+)/);
+      if (m && +m[2]) return { raw: +m[1], total: +m[2] };
+    }
+    // cdi-listening-master results layout: a bare integer in #rawScore with an
+    // "out of N correct" caption beside it (no "11/40" string anywhere).
+    var rs = document.querySelector("#rawScore");
+    if (visible(rs)) {
+      var rm = (rs.textContent || "").match(/\\d+/);
+      if (rm) {
+        var total = 40;
+        var cap = (rs.parentNode && rs.parentNode.textContent) || "";
+        var tm = cap.match(/out of\\s*(\\d+)/i);
+        if (tm && +tm[1]) total = +tm[1];
+        else if (typeof window.TOTAL === "number" && window.TOTAL > 0) total = window.TOTAL;
+        return { raw: +rm[0], total: total };
+      }
+    }
+    return null;
   }
   function readBand() {
     var b = document.querySelector("#bandScore, [data-ielts-band]");
@@ -107,11 +120,14 @@ export const SCORING_BRIDGE = `
     if (polling || done || !submitted) return;
     polling = true;
     var lastSig = null, stable = 0, ticks = 0;
+    // Reset the polling flag whenever the interval stops without success, so a
+    // later Submit click (e.g. the confirm-screen Submit) can re-arm it.
+    function stop() { clearInterval(iv); polling = false; }
     var iv = setInterval(function () {
       if (done) { clearInterval(iv); return; }
       ticks++;
       var s = readScore();
-      if (!s) { lastSig = null; stable = 0; if (ticks > 140) clearInterval(iv); return; }
+      if (!s) { lastSig = null; stable = 0; if (ticks > 140) stop(); return; }
       var sig = s.raw + "/" + s.total;
       if (sig === lastSig) stable++; else { lastSig = sig; stable = 1; }
       if (stable >= 4) {
@@ -119,14 +135,15 @@ export const SCORING_BRIDGE = `
         clearInterval(iv);
         window.reportIELTSResult(s.raw, s.total, readBand());
       } else if (ticks > 140) {
-        clearInterval(iv);
+        stop();
       }
     }, 150);
   }
 
   document.addEventListener("click", function (e) {
     var t = e.target.closest &&
-      e.target.closest('#submitBtn, .btn-submit, #deliver-button, .footer__deliverButton, [onclick*="submit"], [onclick*="Submit"]');
+      e.target.closest('#submitBtn, .btn-submit, #deliver-button, .footer__deliverButton, ' +
+        '#doSubmit, #footerSubmit, .big-submit, .submit-btn, [onclick*="submit"], [onclick*="Submit"]');
     if (!t) return;
     submitted = true;
     setTimeout(startPolling, 300); // let any confirm() dialog resolve first
