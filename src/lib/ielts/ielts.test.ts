@@ -31,6 +31,25 @@ describe("extractAnswerKey", () => {
   it("returns null when there is no key", () => {
     expect(extractAnswerKey("<html><body>no key here</body></html>")).toBeNull();
   });
+
+  it("falls back to the cdi-listening-master `const KEY = {...}` format", () => {
+    const html = `<script>
+      const KEY = {
+        1:["10","ten"], 8:["cafe","café"],
+        11:["a"], 21:["b","d"], 22:["b","d"],
+        31:["metal","metals"]
+      };
+      const TOTAL = 40;
+    </script>`;
+    const ex = extractAnswerKey(html);
+    expect(ex).not.toBeNull();
+    expect(ex!.total).toBe(6);
+    expect(ex!.key["1"]).toEqual(["10", "ten"]);
+    expect(ex!.key["8"]).toEqual(["cafe", "café"]);
+    expect(ex!.key["21"]).toEqual(["b", "d"]);
+    // a single picked letter still grades against the two-letter slot key
+    expect(gradeAnswers(ex!.key, { "21": "b", "22": "d" }).raw).toBe(2);
+  });
 });
 
 describe("gradeAnswers", () => {

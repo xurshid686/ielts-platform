@@ -27,6 +27,32 @@ export const SCORING_BRIDGE = `
         if (v) out[q] = v;
       }
     }
+
+    // The cdi-listening-master format addresses questions by data-q / data-qs
+    // instead of name="qN": text gaps (.gap[data-q]), drag-drop matching
+    // (.dropzone[data-q] with the dropped letter in data-value), and "choose TWO
+    // letters" checkbox groups (.mcq.multi[data-qs]). Harvest those too.
+    var gaps = document.querySelectorAll('input[data-q]');
+    for (var g = 0; g < gaps.length; g++) {
+      var gv = (gaps[g].value || "").trim();
+      if (gv) out[gaps[g].getAttribute("data-q")] = gv;
+    }
+    var zones = document.querySelectorAll('.dropzone[data-q]');
+    for (var z = 0; z < zones.length; z++) {
+      var zv = (zones[z].dataset && zones[z].dataset.value) || zones[z].getAttribute("data-value") || "";
+      if (zv) out[zones[z].getAttribute("data-q")] = zv;
+    }
+    // Each multi group fills its question slots with the SORTED selected letters
+    // (q[0] = first letter, q[1] = second), matching the test's in-page grading.
+    var groups = document.querySelectorAll('.mcq.multi[data-qs]');
+    for (var k = 0; k < groups.length; k++) {
+      var qs = (groups[k].getAttribute("data-qs") || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      var boxes = groups[k].querySelectorAll('input[type="checkbox"]');
+      var picked = [];
+      for (var b = 0; b < boxes.length; b++) if (boxes[b].checked) picked.push(boxes[b].value);
+      picked.sort();
+      for (var p = 0; p < qs.length; p++) if (picked[p]) out[qs[p]] = picked[p];
+    }
     return out;
   }
 

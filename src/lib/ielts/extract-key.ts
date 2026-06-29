@@ -140,7 +140,22 @@ function parseObjectLiteral(body: string): Record<string, string[]> {
 export function extractAnswerKey(html: string): ExtractedKey | null {
   const correctBody = sliceObjectLiteral(html, "correctAnswers");
   const acceptBody = sliceObjectLiteral(html, "acceptableAnswers");
-  if (!correctBody && !acceptBody) return null;
+
+  // Fallback for the cdi-listening-master format, which stores the whole key as a
+  // single `const KEY = { 1:['10','ten'], 11:['a'], 21:['b','d'], ... }` object
+  // (each value already a list of accepted, lowercased variants).
+  if (!correctBody && !acceptBody) {
+    const keyBody = sliceObjectLiteral(html, "\\bKEY");
+    if (!keyBody) return null;
+    const parsed = parseObjectLiteral(keyBody);
+    const key: AnswerKey = {};
+    for (const [q, list] of Object.entries(parsed)) {
+      const norm = list.map(normalizeAnswer).filter(Boolean);
+      if (norm.length) key[q] = Array.from(new Set(norm));
+    }
+    const total = Object.keys(key).length;
+    return total ? { key, total } : null;
+  }
 
   const correct = correctBody ? parseObjectLiteral(correctBody) : {};
   const accept = acceptBody ? parseObjectLiteral(acceptBody) : {};
