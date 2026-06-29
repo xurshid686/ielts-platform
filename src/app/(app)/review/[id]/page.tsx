@@ -12,7 +12,7 @@ export default async function ReviewPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireProfile();
+  const viewer = await requireProfile();
   const supabase = await createClient();
 
   // RLS restricts results to the owner (or admin), so no manual user filter needed.
@@ -24,6 +24,23 @@ export default async function ReviewPage({
 
   if (!resultRow) notFound();
   const result = resultRow as Result;
+
+  // If an admin is viewing another student's attempt (allowed by RLS), name the
+  // student and send the back link to that student's attempts list.
+  let subjectName: string | undefined;
+  let backHref: string | undefined;
+  let backLabel: string | undefined;
+  if (result.user_id !== viewer.id) {
+    const { data: subjRow } = await supabase
+      .from("profiles")
+      .select("name, email")
+      .eq("id", result.user_id)
+      .single();
+    const subj = subjRow as { name: string | null; email: string | null } | null;
+    subjectName = subj?.name || subj?.email || "Student";
+    backHref = `/admin/students/${result.user_id}`;
+    backLabel = "Back to attempts";
+  }
 
   let title = "Test review";
   let answerKey = null as ReturnType<typeof asAnswerKey>;
@@ -76,6 +93,9 @@ export default async function ReviewPage({
       submittedAt={result.submitted_at}
       rows={rows}
       note={note}
+      subjectName={subjectName}
+      backHref={backHref}
+      backLabel={backLabel}
     />
   );
 }

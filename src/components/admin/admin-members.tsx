@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Search,
   Crown,
@@ -12,6 +13,7 @@ import {
   Eye,
   GraduationCap,
   Star,
+  FileText,
 } from "lucide-react";
 import {
   searchUsers,
@@ -255,6 +257,17 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Full results report — every attempt + per-question breakdown */}
+                    <Link
+                      href={`/admin/students/${u.id}`}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary hover:bg-surface-2"
+                      title="View this student's attempts and full per-question reports"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Attempts
+                    </Link>
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
                     {/* Learning level (track) */}
                     <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 pl-2 pr-1 text-sm">
                       {levelBusyId === u.id ? (

@@ -18,6 +18,9 @@ export function ReviewView({
   submittedAt,
   rows,
   note,
+  subjectName,
+  backHref,
+  backLabel,
 }: {
   title: string;
   skill: string;
@@ -27,6 +30,11 @@ export function ReviewView({
   submittedAt: string;
   rows: ReviewRow[];
   note?: string;
+  // When an admin reviews another student's attempt, name them and point the
+  // back link at that student's attempts list instead of the skill page.
+  subjectName?: string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const accuracy = raw != null && total ? Math.round((raw / total) * 100) : null;
   const correct = rows.filter((r) => r.status === "correct").length;
@@ -45,11 +53,14 @@ export function ReviewView({
     <div className="space-y-6">
       <div>
         <Link
-          href={`/${skill}`}
+          href={backHref ?? `/${skill}`}
           className="mb-4 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to {skill}
+          <ArrowLeft className="h-4 w-4" /> {backLabel ?? `Back to ${skill}`}
         </Link>
+        {subjectName ? (
+          <p className="text-sm font-medium text-primary">{subjectName}’s attempt</p>
+        ) : null}
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         <p className="text-muted capitalize">
           {skill} review · {date}

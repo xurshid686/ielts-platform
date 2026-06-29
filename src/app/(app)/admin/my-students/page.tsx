@@ -64,7 +64,12 @@ export default async function MyStudentsPage() {
                           {(r.name || r.email || "U").charAt(0).toUpperCase()}
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{r.name || r.email}</p>
+                          <Link
+                            href={`/admin/students/${r.id}`}
+                            className="truncate font-medium text-primary hover:underline"
+                          >
+                            {r.name || r.email}
+                          </Link>
                           <p className="truncate text-xs text-muted">{r.email}</p>
                         </div>
                       </div>
