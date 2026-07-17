@@ -5,10 +5,11 @@
 
 export const BRIDGE_MARKER = "IELTS Platform scoring bridge";
 
-export const SCORING_BRIDGE = `
-<script>
-/* ${BRIDGE_MARKER} (auto-injected by /api/test-html) */
-(function () {
+// Shared answer-harvesting routine, injected into BOTH the authenticated scoring
+// bridge and the public sanitizer's bridge so the two never diverge. Defines a
+// `harvestAnswers()` in the enclosing scope. CDI reading tests address every
+// question via input[name="qN"]; cdi-listening-master uses data-q / data-qs.
+export const HARVEST_ANSWERS_JS = `
   // Harvest the user's answers so the PLATFORM can grade them server-side.
   // CDI tests address every question via input[name="qN"] — text value for
   // completion, the :checked value for MCQ/TF. Returns { "1": "...", ... }.
@@ -55,7 +56,13 @@ export const SCORING_BRIDGE = `
     }
     return out;
   }
+`;
 
+export const SCORING_BRIDGE = `
+<script>
+/* ${BRIDGE_MARKER} (auto-injected by /api/test-html) */
+(function () {
+${HARVEST_ANSWERS_JS}
   window.reportIELTSResult = window.reportIELTSResult || function (raw, total, band, answers) {
     try {
       parent.postMessage({

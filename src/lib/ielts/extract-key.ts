@@ -25,7 +25,8 @@ export function normalizeAnswer(s: unknown): string {
 
 // Returns the balanced `{...}` block that follows `<ident> =`, respecting strings
 // so braces inside quoted values don't end the block early. null if not found.
-function sliceObjectLiteral(src: string, ident: string): string | null {
+// Exported so the public-test sanitizer can locate the same literals and strip them.
+export function sliceObjectLiteral(src: string, ident: string): string | null {
   const re = new RegExp(`${ident}\\s*=`, "");
   const m = re.exec(src);
   if (!m) return null;
