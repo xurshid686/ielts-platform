@@ -32,6 +32,19 @@ describe.skipIf(!existsSync(SRC))("sanitizePublicTestHtml (real CDI file)", () =
     expect(out).toContain("IELTS Platform public bridge");
   });
 
+  it("keeps every inline script syntactically valid (no parser breakage)", () => {
+    // Regression guard: a bad rewrite (e.g. html2pdf() -> `void 0.set(...)`,
+    // where `0.` is a number literal) is a SyntaxError that kills the whole
+    // script and disables the test. new Function() parses without running.
+    const scripts = [...out.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(
+      (m) => m[1],
+    );
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const code of scripts) {
+      expect(() => new Function(code)).not.toThrow();
+    }
+  });
+
   it("still exposes the questions/passage so the test renders", () => {
     expect(out).toContain("deliver-button");
     expect(out).toContain('name="q14"'); // first question input survives

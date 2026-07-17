@@ -43,16 +43,15 @@ function stripSensitiveLiterals(html: string): string {
   return out;
 }
 
-/** Removes the html2pdf library and any in-page download/print controls. */
+/**
+ * Removes the html2pdf library <script>. That alone disables PDF export: the
+ * test's own code guards every use with `typeof html2pdf === 'undefined'` and
+ * bails out, so nothing crashes. We deliberately do NOT rewrite the html2pdf()
+ * / window.print() call sites — doing so produced invalid JS (e.g. `void 0.set`
+ * → `0.` is a number literal, a syntax error) that killed the whole script.
+ */
 function stripDownloadTools(html: string): string {
-  return (
-    html
-      // the html2pdf bundle <script src="…html2pdf…"></script>
-      .replace(/<script[^>]*html2pdf[^>]*>\s*<\/script>/gi, "")
-      // any inline call to html2pdf(...) or window.print(...)
-      .replace(/html2pdf\s*\([^)]*\)/gi, "void 0")
-      .replace(/window\.print\s*\([^)]*\)/gi, "void 0")
-  );
+  return html.replace(/<script[^>]*html2pdf[^>]*>\s*<\/script>/gi, "");
 }
 
 // Injected AFTER the test's own scripts (before </body>), so its function
@@ -69,7 +68,7 @@ ${HARVEST_ANSWERS_JS}
   // Belt-and-suspenders: hide the test's own result report + retake button.
   try {
     var css = document.createElement("style");
-    css.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}";
+    css.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}#printReportBtn,#copyReportBtn{display:none!important}";
     (document.head || document.documentElement).appendChild(css);
   } catch (e) {}
 
