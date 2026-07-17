@@ -61,6 +61,7 @@ export type Test = {
   // legacy tests where no key could be extracted (falls back to client score).
   answer_key: Record<string, string[]> | null;
   total: number | null; // number of gradeable questions
+  is_public: boolean; // taken without login via /practice/[id] (migration 0033)
   created_by: string | null;
   created_at: string;
 };

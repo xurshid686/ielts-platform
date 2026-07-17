@@ -47,6 +47,9 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   // A passage number only applies to a single reading passage.
   const passage =
     skill === "reading" && kind === "single" && passageRaw ? Number(passageRaw) : null;
+  // Public tests can be taken without login via /practice/[id] (sanitized + graded server-side).
+  const isPublicRaw = String(formData.get("is_public") || "");
+  const isPublic = isPublicRaw === "on" || isPublicRaw === "true";
   const file = formData.get("file") as File | null;
 
   if (!title) return { ok: false, error: "Title is required." };
@@ -85,13 +88,19 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     file_path: path,
     answer_key: extracted?.key ?? null,
     total: extracted?.total ?? null,
+    is_public: isPublic,
     created_by: user!.id,
   };
 
   let { error: insErr } = await supabase.from("tests").insert(row);
-  // Graceful fallback if the 0021 migration (tests.track) hasn't been run yet.
+  // Graceful fallback if the 0021 (tests.track) / 0033 (tests.is_public)
+  // migrations haven't been run yet — drop the unknown column and retry.
   if (insErr && /track/.test(insErr.message)) {
     delete row.track;
+    ({ error: insErr } = await supabase.from("tests").insert(row));
+  }
+  if (insErr && /is_public/.test(insErr.message)) {
+    delete row.is_public;
     ({ error: insErr } = await supabase.from("tests").insert(row));
   }
   if (insErr) {
@@ -103,6 +112,24 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   revalidatePath("/admin/tests");
   revalidatePath(`/${skill}`);
   if (track !== "regular") revalidatePath(track === "pre_ielts" ? "/pre-ielts" : "/intro");
+  return { ok: true };
+}
+
+// Toggle whether a test is publicly takeable (no login) at /practice/[id].
+export async function setTestPublic(id: string, isPublic: boolean): Promise<ActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const { error } = await supabase.from("tests").update({ is_public: isPublic }).eq("id", id);
+  if (error) {
+    if (/is_public/.test(error.message)) {
+      return { ok: false, error: "Run migration 0033 (tests.is_public) first." };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/tests");
   return { ok: true };
 }
 

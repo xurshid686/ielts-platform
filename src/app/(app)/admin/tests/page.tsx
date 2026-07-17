@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { UploadForm } from "@/components/admin/upload-form";
 import { DeleteTestButton } from "@/components/admin/delete-test-button";
+import { PublicToggleButton } from "@/components/admin/public-toggle-button";
 import type { Test } from "@/types/database";
 
 export default async function AdminTestsPage() {
@@ -51,6 +52,7 @@ export default async function AdminTestsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <PublicToggleButton id={t.id} isPublic={t.is_public ?? false} />
                     <a
                       href={`/api/test-html/${t.id}`}
                       target="_blank"
