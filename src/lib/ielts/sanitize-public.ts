@@ -97,8 +97,10 @@ ${HARVEST_ANSWERS_JS}
   } catch (e) {}
 
   // Best-effort anti-copy / anti-download deterrents (a determined user with
-  // devtools can still read the passage text — see the note at the top).
-  ["contextmenu", "copy", "cut", "selectstart", "dragstart"].forEach(function (ev) {
+  // devtools can still read the passage text — see the note at the top). We must
+  // NOT block "selectstart" (the highlight tool needs text selection) or
+  // "dragstart" (drag-and-drop answers), so we only guard copy/cut and the menu.
+  ["contextmenu", "copy", "cut"].forEach(function (ev) {
     document.addEventListener(ev, function (e) { e.preventDefault(); }, true);
   });
   document.addEventListener("keydown", function (e) {
