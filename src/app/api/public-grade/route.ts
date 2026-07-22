@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { gradeAnswers, asAnswerKey, asAnswers } from "@/lib/ielts/grade";
 
-// Grades an anonymous (no-login) attempt at a PUBLIC test. Grades server-side
-// from the stored answer key and returns the score/band — it PERSISTS NOTHING
-// (no results row, no XP, no rating). Saving requires registration, which goes
-// through the authenticated saveResult() path instead.
+// Grades an attempt at a shareable (is_public) test. Requires a signed-in
+// user — test taking is login-only. Grades server-side from the stored answer
+// key and returns the score/band — it PERSISTS NOTHING (no results row, no XP,
+// no rating). Saving goes through the authenticated saveResult() path instead.
 export async function POST(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await req.json();

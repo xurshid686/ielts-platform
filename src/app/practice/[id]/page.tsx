@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { PublicTestRunner } from "@/components/public-test-runner";
 
-// Public, no-login test page. Lives OUTSIDE the (app)/(auth) route groups so it
-// inherits neither the authenticated layout nor requireProfile(). Only tests
-// flagged is_public = true are reachable; everything else 404s.
+// Shareable test link. Requires login: anonymous visitors are sent to /login
+// (proxy.ts also gates /practice) and returned here, then forwarded into the
+// normal authenticated flow. Only tests flagged is_public = true resolve;
+// everything else 404s.
 
 async function getPublicTest(id: string) {
   const admin = createAdminClient();
@@ -32,7 +32,7 @@ export async function generateMetadata({
   if (!test) return { title: "Test not found" };
   return {
     title: `${test.title} — Free IELTS Practice`,
-    description: "Take this IELTS practice test free, no sign-up needed. Register to save your result.",
+    description: "Take this IELTS practice test free. Sign in to start and save your result.",
   };
 }
 
@@ -45,16 +45,14 @@ export default async function PublicPracticePage({
   const test = await getPublicTest(id);
   if (!test) notFound();
 
-  // Logged-in visitors take the test through the normal authenticated flow so
-  // their result SAVES (XP, rating, streak, full answer review). The public
-  // no-save runner is only for anonymous visitors. After registering via the
-  // CTA (next=/practice/[id]) they land back here already signed in and get
-  // redirected into the saving flow.
+  // Defense in depth alongside proxy.ts: no anonymous test-taking. Signed-in
+  // visitors go through the normal authenticated flow so their result saves
+  // (XP, rating, streak, full answer review).
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect(`/${test.skill}/${test.id}`);
+  if (!user) redirect(`/login?next=/practice/${test.id}`);
 
-  return <PublicTestRunner testId={test.id} title={test.title} skill={test.skill} />;
+  redirect(`/${test.skill}/${test.id}`);
 }

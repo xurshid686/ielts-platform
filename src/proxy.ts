@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED = ["/dashboard", "/reading", "/listening", "/writing", "/speaking", "/admin", "/assignments"];
+const PROTECTED = ["/dashboard", "/reading", "/listening", "/writing", "/speaking", "/admin", "/assignments", "/practice"];
 const AUTH_PAGES = ["/login", "/register"];
 
 export async function proxy(request: NextRequest) {
