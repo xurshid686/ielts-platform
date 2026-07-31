@@ -315,11 +315,10 @@ export function TestBrowser({
                               <Repeat2 className="h-3 w-3" /> {t.attempts}
                             </span>
                           )}
-                      {t.level && (
-                        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
-                          {t.level}
-                        </span>
-                      )}
+                      {/* `level` is deliberately not shown: it is NULL on 119 of
+                          121 reading tests (only the admin upload form ever set
+                          it, as free text), so the pill was noise that implied a
+                          band grading the library does not actually have. */}
                     </div>
                   </div>
 
