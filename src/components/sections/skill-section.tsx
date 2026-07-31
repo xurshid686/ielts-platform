@@ -106,7 +106,10 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         </div>
       </div>
 
-      {/* Stats + compact progress graph side by side, so tests stay above the fold */}
+      {/* Stats only once there is something real to show. For a new user these
+          read "—", "—", "0" and take the whole first screen, pushing the tests
+          they came for below the fold. */}
+      {res.length > 0 && (
       <section
         className={recent.length >= 2 ? "grid gap-4 lg:grid-cols-[1fr_1.7fr]" : undefined}
       >
@@ -133,6 +136,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
         />
       </section>
+      )}
 
       {/* ONE catalogue — free and premium together, searchable and filterable.
           Premium used to render in a separate block above this one, so the
