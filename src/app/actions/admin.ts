@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { extractAnswerKey } from "@/lib/ielts/extract-key";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 
@@ -308,7 +309,10 @@ export async function deleteTest(id: string): Promise<ActionResult> {
   if (!gate.ok) return { ok: false, error: gate.error };
   const { supabase } = gate;
 
-  const { data: testRow } = await supabase
+  // `file_path` is revoked from the authenticated role (migration 0034), so the
+  // storage key is looked up with the service-role client. assertAdmin() above
+  // is what authorises this.
+  const { data: testRow } = await createAdminClient()
     .from("tests")
     .select("file_path, skill")
     .eq("id", id)

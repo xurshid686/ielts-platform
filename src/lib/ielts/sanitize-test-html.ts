@@ -15,33 +15,94 @@
 // The source CDI files in storage are never modified; this is a transform
 // applied to the response body on the way out.
 
-import { sliceObjectLiteral } from "./extract-key";
 import { HARVEST_ANSWERS_JS } from "./scoring-bridge";
 
 export const SANITIZED_BRIDGE_MARKER = "IELTS Platform sanitized bridge";
 
 // The JS object literals that reveal the key / model answers. Each is replaced
 // with an empty object so the test's own scripts still parse and run.
-const SENSITIVE_IDENTS = ["correctAnswers", "acceptableAnswers", "explanations", "evidence"];
+//
+// The two CDI formats name these differently, so BOTH sets are listed and any
+// that are absent are simply skipped:
+//   reading   — correctAnswers, acceptableAnswers, explanations, evidence
+//   listening — KEY, evidence   (the listening builds have no correctAnswers at
+//               all, so matching only the reading names left every listening
+//               test shipping its full key)
+const SENSITIVE_IDENTS = [
+  "correctAnswers",
+  "acceptableAnswers",
+  "explanations",
+  "evidence",
+  "KEY",
+];
+
+/**
+ * Finds the index of the `{` that opens `<ident> = { … }`.
+ *
+ * The match is deliberately strict — the identifier must not be part of a
+ * longer name or a property access, and the `{` must follow the `=` with only
+ * whitespace between. A looser `ident\s*=` search matched prose inside a
+ * banner comment ("transcript evidence ==========") and then blanked whatever
+ * `{` came next, which silently gutted an unrelated function while leaving the
+ * real key untouched.
+ */
+function findLiteralOpen(src: string, ident: string, from = 0): number {
+  const re = new RegExp(`(?:^|[^\\w$.])${ident}\\s*=\\s*\\{`, "g");
+  re.lastIndex = from;
+  const m = re.exec(src);
+  if (!m) return -1;
+  return src.indexOf("{", m.index);
+}
+
+/** Index just past the `}` that closes the literal opened at `open`, or -1. */
+function findLiteralEnd(src: string, open: number): number {
+  let depth = 0;
+  let inStr = false;
+  let quote = "";
+  let esc = false;
+  for (let i = open; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === quote) inStr = false;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === "`") {
+      inStr = true;
+      quote = c;
+    } else if (c === "{") {
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
 
 /**
  * Replaces the `<ident> = { … }` DECLARATION with `<ident> = {}` for each
- * sensitive literal. The CDI format declares each of these exactly once (before
- * any usage), so we blank the first assignment only — later `ident[q]` reads
+ * sensitive literal — every occurrence, not just the first, so a format that
+ * declares one of them twice can't slip a copy through. Later `ident[q]` reads
  * then resolve to undefined against the now-empty object, which is harmless.
  */
 function stripSensitiveLiterals(html: string): string {
   let out = html;
   for (const ident of SENSITIVE_IDENTS) {
-    const body = sliceObjectLiteral(out, ident);
-    if (!body || body === "{}") continue;
-    // Locate the exact `{` that starts this literal (first `{` after `ident =`),
-    // so we blank THIS block rather than the first identical-looking one.
-    const assign = new RegExp(`${ident}\\s*=`).exec(out);
-    if (!assign) continue;
-    const open = out.indexOf("{", assign.index + assign[0].length);
-    if (open < 0) continue;
-    out = out.slice(0, open) + "{}" + out.slice(open + body.length);
+    let searchFrom = 0;
+    for (;;) {
+      const open = findLiteralOpen(out, ident, searchFrom);
+      if (open < 0) break;
+      const end = findLiteralEnd(out, open);
+      if (end < 0) break; // unbalanced — leave it rather than corrupt the file
+      if (end - open <= 2) {
+        searchFrom = end; // already `{}`
+        continue;
+      }
+      out = out.slice(0, open) + "{}" + out.slice(end);
+      searchFrom = open + 2;
+    }
   }
   return out;
 }
