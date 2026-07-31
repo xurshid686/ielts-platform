@@ -3,6 +3,30 @@
 -- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
 -- Safe to re-run.
 -- ============================================================
+--
+--  *** DEPLOY THE CODE FIRST. THIS MIGRATION IS NOT BACKWARD COMPATIBLE. ***
+--
+-- This revokes column-level SELECT, which breaks `select("*")` on `tests` and
+-- any read of `answer_key` from a user session. The code that stopped doing
+-- both of those things ships in the same change set as this file.
+--
+-- Applying this while the OLD code is still live takes the site down: the
+-- test-detail page's select fails, the page calls notFound(), and every
+-- /reading/[id] and /listening/[id] URL returns 404. That is exactly what
+-- happened once — the migration was applied to production before the branch
+-- carrying the code was deployed.
+--
+-- Correct order:
+--   1. merge + deploy the application code
+--   2. confirm the deployment is live
+--   3. run this migration
+--
+-- To roll back in a hurry (restores service, reopens the leak until the code
+-- is deployed):
+--   grant select on public.tests to authenticated;
+--   grant select on public.tests to anon;
+--   drop policy if exists "tests_select_anon_catalogue" on public.tests;
+--
 -- Migration 0002 deliberately left `answer_key` readable by authenticated
 -- users, reasoning that the CDI HTML shipped the same key inline anyway, so
 -- server-grading only needed to stop fabricated SCORES — and it noted the fix:
