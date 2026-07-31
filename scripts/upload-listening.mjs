@@ -39,7 +39,16 @@ function sliceObjectLiteral(src, ident) {
 }
 function parseObjectLiteral(body) {
   const out = {}, s = body, n = s.length; let i = 0;
-  const ws = () => { while (i < n && /\s/.test(s[i])) i++; };
+  // Skips whitespace AND // line / /* block */ comments - CDI keys carry inline
+  // comments explaining variants, and stopping at one truncates the key.
+  const ws = () => {
+    for (;;) {
+      while (i < n && /\s/.test(s[i])) i++;
+      if (s[i] === "/" && s[i + 1] === "/") { while (i < n && s[i] !== "\n") i++; }
+      else if (s[i] === "/" && s[i + 1] === "*") { i += 2; while (i < n && !(s[i] === "*" && s[i + 1] === "/")) i++; i += 2; }
+      else return;
+    }
+  };
   const readString = () => { const q = s[i++]; let r = ""; while (i < n) { const c = s[i++]; if (c === "\\") r += s[i++] ?? ""; else if (c === q) break; else r += c; } return r; };
   while (i < n && s[i] !== "{") i++; i++; ws();
   while (i < n && s[i] !== "}") {
@@ -98,9 +107,15 @@ const { data: pub } = supabase.storage.from("tests").getPublicUrl(storagePath);
 // Remove any earlier copy with the same title so re-runs don't duplicate.
 await supabase.from("tests").delete().eq("title", title).eq("skill", skill);
 
+// question types from the test's own TYPE_ORDER (fallback to the common set)
+const typeOrderMatch = html.match(/const TYPE_ORDER\s*=\s*\[([^\]]*)\]/);
+const questionTypes = typeOrderMatch
+  ? [...typeOrderMatch[1].matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2])
+  : ["Note completion", "Table completion", "Multiple choice", "Matching"];
+
 const row = {
   title, skill, kind: "full", tier: "free", track: "regular",
-  question_types: ["Note completion", "Table completion", "Multiple choice", "Matching"],
+  question_types: questionTypes,
   level: null, passage: null,
   file_url: pub.publicUrl, file_path: storagePath,
   answer_key: extracted.key, total: extracted.total,

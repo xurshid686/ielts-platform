@@ -58,7 +58,16 @@ function parseObjectLiteral(body) {
   const out = {};
   const s = body, n = s.length;
   let i = 0;
-  const ws = () => { while (i < n && /\s/.test(s[i])) i++; };
+  // Skips whitespace AND // line / /* block */ comments - CDI keys carry inline
+  // comments explaining variants, and stopping at one truncates the key.
+  const ws = () => {
+    for (;;) {
+      while (i < n && /\s/.test(s[i])) i++;
+      if (s[i] === "/" && s[i + 1] === "/") { while (i < n && s[i] !== "\n") i++; }
+      else if (s[i] === "/" && s[i + 1] === "*") { i += 2; while (i < n && !(s[i] === "*" && s[i + 1] === "/")) i++; i += 2; }
+      else return;
+    }
+  };
   const readString = () => {
     const q = s[i++]; let r = "";
     while (i < n) {
