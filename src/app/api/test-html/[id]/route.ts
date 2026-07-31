@@ -1,5 +1,5 @@
 import { injectScoringBridge } from "@/lib/ielts/scoring-bridge";
-import { sanitizeTestHtml } from "@/lib/ielts/sanitize-test-html";
+import { sanitizeTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-test-html";
 import { asAnswerKey } from "@/lib/ielts/grade";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
 
@@ -31,10 +31,24 @@ export async function GET(
   // A test WITHOUT a stored key has to keep scoring itself — blanking its key
   // would leave it ungradable. Those are a migration gap, not a design: run
   // `node scripts/backfill-keys.mjs` so every test lands on the sanitized path.
+  //
+  // Sanitizing FAILS CLOSED: if the strip left a key behind, nothing is served.
+  // The alternative is shipping the answers while every check still reports the
+  // file as clean — the audit script only inspects the database column, never
+  // the bytes that actually go out.
   const hasKey = !!asAnswerKey(access.row.answer_key);
-  const html = hasKey
-    ? sanitizeTestHtml(raw, new URL(req.url).origin, id)
-    : injectScoringBridge(raw);
+  let html: string;
+  try {
+    html = hasKey
+      ? sanitizeTestHtml(raw, new URL(req.url).origin, id)
+      : injectScoringBridge(raw);
+  } catch (e) {
+    if (e instanceof SanitizeIncompleteError) {
+      console.error(`[test-html] refusing to serve ${id}: ${e.message}`);
+      return new Response("This test is temporarily unavailable.", { status: 502 });
+    }
+    throw e;
+  }
 
   return new Response(html, {
     status: 200,

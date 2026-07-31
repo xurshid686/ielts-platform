@@ -108,6 +108,50 @@ function stripSensitiveLiterals(html: string): string {
 }
 
 /**
+ * Every sensitive identifier that STILL has a non-empty literal after
+ * stripSensitiveLiterals() ran — i.e. the names it failed to blank.
+ *
+ * This exists because stripping fails OPEN. `findLiteralEnd` walks braces with
+ * only string-literal awareness: it knows nothing about `//` comments or regex
+ * literals, so a stray apostrophe in a comment INSIDE one of these objects
+ * ("// don't change") flips it into string mode, the closing brace is never
+ * found, and the loop hits `break` — deliberately, because leaving the literal
+ * alone beats corrupting the file. The consequence is that the key survives
+ * into the served HTML while /api/test-html still believes it sanitized the
+ * file and audit-answer-keys.mjs still passes, because that script only ever
+ * inspects the database column and never the bytes actually sent.
+ *
+ * So the served output is checked instead, and a failure refuses to serve.
+ *
+ * Unlike extractSensitiveLiterals() this scans EVERY occurrence, not just the
+ * first, so a file that declares one of these twice cannot leave a second copy
+ * behind unnoticed.
+ */
+export function findUnstrippedLiterals(html: string): string[] {
+  const found: string[] = [];
+  for (const ident of SENSITIVE_IDENTS) {
+    let searchFrom = 0;
+    for (;;) {
+      const open = findLiteralOpen(html, ident, searchFrom);
+      if (open < 0) break;
+      const end = findLiteralEnd(html, open);
+      if (end < 0) {
+        // Unbalanced: the brace walk lost its place, so whatever follows was
+        // never blanked. Exactly the case this guard is here to catch.
+        found.push(ident);
+        break;
+      }
+      if (end - open > 2) {
+        found.push(ident);
+        break;
+      }
+      searchFrom = end;
+    }
+  }
+  return found;
+}
+
+/**
  * The source text of each sensitive literal, as it appears in the file:
  *
  *   { correctAnswers: "{14:'visual memory', 15:'migration direction', …}", … }
@@ -332,6 +376,17 @@ ${HARVEST_ANSWERS_JS}
 `;
 
 /**
+ * Thrown when the strip left a key behind. Callers must NOT serve the html —
+ * see /api/test-html, which turns this into a 502.
+ */
+export class SanitizeIncompleteError extends Error {
+  constructor(readonly idents: string[]) {
+    super(`answer key not fully stripped: ${idents.join(", ")}`);
+    this.name = "SanitizeIncompleteError";
+  }
+}
+
+/**
  * Full sanitization pipeline: strip the key/explanations/evidence, remove the
  * download tools, then inject the bridge before </body>.
  *
@@ -339,9 +394,16 @@ ${HARVEST_ANSWERS_JS}
  * own origin so the message is never broadcast with "*".
  * `testId` is the id the bridge fetches the key back with once the student
  * submits, so the test's own results screen can run.
+ *
+ * THROWS SanitizeIncompleteError if any sensitive literal survived. This fails
+ * closed on purpose: a test that will not load is a support ticket, a test that
+ * quietly ships its premium answer key is the thing this whole module exists to
+ * prevent. See findUnstrippedLiterals() for how the strip can fail.
  */
 export function sanitizeTestHtml(html: string, origin: string, testId: string): string {
   let out = stripSensitiveLiterals(html);
+  const leftover = findUnstrippedLiterals(out);
+  if (leftover.length) throw new SanitizeIncompleteError(leftover);
   out = stripDownloadTools(out);
   const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin).replace(
     "__TEST_ID__",
