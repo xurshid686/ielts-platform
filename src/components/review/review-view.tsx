@@ -140,7 +140,7 @@ export function ReviewView({
           upgrade prompt on the page. Hidden when an admin is reviewing
           someone else's attempt. */}
       {!subjectName && (nextTest || showUpgrade) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid items-start gap-3 sm:grid-cols-2">
           {nextTest && (
             <Link href={`/${skill}/${nextTest.id}`} className="group">
               <Card className="flex h-full flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">

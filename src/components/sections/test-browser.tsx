@@ -178,21 +178,21 @@ export function TestBrowser({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Only worth showing when there is actually a mix to filter. */}
           {lockedCount > 0 && openCount > 0 && (
-            <div className="flex rounded-lg border border-border bg-surface p-0.5 shadow-soft">
+            <div className="flex shrink-0 rounded-lg border border-border bg-surface p-0.5 shadow-soft">
               {(
                 [
                   { key: "all", label: "All" },
-                  { key: "open", label: "Free to me" },
+                  { key: "open", label: "Free" },
                   { key: "locked", label: "Premium" },
                 ] as const
               ).map((a) => (
                 <button
                   key={a.key}
                   onClick={() => setAccess(a.key)}
-                  className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                     access === a.key
                       ? "bg-primary/10 text-primary"
                       : "text-muted hover:text-foreground"
