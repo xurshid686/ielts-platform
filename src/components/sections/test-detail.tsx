@@ -3,10 +3,9 @@ import { notFound } from "next/navigation";
 import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canAccessTest, unlockCost } from "@/lib/premium";
+import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import { TestRunner } from "@/components/test-runner";
-import { UnlockButton } from "@/components/sections/unlock-button";
 import { PremiumContact } from "@/components/premium-contact";
 import type { Test } from "@/types/database";
 
@@ -20,15 +19,20 @@ export async function TestDetail({
   const profile = await requireProfile();
   const supabase = await createClient();
 
+  // Explicit column list — `select("*")` would ask for `answer_key`, which is
+  // revoked from the `authenticated` role (migration 0034) precisely so the key
+  // can never reach a page that renders for a student.
   const { data: test } = await supabase
     .from("tests")
-    .select("*")
+    .select(
+      "id, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
+    )
     .eq("id", id)
     .eq("skill", skill)
     .single();
 
   if (!test) notFound();
-  const t = test as Test;
+  const t = test as unknown as Test;
 
   // Level gate: a Pre-IELTS / Intro test is only openable by students of that
   // level (admins pass). Treat it as not-found for everyone else.
@@ -48,7 +52,6 @@ export async function TestDetail({
 
   // Premium tests are locked unless subscriber/admin/unlocked.
   if (!canAccessTest(profile, t, unlocked)) {
-    const cost = unlockCost(t);
     return (
       <div className="mx-auto max-w-md py-12 text-center">
         <Link
@@ -73,10 +76,8 @@ export async function TestDetail({
                     : "passage"
                   : "section"}
             </strong>{" "}
-            is available to Premium members. Unlock it with <strong>{cost} XP</strong>, or
-            ask an administrator to upgrade your account.
+            is included with Premium, along with every other test in the library.
           </p>
-          <UnlockButton testId={t.id} cost={cost} xp={profile.xp} />
         </div>
         <PremiumContact className="mt-4 text-left" />
       </div>
@@ -84,8 +85,10 @@ export async function TestDetail({
   }
 
   // Server-graded tests have a stored answer key — the manual score-entry
-  // fallback is hidden for them (their score can't be hand-entered).
-  const graded = !!t.answer_key && Object.keys(t.answer_key).length > 0;
+  // fallback is hidden for them (their score can't be hand-entered). `total` is
+  // written alongside the key at upload, so it stands in for it here: the key
+  // itself is no longer selectable from a page that renders for a student.
+  const graded = (t.total ?? 0) > 0;
 
   return (
     <TestRunner

@@ -6,7 +6,7 @@ import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import { RecentBandsChart, type RecentBandPoint } from "@/components/sections/recent-bands";
-import { PremiumSection } from "@/components/sections/premium-section";
+import { PremiumContact } from "@/components/premium-contact";
 import type { Result, Test } from "@/types/database";
 
 const META = {
@@ -106,7 +106,10 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         </div>
       </div>
 
-      {/* Stats + compact progress graph side by side, so tests stay above the fold */}
+      {/* Stats only once there is something real to show. For a new user these
+          read "—", "—", "0" and take the whole first screen, pushing the tests
+          they came for below the fold. */}
+      {res.length > 0 && (
       <section
         className={recent.length >= 2 ? "grid gap-4 lg:grid-cols-[1fr_1.7fr]" : undefined}
       >
@@ -133,24 +136,22 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
         />
       </section>
+      )}
 
-      {/* Premium materials — their own highlighted section */}
-      <PremiumSection
-        items={items.filter((i) => i.tier === "premium")}
-        skill={skill}
-        canAccess={canAccessPremium}
-        unlockedIds={unlockedIds}
-        xp={profile.xp}
-        isAdmin={profile.role === "admin"}
-      />
-
-      {/* Free tests with search + filter */}
+      {/* ONE catalogue — free and premium together, searchable and filterable.
+          Premium used to render in a separate block above this one, so the
+          first thing a free user saw was a grid of locked cards and the
+          reasonable conclusion was that the whole library is paid. Everything
+          the viewer can actually start now sorts first. */}
       <TestBrowser
-        items={items.filter((i) => i.tier === "free")}
+        items={items}
         skill={skill}
         canAccessPremium={canAccessPremium}
+        unlockedIds={unlockedIds}
         isAdmin={profile.role === "admin"}
       />
+
+      {!canAccessPremium && <PremiumContact className="mt-2" />}
     </div>
   );
 }

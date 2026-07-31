@@ -1,16 +1,17 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { sanitizePublicTestHtml } from "./sanitize-public";
+import { sanitizeTestHtml } from "./sanitize-test-html";
 import { extractAnswerKey } from "./extract-key";
 import { gradeAnswers, asAnswerKey } from "./grade";
 
-// This suite validates the public sanitizer against a real CDI reading test. The
+// This suite validates the sanitizer against a real CDI reading test. The
 // fixture lives outside the repo, so the suite skips gracefully where it's absent.
 const SRC = "X:\\CDI READING PROJECT\\Orientation of birds Passage 2 by codex.html";
+const ORIGIN = "https://example.test";
 
-describe.skipIf(!existsSync(SRC))("sanitizePublicTestHtml (real CDI file)", () => {
+describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   const raw = readFileSync(SRC, "utf8");
-  const out = sanitizePublicTestHtml(raw);
+  const out = sanitizeTestHtml(raw, ORIGIN);
 
   it("strips the answer key + model answers from the served HTML", () => {
     // The literal DECLARATIONS remain (so the test's JS still parses) but must be empty.
@@ -27,9 +28,14 @@ describe.skipIf(!existsSync(SRC))("sanitizePublicTestHtml (real CDI file)", () =
     expect(out).not.toContain("Paragraph C: Such birds"); // explanation text (not in passage)
   });
 
-  it("removes the download tooling and injects the public bridge", () => {
+  it("removes the download tooling and injects the sanitized bridge", () => {
     expect(out.toLowerCase()).not.toContain("html2pdf.bundle");
-    expect(out).toContain("IELTS Platform public bridge");
+    expect(out).toContain("IELTS Platform sanitized bridge");
+  });
+
+  it("targets postMessage at the site origin, never a wildcard", () => {
+    expect(out).toContain(`var TARGET_ORIGIN = "${ORIGIN}"`);
+    expect(out).not.toContain("__ORIGIN__");
   });
 
   it("keeps every inline script syntactically valid (no parser breakage)", () => {

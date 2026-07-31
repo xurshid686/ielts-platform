@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
+import { isPremiumActive } from "@/lib/premium";
 import { asAnswerKey, asAnswers } from "@/lib/ielts/grade";
 import { normalizeAnswer } from "@/lib/ielts/extract-key";
 import { ReviewView, type ReviewRow } from "@/components/review/review-view";
@@ -45,7 +47,11 @@ export default async function ReviewPage({
   let title = "Test review";
   let answerKey = null as ReturnType<typeof asAnswerKey>;
   if (result.test_id) {
-    const { data: testRow } = await supabase
+    // The key is read with the SERVICE-ROLE client: `answer_key` is revoked
+    // from the `authenticated` role (migration 0034). It is safe here because
+    // this page only ever renders the key for questions the student has already
+    // submitted, and RLS above has already proven they own this result.
+    const { data: testRow } = await createAdminClient()
       .from("tests")
       .select("title, answer_key")
       .eq("id", result.test_id)
@@ -56,6 +62,40 @@ export default async function ReviewPage({
   }
 
   const answers = asAnswers(result.answers);
+
+  // "What next": the next test in this skill the student hasn't attempted, and
+  // how much of the library is still behind the paywall. Only computed for the
+  // student's own attempt — an admin reviewing someone else sees neither.
+  const isOwnAttempt = result.user_id === viewer.id;
+  const hasPremium = viewer.role === "admin" || isPremiumActive(viewer);
+  let nextTest: { id: string; title: string; kind: "single" | "full" } | null = null;
+  let lockedCount = 0;
+
+  if (isOwnAttempt) {
+    const [{ data: catalogue }, { data: mine }] = await Promise.all([
+      supabase
+        .from("tests")
+        .select("id, title, kind, tier, track, created_at")
+        .eq("skill", result.skill)
+        .order("created_at", { ascending: false }),
+      supabase.from("results").select("test_id").eq("user_id", viewer.id).eq("skill", result.skill),
+    ]);
+
+    type Row = { id: string; title: string; kind: "single" | "full"; tier: string; track: string | null };
+    const rowsAll = ((catalogue ?? []) as unknown as Row[]).filter(
+      (t) => (t.track ?? "regular") === "regular",
+    );
+    const attempted = new Set(
+      ((mine ?? []) as { test_id: string | null }[]).map((r) => r.test_id).filter(Boolean),
+    );
+
+    lockedCount = hasPremium ? 0 : rowsAll.filter((t) => t.tier === "premium").length;
+    const openToThem = rowsAll.filter((t) => t.tier !== "premium" || hasPremium);
+    const candidate = openToThem.find((t) => t.id !== result.test_id && !attempted.has(t.id));
+    if (candidate) {
+      nextTest = { id: candidate.id, title: candidate.title, kind: candidate.kind };
+    }
+  }
 
   // Build the per-question rows. We can only show a true correct/incorrect
   // breakdown when both the answer key and the saved answers exist.
@@ -96,6 +136,9 @@ export default async function ReviewPage({
       subjectName={subjectName}
       backHref={backHref}
       backLabel={backLabel}
+      nextTest={nextTest}
+      showUpgrade={isOwnAttempt && !hasPremium}
+      lockedCount={lockedCount}
     />
   );
 }

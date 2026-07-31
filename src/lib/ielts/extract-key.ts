@@ -67,8 +67,20 @@ function parseObjectLiteral(body: string): Record<string, string[]> {
   const n = s.length;
   let i = 0;
 
+  // Skips whitespace AND // line / /* block */ comments. CDI keys routinely carry
+  // inline comments explaining accepted variants; stopping at the first one used to
+  // truncate the key silently (a 40-question test extracting as 2).
   const ws = () => {
-    while (i < n && /\s/.test(s[i])) i++;
+    for (;;) {
+      while (i < n && /\s/.test(s[i])) i++;
+      if (s[i] === "/" && s[i + 1] === "/") {
+        while (i < n && s[i] !== "\n") i++;
+      } else if (s[i] === "/" && s[i + 1] === "*") {
+        i += 2;
+        while (i < n && !(s[i] === "*" && s[i + 1] === "/")) i++;
+        i += 2;
+      } else return;
+    }
   };
   const readString = (): string => {
     const q = s[i++];

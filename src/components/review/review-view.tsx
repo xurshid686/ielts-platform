@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, Check, X, CircleSlash, FileQuestion } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, X, CircleSlash, FileQuestion, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { PremiumContact } from "@/components/premium-contact";
 
 export type ReviewRow = {
   q: string;
@@ -21,6 +22,9 @@ export function ReviewView({
   subjectName,
   backHref,
   backLabel,
+  nextTest,
+  showUpgrade = false,
+  lockedCount = 0,
 }: {
   title: string;
   skill: string;
@@ -35,6 +39,11 @@ export function ReviewView({
   subjectName?: string;
   backHref?: string;
   backLabel?: string;
+  // "What next" block. Only shown to the student who sat the test — an admin
+  // looking at someone else's attempt gets neither.
+  nextTest?: { id: string; title: string; kind: "single" | "full" } | null;
+  showUpgrade?: boolean;
+  lockedCount?: number;
 }) {
   const accuracy = raw != null && total ? Math.round((raw / total) * 100) : null;
   const correct = rows.filter((r) => r.status === "correct").length;
@@ -125,6 +134,52 @@ export function ReviewView({
             </ul>
           </Card>
         </>
+      )}
+
+      {/* What next — the point of maximum motivation, so it carries the only
+          upgrade prompt on the page. Hidden when an admin is reviewing
+          someone else's attempt. */}
+      {!subjectName && (nextTest || showUpgrade) && (
+        <div className="grid items-start gap-3 sm:grid-cols-2">
+          {nextTest && (
+            <Link href={`/${skill}/${nextTest.id}`} className="group">
+              <Card className="flex h-full flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                    Keep going
+                  </p>
+                  <p className="mt-1 font-semibold leading-snug">{nextTest.title}</p>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {nextTest.kind === "full" ? "Full test" : "Single passage"} · not attempted yet
+                  </p>
+                </div>
+                <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+                  Start it <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Card>
+            </Link>
+          )}
+
+          {showUpgrade && (
+            <Card className="flex h-full flex-col justify-between border-amber-500/30 bg-amber-500/5">
+              <div>
+                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                  <Crown className="h-3.5 w-3.5" /> Premium
+                </p>
+                <p className="mt-1 font-semibold leading-snug">
+                  {lockedCount > 0
+                    ? `${lockedCount} more ${skill} tests in the real exam interface`
+                    : `Every ${skill} test in the real exam interface`}
+                </p>
+                <p className="mt-0.5 text-sm text-muted">
+                  Full answer review with explanations on every one, and your progress tracked
+                  across all of them.
+                </p>
+              </div>
+              <PremiumContact className="mt-3" />
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check } from "lucide-react";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check, ListChecks } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { sendTextToTeacher } from "@/app/actions/send-recording";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ type Props = {
 };
 
 type Saved = {
+  resultId: string | null;
   band: number;
   raw: number;
   total: number;
@@ -46,24 +47,43 @@ function parseAnswers(value: unknown): Answers | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-function parseMessage(
-  data: unknown,
-): { raw: number; total: number; band?: number; answers?: Answers } | null {
+type Submission = { raw?: number; total?: number; band?: number; answers?: Answers };
+
+/**
+ * Two message shapes arrive from the iframe:
+ *
+ *  - "SUBMIT" — from a sanitized test (the normal case). Carries ONLY the
+ *    student's answers; the key was stripped before the file was served, so the
+ *    page has no score to report and the server does all the grading.
+ *  - "RESULT" — from a keyless test that still scores itself in-page. Carries
+ *    raw/total/band, used as a fallback until the key is backfilled.
+ */
+function parseMessage(data: unknown): Submission | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
-  if (d.source !== "IELTS_CDI_TEST" || d.type !== "RESULT") return null;
+  if (d.source !== "IELTS_CDI_TEST") return null;
   const p = d.payload as Record<string, unknown> | undefined;
   if (!p) return null;
-  const raw = Number(p.raw);
-  const total = Number(p.total);
-  if (!Number.isFinite(raw) || !Number.isFinite(total) || total <= 0) return null;
-  const band = Number(p.band);
-  return {
-    raw,
-    total,
-    band: Number.isFinite(band) && band > 0 ? band : undefined,
-    answers: parseAnswers(p.answers),
-  };
+
+  if (d.type === "SUBMIT") {
+    const answers = parseAnswers(p.answers);
+    return { answers };
+  }
+
+  if (d.type === "RESULT") {
+    const raw = Number(p.raw);
+    const total = Number(p.total);
+    if (!Number.isFinite(raw) || !Number.isFinite(total) || total <= 0) return null;
+    const band = Number(p.band);
+    return {
+      raw,
+      total,
+      band: Number.isFinite(band) && band > 0 ? band : undefined,
+      answers: parseAnswers(p.answers),
+    };
+  }
+
+  return null;
 }
 
 export function TestRunner({ testId, title, skill, graded = false, isMyStudent = false }: Props) {
@@ -84,7 +104,7 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
   const srcUrl = `/api/test-html/${testId}`;
   const expectedOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
-  async function submit(raw: number, total: number, band?: number, answers?: Answers) {
+  async function submit({ raw, total, band, answers }: Submission) {
     if (handled.current) return;
     handled.current = true;
     setSaving(true);
@@ -99,10 +119,13 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     }
     if (res.deduped) return; // already counted moments ago — stay silent
     // Save quietly: just a small badge. The celebration waits until Exit.
+    // raw/total come back from the SERVER — for a sanitized test the client
+    // never knew the score in the first place.
     setSaved({
+      resultId: res.resultId,
       band: res.band,
-      raw,
-      total,
+      raw: res.raw,
+      total: res.total,
       streak: res.streak,
       longest_streak: res.longest_streak,
       xp: res.xp,
@@ -118,7 +141,7 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
       if (expectedOrigin && e.origin !== expectedOrigin) return;
       const parsed = parseMessage(e.data);
       if (!parsed) return;
-      submit(parsed.raw, parsed.total, parsed.band, parsed.answers);
+      submit(parsed);
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -146,9 +169,13 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     }
   }
 
+  // Leaving a COMPLETED test lands on its review, not back on the test list.
+  // The file's own results screen is stripped out before serving (it needed the
+  // answer key to work), so this is where a student finds out what they got
+  // wrong — and it's the moment they most want to improve.
   function doExit() {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    router.push(`/${skill}`);
+    router.push(saved?.resultId ? `/review/${saved.resultId}` : `/${skill}`);
   }
 
   // Exit shows the streak celebration only on the FIRST completed test of the day.
@@ -174,8 +201,17 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
           <span className="truncate text-sm font-medium">{title}</span>
           {saved && (
             <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Saved · Band {saved.band}
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved · {saved.raw}/{saved.total} · Band{" "}
+              {saved.band}
             </span>
+          )}
+          {saved?.resultId && (
+            <button
+              onClick={exit}
+              className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-2.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <ListChecks className="h-3.5 w-3.5" /> See your answers
+            </button>
           )}
           {saved?.rating?.rated && (
             <span
@@ -236,7 +272,7 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
       />
 
       {manual && !saved && (
-        <ManualEntry onSubmit={(raw, total) => submit(raw, total)} disabled={saving} onClose={() => setManual(false)} />
+        <ManualEntry onSubmit={(raw, total) => submit({ raw, total })} disabled={saving} onClose={() => setManual(false)} />
       )}
 
       {error && (
@@ -402,7 +438,7 @@ function Celebration({
           </div>
         )}
         <Button className="mt-6 w-full" onClick={onClose}>
-          Back to {skill}
+          {saved.resultId ? "See your answers" : `Back to ${skill}`}
         </Button>
       </div>
     </div>

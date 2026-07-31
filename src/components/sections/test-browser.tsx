@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -33,35 +33,75 @@ export type BrowserItem = {
   createdAt: string;
 };
 
+// Which tier section is showing. Deliberately keyed on the test's TIER, not on
+// whether the viewer can open it: a subscriber can open everything, so an
+// access-based "Free" filter would show them the whole library.
+type Access = "all" | "free" | "premium";
+
 export function TestBrowser({
   items,
   skill,
   canAccessPremium,
+  unlockedIds = [],
   isAdmin = false,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
   canAccessPremium: boolean;
+  // Tests unlocked one-off with XP before subscriptions became the only
+  // currency. Grandfathered: they must not show as locked.
+  unlockedIds?: string[];
   isAdmin?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [qType, setQType] = useState("all");
+  const [access, setAccess] = useState<Access>("all");
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
+
+  const unlocked = useMemo(() => new Set(unlockedIds), [unlockedIds]);
+  const isOpen = useMemo(
+    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium || unlocked.has(i.id),
+    [canAccessPremium, unlocked],
+  );
+
+  const openCount = useMemo(() => items.filter(isOpen).length, [items, isOpen]);
+  const lockedCount = items.length - openCount;
+
+  const freeCount = useMemo(() => items.filter((i) => i.tier !== "premium").length, [items]);
+  const premiumCount = items.length - freeCount;
+
+  /**
+   * Which tier leads the list. A free user must meet free material first — a
+   * screen of locked cards reads as "this whole site is paid" and they leave.
+   * A subscriber is paying for the premium library, so that is what they should
+   * land on; free tests continue underneath.
+   *
+   * Note this is deliberately NOT the same as "what you can open": for a
+   * subscriber everything is openable, so an openable-first sort would leave
+   * their premium library buried among the free tests.
+   */
+  const leadingTier: "free" | "premium" = canAccessPremium ? "premium" : "free";
+  const tierRank = useMemo(
+    () => (i: BrowserItem) => (i.tier === leadingTier ? 0 : 1),
+    [leadingTier],
+  );
 
   // Filter tabs differ by skill: reading breaks down by passage.
   const tabDefs: { key: string; label: string; match: (i: BrowserItem) => boolean }[] =
     skill === "reading"
       ? [
-          { key: "all", label: "All", match: () => true },
+          // "All formats", not "All" — the tier row above already has an "All",
+          // and two stacked buttons both reading "All 121" is unreadable.
+          { key: "all", label: "All formats", match: () => true },
           { key: "p1", label: "Passage 1", match: (i) => i.kind === "single" && i.passage === 1 },
           { key: "p2", label: "Passage 2", match: (i) => i.kind === "single" && i.passage === 2 },
           { key: "p3", label: "Passage 3", match: (i) => i.kind === "single" && i.passage === 3 },
           { key: "full", label: "Full tests", match: (i) => i.kind === "full" },
         ]
       : [
-          { key: "all", label: "All", match: () => true },
+          { key: "all", label: "All formats", match: () => true },
           { key: "single", label: "Sections", match: (i) => i.kind === "single" },
           { key: "full", label: "Full tests", match: (i) => i.kind === "full" },
         ];
@@ -83,18 +123,48 @@ export function TestBrowser({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((i) => {
+    const matched = items.filter((i) => {
       if (!activeTab.match(i)) return false;
       if (qType !== "all" && !i.questionTypes.includes(qType)) return false;
       if (q && !i.title.toLowerCase().includes(q)) return false;
+      if (access === "free" && i.tier === "premium") return false;
+      if (access === "premium" && i.tier !== "premium") return false;
       return true;
     });
-  }, [items, activeTab, qType, query]);
+
+    // Free first for a free user, premium first for a subscriber. Newest within
+    // each group.
+    return matched.sort((a, b) => {
+      const byTier = tierRank(a) - tierRank(b);
+      if (byTier !== 0) return byTier;
+      return +new Date(b.createdAt) - +new Date(a.createdAt);
+    });
+  }, [items, activeTab, qType, query, access, isOpen, tierRank]);
+
+  // Where the second tier group starts, so a divider can be drawn there. Only
+  // meaningful in the unfiltered "All" view — once a search or facet is active,
+  // splitting the results into labelled groups fragments them for no benefit.
+  const showGroups = access === "all" && !query.trim() && filter === "all" && qType === "all";
+  const groupBreakAt = useMemo(() => {
+    if (!showGroups) return -1;
+    const idx = filtered.findIndex((i) => tierRank(i) === 1);
+    return idx > 0 ? idx : -1;
+  }, [filtered, showGroups, tierRank]);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold">Available tests</h2>
+        <div>
+          <h2 className="text-lg font-semibold">All {skill} tests</h2>
+          {/* Say the free count out loud. A grid of locked cards with no number
+              next to it is what makes the library look entirely paid. */}
+          <p className="mt-0.5 text-sm text-muted">
+            <span className="font-medium text-foreground">
+              {openCount} you can start now
+            </span>
+            {lockedCount > 0 && <> · {lockedCount} with Premium</>}
+          </p>
+        </div>
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
@@ -115,7 +185,41 @@ export function TestBrowser({
         </div>
       </div>
 
-      {/* Filters row: type tabs + question-type dropdown */}
+      {/* Tier sections — the primary control, on its own line above everything
+          else. This is the question a student actually asks first: what can I
+          use without paying? */}
+      {premiumCount > 0 && freeCount > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: "all", label: "All", count: items.length },
+              { key: "free", label: "Free", count: freeCount },
+              { key: "premium", label: "Premium", count: premiumCount },
+            ] as const
+          ).map((a) => (
+            <button
+              key={a.key}
+              onClick={() => setAccess(a.key)}
+              className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                access === a.key
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
+              }`}
+            >
+              {a.label}
+              <span
+                className={`rounded-full px-1.5 text-xs tabular-nums ${
+                  access === a.key ? "bg-primary/15" : "bg-surface-2"
+                }`}
+              >
+                {a.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary filters: format tabs + question-type dropdown */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           {tabDefs.map((t) => (
@@ -140,20 +244,22 @@ export function TestBrowser({
           ))}
         </div>
 
-        {availableTypes.length > 0 && (
-          <select
-            value={qType}
-            onChange={(e) => setQType(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-surface px-3 text-sm shadow-soft outline-none focus:border-primary/40"
-          >
-            <option value="all">All question types</option>
-            {availableTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {availableTypes.length > 0 && (
+            <select
+              value={qType}
+              onChange={(e) => setQType(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-surface px-3 text-sm shadow-soft outline-none focus:border-primary/40"
+            >
+              <option value="all">All question types</option>
+              {availableTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Results */}
@@ -175,6 +281,7 @@ export function TestBrowser({
                   setQuery("");
                   setFilter("all");
                   setQType("all");
+                  setAccess("all");
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium shadow-soft transition-colors hover:bg-surface-2"
               >
@@ -185,11 +292,29 @@ export function TestBrowser({
         )
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((t) => {
-            const locked = t.tier === "premium" && !canAccessPremium;
+          {showGroups && (
+            <GroupHeading
+              label={leadingTier === "free" ? "Free tests" : "Your Premium tests"}
+              count={leadingTier === "free" ? freeCount : premiumCount}
+            />
+          )}
+          {filtered.map((t, idx) => {
+            const locked = !isOpen(t);
             const isNew = now - new Date(t.createdAt).getTime() < NEW_WINDOW_MS;
             return (
-              <Link key={t.id} href={`/${skill}/${t.id}`} className="group">
+              <Fragment key={t.id}>
+                {idx === groupBreakAt && (
+                  <GroupHeading
+                    label={leadingTier === "free" ? "Premium tests" : "Free tests"}
+                    count={leadingTier === "free" ? premiumCount : freeCount}
+                    note={
+                      leadingTier === "free"
+                        ? "Included with a Premium membership"
+                        : undefined
+                    }
+                  />
+                )}
+              <Link href={`/${skill}/${t.id}`} className="group">
                 <div className="flex h-full flex-col rounded-2xl border border-border bg-surface p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
                   <div className="flex items-start justify-between">
                     <span
@@ -249,11 +374,10 @@ export function TestBrowser({
                               <Repeat2 className="h-3 w-3" /> {t.attempts}
                             </span>
                           )}
-                      {t.level && (
-                        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
-                          {t.level}
-                        </span>
-                      )}
+                      {/* `level` is deliberately not shown: it is NULL on 119 of
+                          121 reading tests (only the admin upload form ever set
+                          it, as free text), so the pill was noise that implied a
+                          band grading the library does not actually have. */}
                     </div>
                   </div>
 
@@ -283,11 +407,37 @@ export function TestBrowser({
                   </div>
                 </div>
               </Link>
+              </Fragment>
             );
           })}
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * A full-width label between the two tier groups. Sits inside the card grid and
+ * spans every column so the boundary is unmistakable without splitting the list
+ * into two separately-scrolling sections.
+ */
+function GroupHeading({
+  label,
+  count,
+  note,
+}: {
+  label: string;
+  count: number;
+  note?: string;
+}) {
+  return (
+    <div className="col-span-full flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-2 first:pt-0">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">{label}</h3>
+      <span className="rounded-full bg-surface-2 px-1.5 text-xs tabular-nums text-muted">
+        {count}
+      </span>
+      {note && <span className="text-xs text-muted">· {note}</span>}
+    </div>
   );
 }
 
