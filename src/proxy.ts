@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED = ["/dashboard", "/reading", "/listening", "/writing", "/speaking", "/admin", "/assignments", "/practice"];
+// `/reading` and `/listening` are deliberately NOT here: the catalogue and each
+// test's detail page are public, so a visitor arriving from Telegram or a search
+// engine can see what exists before being asked to register. Access control for
+// the content itself lives in /api/test-html/[id], which independently checks
+// tier and membership on every request.
+const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin", "/assignments"];
 const AUTH_PAGES = ["/login", "/register"];
 
 export async function proxy(request: NextRequest) {

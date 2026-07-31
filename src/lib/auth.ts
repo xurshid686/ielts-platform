@@ -2,6 +2,30 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Level, Profile } from "@/types/database";
 
+/**
+ * The viewer's profile, or null when nobody is signed in.
+ *
+ * Used by the public pages (the reading/listening catalogue and a test's detail
+ * page), which render for anonymous visitors: they arrive from Telegram or a
+ * search engine and must be able to see what exists before being asked to
+ * register. Pages that genuinely require an account keep using requireProfile().
+ */
+export async function getProfile(): Promise<Profile | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  return (profile as Profile | null) ?? fallbackProfile(user);
+}
+
 /** Returns the signed-in user's profile or redirects to /login. */
 export async function requireProfile(): Promise<Profile> {
   const supabase = await createClient();
@@ -18,36 +42,41 @@ export async function requireProfile(): Promise<Profile> {
     .single();
 
   // Fallback in the rare window before the signup trigger has run.
-  if (!profile) {
-    return {
-      id: user.id,
-      name: (user.user_metadata?.full_name as string) ?? user.email?.split("@")[0] ?? "Student",
-      email: user.email ?? null,
-      avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
-      role: "student",
-      level: "regular",
-      is_owner: false,
-      premium_until: null,
-      premium_announce: false,
-      target_band: null,
-      streak: 0,
-      longest_streak: 0,
-      last_activity_date: null,
-      xp: 0,
-      rating: 1000,
-      peak_rating: 1000,
-      rated_count: 0,
-      timezone: "UTC",
-      referral_code: null,
-      referred_by: null,
-      hidden_from_leaderboard: false,
-      is_my_student: false,
-      can_send_to_teacher: false,
-      created_at: new Date().toISOString(),
-    };
-  }
+  return profile ?? fallbackProfile(user);
+}
 
-  return profile;
+/** Stand-in profile for the window between signup and the DB trigger firing. */
+function fallbackProfile(user: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}): Profile {
+  return {
+    id: user.id,
+    name: (user.user_metadata?.full_name as string) ?? user.email?.split("@")[0] ?? "Student",
+    email: user.email ?? null,
+    avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
+    role: "student",
+    level: "regular",
+    is_owner: false,
+    premium_until: null,
+    premium_announce: false,
+    target_band: null,
+    streak: 0,
+    longest_streak: 0,
+    last_activity_date: null,
+    xp: 0,
+    rating: 1000,
+    peak_rating: 1000,
+    rated_count: 0,
+    timezone: "UTC",
+    referral_code: null,
+    referred_by: null,
+    hidden_from_leaderboard: false,
+    is_my_student: false,
+    can_send_to_teacher: false,
+    created_at: new Date().toISOString(),
+  };
 }
 
 export async function requireAdmin(): Promise<Profile> {

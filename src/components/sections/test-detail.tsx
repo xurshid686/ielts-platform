@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
 import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import { TestRunner } from "@/components/test-runner";
@@ -16,7 +16,9 @@ export async function TestDetail({
   skill: "reading" | "listening";
   id: string;
 }) {
-  const profile = await requireProfile();
+  // Public page: null for a logged-out visitor. They get the test's detail and
+  // a sign-in prompt rather than a redirect, so a shared link is worth clicking.
+  const profile = await getProfile();
   const supabase = await createClient();
 
   // Explicit column list — `select("*")` would ask for `answer_key`, which is
@@ -35,8 +37,15 @@ export async function TestDetail({
   const t = test as unknown as Test;
 
   // Level gate: a Pre-IELTS / Intro test is only openable by students of that
-  // level (admins pass). Treat it as not-found for everyone else.
-  if (!canAccessTrack(profile, t.track)) notFound();
+  // level (admins pass). Guests only ever see regular-track material.
+  const viewer = profile ?? { role: "student", level: "regular", premium_until: null };
+  if (!canAccessTrack(viewer, t.track)) notFound();
+
+  // A signed-out visitor must sign in before starting — the attempt has to be
+  // attached to an account to be graded and saved. The page itself stays open.
+  if (!profile) {
+    return <GuestTestGate skill={skill} test={t} />;
+  }
 
   // Has the user unlocked this specific premium test with XP?
   let unlocked = false;
@@ -98,5 +107,86 @@ export async function TestDetail({
       graded={graded}
       isMyStudent={profile.is_my_student}
     />
+  );
+}
+
+/**
+ * What a logged-out visitor sees on a test page: the test itself described in
+ * full — title, format, question count, question types — and one clear action.
+ * The point is that a link shared in Telegram lands on something worth reading
+ * rather than on a login form.
+ */
+function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: Test }) {
+  const format =
+    test.kind === "full"
+      ? "Full test"
+      : skill === "reading"
+        ? test.passage
+          ? `Passage ${test.passage}`
+          : "Single passage"
+        : "Section";
+  const next = `/${skill}/${test.id}`;
+
+  return (
+    <div className="mx-auto max-w-lg py-10">
+      <Link
+        href={`/${skill}`}
+        className="mb-6 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to {skill}
+      </Link>
+
+      <div className="rounded-2xl border border-border bg-surface p-6 shadow-soft">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
+            {format}
+          </span>
+          {test.total ? (
+            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-muted tabular-nums">
+              {test.total} questions
+            </span>
+          ) : null}
+          {test.tier === "premium" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 font-semibold text-warning">
+              <Crown className="h-3 w-3" /> Premium
+            </span>
+          ) : (
+            <span className="rounded-full bg-success/15 px-2 py-0.5 font-semibold text-success">
+              Free
+            </span>
+          )}
+        </div>
+
+        <h1 className="mt-3 text-2xl font-bold leading-snug">{test.title}</h1>
+
+        {test.question_types?.length ? (
+          <p className="mt-2 text-sm text-muted">{test.question_types.join(" · ")}</p>
+        ) : null}
+
+        <p className="mt-4 text-sm text-muted">
+          This test runs in the real computer-delivered exam interface, and is marked
+          automatically the moment you submit — with a band score and a question-by-question
+          review of what you got wrong.
+        </p>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Link
+            href={`/register?next=${encodeURIComponent(next)}`}
+            className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            Create a free account to start
+          </Link>
+          <Link
+            href={`/login?next=${encodeURIComponent(next)}`}
+            className="inline-flex h-10 items-center rounded-lg border border-border px-5 text-sm font-medium hover:bg-surface-2"
+          >
+            Sign in
+          </Link>
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          It takes a moment, and your scores are saved so you can track your band over time.
+        </p>
+      </div>
+    </div>
   );
 }

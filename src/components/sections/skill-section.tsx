@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { BookOpen, Headphones } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
 import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
@@ -15,7 +16,10 @@ const META = {
 } as const;
 
 export async function SkillSection({ skill }: { skill: "reading" | "listening" }) {
-  const profile = await requireProfile();
+  // Public page: `profile` is null for a logged-out visitor, who still gets the
+  // full catalogue. Anything personal (attempts, best band, unlocks) is simply
+  // absent for them.
+  const profile = await getProfile();
   const supabase = await createClient();
 
   // Note: file_url/file_path are intentionally NOT selected — premium content
@@ -39,15 +43,20 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
     return (fallback.data ?? []) as unknown as Test[];
   }
 
-  const [tests, { data: results }, { data: unlocks }] = await Promise.all([
+  const [tests, results, unlocks] = await Promise.all([
     fetchTests(),
-    supabase
-      .from("results")
-      .select("*")
-      .eq("user_id", profile.id)
-      .eq("skill", skill)
-      .order("submitted_at", { ascending: false }),
-    supabase.from("unlocks").select("test_id").eq("user_id", profile.id),
+    profile
+      ? supabase
+          .from("results")
+          .select("*")
+          .eq("user_id", profile.id)
+          .eq("skill", skill)
+          .order("submitted_at", { ascending: false })
+          .then((r) => r.data)
+      : Promise.resolve(null),
+    profile
+      ? supabase.from("unlocks").select("test_id").eq("user_id", profile.id).then((r) => r.data)
+      : Promise.resolve(null),
   ]);
 
   const unlockedIds = ((unlocks ?? []) as { test_id: string }[]).map((u) => u.test_id);
@@ -56,7 +65,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   // (pre_ielts / intro) live in their own menus. Missing track = regular.
   const testList = ((tests ?? []) as Test[]).filter((t) => (t.track ?? "regular") === "regular");
   const res = (results ?? []) as Result[];
-  const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
+  const canAccessPremium = !!profile && (profile.role === "admin" || isPremiumActive(profile));
 
   // Enrich each test with the user's attempt count + best band. Newest uploads
   // first so freshly added tests appear at the top.
@@ -85,6 +94,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const average = avg(bands);
   const best = bands.length ? Math.max(...bands) : null;
 
+  const freeTotal = items.filter((i) => i.tier !== "premium").length;
   const Meta = META[skill];
   const Icon = Meta.icon;
   // Last 12 scored attempts with dates, oldest first (chart order).
@@ -105,6 +115,37 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           <p className="text-muted">{Meta.blurb}</p>
         </div>
       </div>
+
+      {/* A visitor with no account sees the whole catalogue; this is the only
+          thing asking them to sign up, and it says what they get for it rather
+          than blocking the page. */}
+      {!profile && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+          <p className="text-sm">
+            <span className="font-semibold">
+              {freeTotal} free {skill} tests, open to everyone.
+            </span>{" "}
+            <span className="text-muted">
+              Create a free account to save your scores, see a full answer review and track your
+              band over time.
+            </span>
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <Link
+              href="/register"
+              className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Create free account
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-sm font-medium hover:bg-surface-2"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Stats only once there is something real to show. For a new user these
           read "—", "—", "0" and take the whole first screen, pushing the tests
@@ -148,7 +189,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         skill={skill}
         canAccessPremium={canAccessPremium}
         unlockedIds={unlockedIds}
-        isAdmin={profile.role === "admin"}
+        isAdmin={profile?.role === "admin"}
       />
 
       {!canAccessPremium && <PremiumContact className="mt-2" />}
