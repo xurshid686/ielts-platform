@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check, ListChecks } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
@@ -19,6 +20,9 @@ type Props = {
   graded?: boolean;
   // My-students may send their submitted answers to the teacher (Telegram).
   isMyStudent?: boolean;
+  // No account: the attempt is graded but nothing is saved, and the result
+  // screen asks them to register rather than showing a streak/rating.
+  guest?: boolean;
 };
 
 type Saved = {
@@ -86,7 +90,14 @@ function parseMessage(data: unknown): Submission | null {
   return null;
 }
 
-export function TestRunner({ testId, title, skill, graded = false, isMyStudent = false }: Props) {
+export function TestRunner({
+  testId,
+  title,
+  skill,
+  graded = false,
+  isMyStudent = false,
+  guest = false,
+}: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const handled = useRef(false);
@@ -96,6 +107,9 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
   const startedAt = useRef<number>(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Saved | null>(null);
+  const [guestScore, setGuestScore] = useState<{ raw: number; total: number; band: number } | null>(
+    null,
+  );
   const [showCelebration, setShowCelebration] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
@@ -109,6 +123,27 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     handled.current = true;
     setSaving(true);
     setError(null);
+
+    // No account: grade it, show it, save nothing. Registering is what buys a
+    // saved score and the full answer review.
+    if (guest) {
+      const res = await fetch("/api/guest-grade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testId, answers }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      setSaving(false);
+      if (!res) {
+        setError("Could not score this attempt. Please try again.");
+        handled.current = false;
+        return;
+      }
+      setGuestScore({ raw: res.raw, total: res.total, band: res.band });
+      return;
+    }
+
     const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt.current) / 1000));
     const res = await saveResult({ testId, skill, raw, total, band, answers, durationSeconds });
     setSaving(false);
@@ -178,6 +213,9 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     router.push(saved?.resultId ? `/review/${saved.resultId}` : `/${skill}`);
   }
 
+  // A guest has no result to review and no streak to celebrate.
+  const canReview = !guest && !!saved?.resultId;
+
   // Exit shows the streak celebration only on the FIRST completed test of the day.
   function exit() {
     if (saved && saved.firstToday && !celebrated.current) {
@@ -205,7 +243,7 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
               {saved.band}
             </span>
           )}
-          {saved?.resultId && (
+          {canReview && (
             <button
               onClick={exit}
               className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-2.5 text-xs font-semibold text-white hover:opacity-90"
@@ -290,6 +328,80 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
       {showCelebration && saved && (
         <Celebration saved={saved} skill={skill} onClose={doExit} />
       )}
+
+      {guestScore && (
+        <GuestResult score={guestScore} skill={skill} testId={testId} onClose={doExit} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * What a visitor with no account sees after submitting. Their score is real and
+ * server-graded, but nothing was saved — so this is the moment to ask for the
+ * account, when they have just proved to themselves that the product works.
+ *
+ * The per-question breakdown is deliberately withheld: that review IS the paid
+ * product, and handing it to an anonymous visitor would give the answers away.
+ */
+function GuestResult({
+  score,
+  skill,
+  testId,
+  onClose,
+}: {
+  score: { raw: number; total: number; band: number };
+  skill: string;
+  testId: string;
+  onClose: () => void;
+}) {
+  const next = encodeURIComponent(`/${skill}/${testId}`);
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-center shadow-xl">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 text-muted hover:text-foreground"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <p className="text-sm text-muted">Your score</p>
+        <p className="mt-1 text-5xl font-extrabold text-primary tabular-nums">
+          {score.band.toFixed(1)}
+        </p>
+        <p className="text-sm text-muted">
+          band · {score.raw}/{score.total} correct
+        </p>
+
+        <div className="mt-5 rounded-xl border border-primary/25 bg-primary/5 p-4 text-left">
+          <p className="text-sm font-semibold">This result was not saved</p>
+          <p className="mt-1 text-sm text-muted">
+            Create a free account to keep your scores, see exactly which questions you got wrong
+            with the correct answers, and track your band over time.
+          </p>
+        </div>
+
+        <Link
+          href={`/register?next=${next}`}
+          className="mt-5 inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
+        >
+          Create a free account
+        </Link>
+        <Link
+          href={`/login?next=${next}`}
+          className="mt-2 inline-flex h-10 w-full items-center justify-center rounded-lg border border-border px-4 text-sm font-medium hover:bg-surface-2"
+        >
+          I already have one
+        </Link>
+        <button
+          onClick={onClose}
+          className="mt-3 text-sm text-muted hover:text-foreground"
+        >
+          Back to {skill}
+        </button>
+      </div>
     </div>
   );
 }

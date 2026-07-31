@@ -18,7 +18,6 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
 
   // The test row is read with the SERVICE-ROLE client: `answer_key` is not
   // readable by ordinary users any more (see the tests_public view), and this
@@ -45,49 +44,61 @@ export async function GET(
   const filePath = row?.file_path;
   if (!filePath) return new Response("Not found", { status: 404 });
 
-  // Load the viewer's profile once (role/premium drive premium; level drives track).
-  let profRes = await supabase
-    .from("profiles")
-    .select("role, premium_until, level")
-    .eq("id", user.id)
-    .single();
-  if (profRes.error && /level/.test(profRes.error.message)) {
-    profRes = await supabase
+  // A visitor with no account may take a FREE, regular-track test — that is the
+  // whole point of the public catalogue: prove the product before asking for a
+  // registration. Everything else still requires an account.
+  if (!user) {
+    if (row?.tier === "premium") {
+      return new Response("Premium membership required", { status: 403 });
+    }
+    if ((row?.track ?? "regular") !== "regular") {
+      return new Response("Not found", { status: 404 });
+    }
+  } else {
+    // Load the viewer's profile once (role/premium drive premium; level drives track).
+    let profRes = await supabase
       .from("profiles")
-      .select("role, premium_until")
+      .select("role, premium_until, level")
       .eq("id", user.id)
       .single();
-  }
-  const profile = (profRes.data as {
-    role?: string;
-    premium_until?: string | null;
-    level?: string | null;
-  } | null) ?? { role: "student", premium_until: null, level: "regular" };
+    if (profRes.error && /level/.test(profRes.error.message)) {
+      profRes = await supabase
+        .from("profiles")
+        .select("role, premium_until")
+        .eq("id", user.id)
+        .single();
+    }
+    const profile = (profRes.data as {
+      role?: string;
+      premium_until?: string | null;
+      level?: string | null;
+    } | null) ?? { role: "student", premium_until: null, level: "regular" };
 
-  // Level gate: a Pre-IELTS / Intro test is only served to students of that
-  // level (admins pass). Treat as not-found for everyone else.
-  if (!canAccessTrack({ role: profile.role ?? "student", level: profile.level }, row?.track)) {
-    return new Response("Not found", { status: 404 });
-  }
+    // Level gate: a Pre-IELTS / Intro test is only served to students of that
+    // level (admins pass). Treat as not-found for everyone else.
+    if (!canAccessTrack({ role: profile.role ?? "student", level: profile.level }, row?.track)) {
+      return new Response("Not found", { status: 404 });
+    }
 
-  // Premium gate: premium content is served only to subscribers, admins, or
-  // users who unlocked this specific test with XP.
-  if (row?.tier === "premium") {
-    const { data: unlock } = await supabase
-      .from("unlocks")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("test_id", id)
-      .limit(1);
-    const unlocked = Array.isArray(unlock) && unlock.length > 0;
-    if (
-      !canAccessTest(
-        { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
-        { tier: "premium" },
-        unlocked,
-      )
-    ) {
-      return new Response("Premium membership required", { status: 403 });
+    // Premium gate: premium content is served only to subscribers, admins, or
+    // users who unlocked this specific test with XP.
+    if (row?.tier === "premium") {
+      const { data: unlock } = await supabase
+        .from("unlocks")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("test_id", id)
+        .limit(1);
+      const unlocked = Array.isArray(unlock) && unlock.length > 0;
+      if (
+        !canAccessTest(
+          { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
+          { tier: "premium" },
+          unlocked,
+        )
+      ) {
+        return new Response("Premium membership required", { status: 403 });
+      }
     }
   }
 

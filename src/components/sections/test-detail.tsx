@@ -41,10 +41,20 @@ export async function TestDetail({
   const viewer = profile ?? { role: "student", level: "regular", premium_until: null };
   if (!canAccessTrack(viewer, t.track)) notFound();
 
-  // A signed-out visitor must sign in before starting — the attempt has to be
-  // attached to an account to be graded and saved. The page itself stays open.
+  // A signed-out visitor may TAKE a free test — proving the product beats any
+  // amount of marketing copy. Their attempt is graded server-side but not
+  // saved, and the result screen asks them to register. Premium stays gated.
   if (!profile) {
-    return <GuestTestGate skill={skill} test={t} />;
+    if (t.tier === "premium") return <GuestTestGate skill={skill} test={t} />;
+    return (
+      <TestRunner
+        testId={t.id}
+        title={t.title}
+        skill={skill}
+        graded={(t.total ?? 0) > 0}
+        guest
+      />
+    );
   }
 
   // Has the user unlocked this specific premium test with XP?
