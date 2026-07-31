@@ -108,6 +108,35 @@ function stripSensitiveLiterals(html: string): string {
 }
 
 /**
+ * The source text of each sensitive literal, as it appears in the file:
+ *
+ *   { correctAnswers: "{14:'visual memory', 15:'migration direction', …}", … }
+ *
+ * Returned as raw JS source rather than parsed data on purpose. The library
+ * contains two CDI generations with different shapes — one uses
+ * `evidence[q].snippet` with a separate `acceptableAnswers`, the older one uses
+ * `evidence[q].text` and array-valued `correctAnswers` — and handing back
+ * exactly what was removed means the page gets its own shape back with no
+ * per-format adapter to keep in sync.
+ *
+ * This is what /api/test-key serves once a student has submitted, so the test's
+ * own results screen can run exactly as it does in the standalone file.
+ */
+export function extractSensitiveLiterals(html: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const ident of SENSITIVE_IDENTS) {
+    const open = findLiteralOpen(html, ident);
+    if (open < 0) continue;
+    const end = findLiteralEnd(html, open);
+    if (end < 0) continue;
+    const body = html.slice(open, end);
+    if (body.replace(/\s/g, "") === "{}") continue; // nothing worth sending
+    out[ident] = body;
+  }
+  return out;
+}
+
+/**
  * Removes the html2pdf library <script>. That alone disables PDF export: the
  * test's own code guards every use with `typeof html2pdf === 'undefined'` and
  * bails out, so nothing crashes. We deliberately do NOT rewrite the html2pdf()
@@ -119,13 +148,23 @@ function stripDownloadTools(html: string): string {
 }
 
 // Injected AFTER the test's own scripts (before </body>), so its function
-// declarations already exist and can be overridden. It: hides the in-iframe
-// result report, no-ops the on-page correctness painting (which would show
-// wrong marks now that the key is empty), and — on a genuine Submit — reports
-// the harvested answers to the parent for server-side grading.
+// declarations already exist and can be captured.
+//
+// The job here is DEFERRAL, not suppression. The answer key is absent while the
+// student works, so the test's own results code would render a wrong 0/N — but
+// the moment they submit, the key is fetched, poured back into the objects it
+// was stripped from, and the test's OWN report is run. The student sees the
+// same screen the standalone file gives them: score, band, per-question marking,
+// explanations, and the evidence highlighted in the passage.
+//
+// This works because those objects are top-level `const` in a CLASSIC script.
+// A const binding cannot be reassigned and is not a property of `window`, but
+// it IS visible by name to a later classic script in the same document, and the
+// empty object left behind is mutable. So `Object.assign(correctAnswers, …)`
+// reaches every function that reads it. `window.correctAnswers = …` would not.
 //
 // `__ORIGIN__` is substituted with the site origin so postMessage is never
-// broadcast with a wildcard target.
+// broadcast with a wildcard target. `__TEST_ID__` is the id to fetch the key by.
 const SANITIZED_BRIDGE = `
 <script>
 /* ${SANITIZED_BRIDGE_MARKER} (auto-injected by /api/test-html) */
@@ -133,14 +172,32 @@ const SANITIZED_BRIDGE = `
 ${HARVEST_ANSWERS_JS}
 
   var TARGET_ORIGIN = "__ORIGIN__";
+  var TEST_ID = "__TEST_ID__";
 
-  // Belt-and-suspenders: hide the test's own result report + retake button.
-  // With the key blanked it could only ever render a wrong 0/N.
+  // Hide the report while the key is absent — it could only render a wrong 0/N.
+  // Removed again the instant the real data arrives.
+  var hideStyle = null;
   try {
-    var css = document.createElement("style");
-    css.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}#printReportBtn,#copyReportBtn{display:none!important}";
-    (document.head || document.documentElement).appendChild(css);
+    hideStyle = document.createElement("style");
+    // #printReportBtn stays hidden for good: the html2pdf library is stripped
+    // from the file, so that button would silently do nothing.
+    hideStyle.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}#printReportBtn{display:none!important}";
+    (document.head || document.documentElement).appendChild(hideStyle);
   } catch (e) {}
+
+  function unhideReport() {
+    try { if (hideStyle && hideStyle.parentNode) hideStyle.parentNode.removeChild(hideStyle); } catch (e) {}
+    try {
+      var keepPdfHidden = document.createElement("style");
+      keepPdfHidden.textContent = "#printReportBtn{display:none!important}";
+      (document.head || document.documentElement).appendChild(keepPdfHidden);
+    } catch (e) {}
+  }
+
+  // Capture the test's own renderers BEFORE overriding them. These are function
+  // declarations, so unlike the const data they really are on window.
+  var origShowResults = typeof window.showResults === "function" ? window.showResults : null;
+  var origMarkOnPage = typeof window.markOnPage === "function" ? window.markOnPage : null;
 
   var posted = false;
   function reportSubmit() {
@@ -155,28 +212,108 @@ ${HARVEST_ANSWERS_JS}
     } catch (e) { console.error("reportSubmit", e); }
   }
 
-  // Override the test's result rendering. showResults() (no arg) = a fresh
-  // submit → report answers to the parent. showResults(true) = a storage
-  // restore on load → do NOT re-report. Never call the original: with the key
-  // stripped it would render a wrong 0/N report.
+  // Pour the fetched literals back into the objects they were stripped from.
+  // Each name is guarded: a file that never declared one must not throw a
+  // ReferenceError and lose the rest.
+  function seed(literals) {
+    function put(name, src) {
+      if (!src) return;
+      var value;
+      try { value = new Function("return (" + src + ")")(); } catch (e) { return; }
+      try {
+        if (name === "correctAnswers" && typeof correctAnswers !== "undefined") Object.assign(correctAnswers, value);
+        else if (name === "acceptableAnswers" && typeof acceptableAnswers !== "undefined") Object.assign(acceptableAnswers, value);
+        else if (name === "explanations" && typeof explanations !== "undefined") Object.assign(explanations, value);
+        else if (name === "evidence" && typeof evidence !== "undefined") Object.assign(evidence, value);
+        else if (name === "KEY" && typeof KEY !== "undefined") Object.assign(KEY, value);
+      } catch (e) {}
+    }
+    put("correctAnswers", literals.correctAnswers);
+    put("acceptableAnswers", literals.acceptableAnswers);
+    put("explanations", literals.explanations);
+    put("evidence", literals.evidence);
+    put("KEY", literals.KEY);
+  }
+
+  var restored = false;
+  // Fetches the key, seeds it, hands rendering back to the test's own code and
+  // runs it. \`hideModal\` mirrors the test's own argument: false = a fresh
+  // submit (pop the report), true = restoring an already-finished session.
+  function restoreAndRender(hideModal) {
+    if (restored) return;
+    restored = true;
+    fetch("/api/test-key/" + TEST_ID, { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.literals) throw new Error("no key");
+        seed(data.literals);
+        unhideReport();
+        if (origMarkOnPage) window.markOnPage = origMarkOnPage;
+        if (origShowResults) window.showResults = origShowResults;
+        try { if (origMarkOnPage) origMarkOnPage(); } catch (e) {}
+        try { if (origShowResults) origShowResults(hideModal); } catch (e) {}
+      })
+      .catch(function () {
+        // Couldn't get the key: leave the report hidden rather than show a
+        // broken 0/N. The platform still grades and saves the attempt, and the
+        // student gets the full breakdown on the review page.
+        restored = false;
+      });
+  }
+
+  // Intercept the test's result rendering. showResults() with no argument is a
+  // fresh submit; showResults(true) is a storage restore, which must not be
+  // reported to the parent a second time.
   try { window.markOnPage = function () {}; } catch (e) {}
   try {
     window.showResults = function (hideModal) {
       if (!hideModal) reportSubmit();
+      restoreAndRender(!!hideModal);
     };
   } catch (e) {}
 
   // Fallback for any CDI build that submits through a path other than
-  // showResults(): catch a real Submit click directly. Harmless if showResults
-  // also fires — reportSubmit() is idempotent. The delay lets a confirm()
-  // dialog resolve and the final answer state settle first.
+  // showResults(). Both reportSubmit() and restoreAndRender() are idempotent,
+  // so it is harmless when showResults() also fires.
+  //
+  // CRITICAL: this must not fire on a button that merely OPENS the review
+  // overlay. In this shell #deliver-button does exactly that — it calls
+  // openReviewPage(), and the real submit is #reviewSubmit inside the overlay.
+  // Treating the deliver click as a submit fetched the answer key and rendered
+  // the report while the student was still able to go back and change answers.
+  //
+  // So the click only arms the fallback; the test's own testSubmitted flag
+  // decides whether a submission actually happened. Shells that don't define
+  // that flag fall back to the old timing-based behaviour.
+  function armFallback() {
+    setTimeout(function () {
+      try {
+        if (typeof testSubmitted !== "undefined" && !testSubmitted) return; // review overlay, not a submit
+      } catch (e) {}
+      reportSubmit();
+      restoreAndRender(false);
+    }, 600);
+  }
+
   document.addEventListener("click", function (e) {
     var t = e.target.closest &&
-      e.target.closest('#submitBtn, .btn-submit, #deliver-button, .footer__deliverButton, ' +
-        '#doSubmit, #footerSubmit, .big-submit, .submit-btn, [onclick*="submit"], [onclick*="Submit"]');
+      e.target.closest('#submitBtn, .btn-submit, #reviewSubmit, #deliver-button, ' +
+        '.footer__deliverButton, #doSubmit, #footerSubmit, .big-submit, .submit-btn, ' +
+        '[onclick*="submit"], [onclick*="Submit"]');
     if (!t) return;
-    setTimeout(reportSubmit, 400);
+    armFallback();
   }, true);
+
+  // A session that was ALREADY submitted has a problem this bridge cannot
+  // prevent: the test's loadState() runs at the end of its own script, before
+  // this one exists, so it has already painted an empty report from the blanked
+  // key. Re-render it properly, without re-reporting the attempt.
+  try {
+    if (typeof testSubmitted !== "undefined" && testSubmitted) {
+      posted = true; // this is not a new submission
+      restoreAndRender(true);
+    }
+  } catch (e) {}
 
   // Best-effort anti-copy / anti-download deterrents (a determined user with
   // devtools can still read the passage text — see the note at the top). We must
@@ -196,15 +333,20 @@ ${HARVEST_ANSWERS_JS}
 
 /**
  * Full sanitization pipeline: strip the key/explanations/evidence, remove the
- * download tools, then inject the answers-only bridge before </body>.
+ * download tools, then inject the bridge before </body>.
  *
  * `origin` is the site origin used as the postMessage target. Pass the request's
  * own origin so the message is never broadcast with "*".
+ * `testId` is the id the bridge fetches the key back with once the student
+ * submits, so the test's own results screen can run.
  */
-export function sanitizeTestHtml(html: string, origin: string): string {
+export function sanitizeTestHtml(html: string, origin: string, testId: string): string {
   let out = stripSensitiveLiterals(html);
   out = stripDownloadTools(out);
-  const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin);
+  const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin).replace(
+    "__TEST_ID__",
+    encodeURIComponent(testId),
+  );
   const idx = out.toLowerCase().lastIndexOf("</body>");
   if (idx === -1) return out + bridge;
   return out.slice(0, idx) + bridge + out.slice(idx);

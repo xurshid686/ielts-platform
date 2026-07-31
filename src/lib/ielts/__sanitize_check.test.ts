@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { sanitizeTestHtml } from "./sanitize-test-html";
+import { sanitizeTestHtml, extractSensitiveLiterals } from "./sanitize-test-html";
 import { extractAnswerKey } from "./extract-key";
 import { gradeAnswers, asAnswerKey } from "./grade";
 
@@ -8,10 +8,11 @@ import { gradeAnswers, asAnswerKey } from "./grade";
 // fixture lives outside the repo, so the suite skips gracefully where it's absent.
 const SRC = "X:\\CDI READING PROJECT\\Orientation of birds Passage 2 by codex.html";
 const ORIGIN = "https://example.test";
+const TEST_ID = "11111111-2222-3333-4444-555555555555";
 
 describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   const raw = readFileSync(SRC, "utf8");
-  const out = sanitizeTestHtml(raw, ORIGIN);
+  const out = sanitizeTestHtml(raw, ORIGIN, TEST_ID);
 
   it("strips the answer key + model answers from the served HTML", () => {
     // The literal DECLARATIONS remain (so the test's JS still parses) but must be empty.
@@ -36,6 +37,43 @@ describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   it("targets postMessage at the site origin, never a wildcard", () => {
     expect(out).toContain(`var TARGET_ORIGIN = "${ORIGIN}"`);
     expect(out).not.toContain("__ORIGIN__");
+  });
+
+  it("carries the test id so the bridge can fetch the key back after submit", () => {
+    expect(out).toContain(`var TEST_ID = "${TEST_ID}"`);
+    expect(out).not.toContain("__TEST_ID__");
+  });
+
+  it("captures the stripped literals so the results screen can be restored", () => {
+    const lit = extractSensitiveLiterals(raw);
+    // This file is the X:\ CDI generation: correctAnswers + acceptableAnswers +
+    // explanations + evidence.
+    expect(Object.keys(lit).sort()).toEqual([
+      "acceptableAnswers",
+      "correctAnswers",
+      "evidence",
+      "explanations",
+    ]);
+
+    // Each body must be valid JS that evaluates back to the original data —
+    // that is exactly what the injected bridge does with it in the browser.
+    const evalLit = (src: string) => new Function("return (" + src + ")")();
+    const answers = evalLit(lit.correctAnswers) as Record<string, unknown>;
+    const original = extractAnswerKey(raw)!;
+    expect(Object.keys(answers).sort()).toEqual(Object.keys(original.key).sort());
+
+    const ev = evalLit(lit.evidence) as Record<string, { para?: string; snippet?: string }>;
+    const first = ev[Object.keys(ev)[0]];
+    expect(first.para).toMatch(/^para-/);
+    expect(typeof first.snippet).toBe("string");
+
+    // The evidence snippet must genuinely occur in the passage, or highlighting
+    // it after submit would silently do nothing.
+    expect(raw).toContain(first.snippet!);
+  });
+
+  it("returns nothing for a file that was already stripped", () => {
+    expect(extractSensitiveLiterals(out)).toEqual({});
   });
 
   it("keeps every inline script syntactically valid (no parser breakage)", () => {
