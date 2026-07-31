@@ -33,22 +33,38 @@ export type BrowserItem = {
   createdAt: string;
 };
 
+type Access = "all" | "open" | "locked";
+
 export function TestBrowser({
   items,
   skill,
   canAccessPremium,
+  unlockedIds = [],
   isAdmin = false,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
   canAccessPremium: boolean;
+  // Tests unlocked one-off with XP before subscriptions became the only
+  // currency. Grandfathered: they must not show as locked.
+  unlockedIds?: string[];
   isAdmin?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [qType, setQType] = useState("all");
+  const [access, setAccess] = useState<Access>("all");
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
+
+  const unlocked = useMemo(() => new Set(unlockedIds), [unlockedIds]);
+  const isOpen = useMemo(
+    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium || unlocked.has(i.id),
+    [canAccessPremium, unlocked],
+  );
+
+  const openCount = useMemo(() => items.filter(isOpen).length, [items, isOpen]);
+  const lockedCount = items.length - openCount;
 
   // Filter tabs differ by skill: reading breaks down by passage.
   const tabDefs: { key: string; label: string; match: (i: BrowserItem) => boolean }[] =
@@ -83,18 +99,40 @@ export function TestBrowser({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((i) => {
+    const matched = items.filter((i) => {
       if (!activeTab.match(i)) return false;
       if (qType !== "all" && !i.questionTypes.includes(qType)) return false;
       if (q && !i.title.toLowerCase().includes(q)) return false;
+      if (access === "open" && !isOpen(i)) return false;
+      if (access === "locked" && isOpen(i)) return false;
       return true;
     });
-  }, [items, activeTab, qType, query]);
+
+    // Tests the viewer can actually start come FIRST. Premium used to render in
+    // its own block above everything else, so a free user's first screen was
+    // nothing but locked cards — which reads as "the whole site is paid".
+    // Within each group, newest first.
+    return matched.sort((a, b) => {
+      const byAccess = Number(isOpen(b)) - Number(isOpen(a));
+      if (byAccess !== 0) return byAccess;
+      return +new Date(b.createdAt) - +new Date(a.createdAt);
+    });
+  }, [items, activeTab, qType, query, access, isOpen]);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold">Available tests</h2>
+        <div>
+          <h2 className="text-lg font-semibold">All {skill} tests</h2>
+          {/* Say the free count out loud. A grid of locked cards with no number
+              next to it is what makes the library look entirely paid. */}
+          <p className="mt-0.5 text-sm text-muted">
+            <span className="font-medium text-foreground">
+              {openCount} you can start now
+            </span>
+            {lockedCount > 0 && <> · {lockedCount} with Premium</>}
+          </p>
+        </div>
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
@@ -140,20 +178,47 @@ export function TestBrowser({
           ))}
         </div>
 
-        {availableTypes.length > 0 && (
-          <select
-            value={qType}
-            onChange={(e) => setQType(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-surface px-3 text-sm shadow-soft outline-none focus:border-primary/40"
-          >
-            <option value="all">All question types</option>
-            {availableTypes.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Only worth showing when there is actually a mix to filter. */}
+          {lockedCount > 0 && openCount > 0 && (
+            <div className="flex rounded-lg border border-border bg-surface p-0.5 shadow-soft">
+              {(
+                [
+                  { key: "all", label: "All" },
+                  { key: "open", label: "Free to me" },
+                  { key: "locked", label: "Premium" },
+                ] as const
+              ).map((a) => (
+                <button
+                  key={a.key}
+                  onClick={() => setAccess(a.key)}
+                  className={`rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                    access === a.key
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {availableTypes.length > 0 && (
+            <select
+              value={qType}
+              onChange={(e) => setQType(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-surface px-3 text-sm shadow-soft outline-none focus:border-primary/40"
+            >
+              <option value="all">All question types</option>
+              {availableTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Results */}
@@ -175,6 +240,7 @@ export function TestBrowser({
                   setQuery("");
                   setFilter("all");
                   setQType("all");
+                  setAccess("all");
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium shadow-soft transition-colors hover:bg-surface-2"
               >
@@ -186,7 +252,7 @@ export function TestBrowser({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((t) => {
-            const locked = t.tier === "premium" && !canAccessPremium;
+            const locked = !isOpen(t);
             const isNew = now - new Date(t.createdAt).getTime() < NEW_WINDOW_MS;
             return (
               <Link key={t.id} href={`/${skill}/${t.id}`} className="group">

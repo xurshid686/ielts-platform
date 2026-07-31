@@ -6,7 +6,7 @@ import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import { RecentBandsChart, type RecentBandPoint } from "@/components/sections/recent-bands";
-import { PremiumSection } from "@/components/sections/premium-section";
+import { PremiumContact } from "@/components/premium-contact";
 import type { Result, Test } from "@/types/database";
 
 const META = {
@@ -134,23 +134,20 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         />
       </section>
 
-      {/* Premium materials — their own highlighted section */}
-      <PremiumSection
-        items={items.filter((i) => i.tier === "premium")}
+      {/* ONE catalogue — free and premium together, searchable and filterable.
+          Premium used to render in a separate block above this one, so the
+          first thing a free user saw was a grid of locked cards and the
+          reasonable conclusion was that the whole library is paid. Everything
+          the viewer can actually start now sorts first. */}
+      <TestBrowser
+        items={items}
         skill={skill}
-        canAccess={canAccessPremium}
+        canAccessPremium={canAccessPremium}
         unlockedIds={unlockedIds}
-        xp={profile.xp}
         isAdmin={profile.role === "admin"}
       />
 
-      {/* Free tests with search + filter */}
-      <TestBrowser
-        items={items.filter((i) => i.tier === "free")}
-        skill={skill}
-        canAccessPremium={canAccessPremium}
-        isAdmin={profile.role === "admin"}
-      />
+      {!canAccessPremium && <PremiumContact className="mt-2" />}
     </div>
   );
 }

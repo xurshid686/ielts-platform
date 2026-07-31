@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check } from "lucide-react";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, Send, Check, ListChecks } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { sendTextToTeacher } from "@/app/actions/send-recording";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ type Props = {
 };
 
 type Saved = {
+  resultId: string | null;
   band: number;
   raw: number;
   total: number;
@@ -121,6 +122,7 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     // raw/total come back from the SERVER — for a sanitized test the client
     // never knew the score in the first place.
     setSaved({
+      resultId: res.resultId,
       band: res.band,
       raw: res.raw,
       total: res.total,
@@ -167,9 +169,13 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
     }
   }
 
+  // Leaving a COMPLETED test lands on its review, not back on the test list.
+  // The file's own results screen is stripped out before serving (it needed the
+  // answer key to work), so this is where a student finds out what they got
+  // wrong — and it's the moment they most want to improve.
   function doExit() {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    router.push(`/${skill}`);
+    router.push(saved?.resultId ? `/review/${saved.resultId}` : `/${skill}`);
   }
 
   // Exit shows the streak celebration only on the FIRST completed test of the day.
@@ -195,8 +201,17 @@ export function TestRunner({ testId, title, skill, graded = false, isMyStudent =
           <span className="truncate text-sm font-medium">{title}</span>
           {saved && (
             <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Saved · Band {saved.band}
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved · {saved.raw}/{saved.total} · Band{" "}
+              {saved.band}
             </span>
+          )}
+          {saved?.resultId && (
+            <button
+              onClick={exit}
+              className="inline-flex h-7 items-center gap-1 rounded-lg bg-primary px-2.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <ListChecks className="h-3.5 w-3.5" /> See your answers
+            </button>
           )}
           {saved?.rating?.rated && (
             <span
@@ -423,7 +438,7 @@ function Celebration({
           </div>
         )}
         <Button className="mt-6 w-full" onClick={onClose}>
-          Back to {skill}
+          {saved.resultId ? "See your answers" : `Back to ${skill}`}
         </Button>
       </div>
     </div>
