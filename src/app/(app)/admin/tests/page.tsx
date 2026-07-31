@@ -3,14 +3,17 @@ import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { UploadForm } from "@/components/admin/upload-form";
 import { DeleteTestButton } from "@/components/admin/delete-test-button";
-import { PublicToggleButton } from "@/components/admin/public-toggle-button";
 import type { Test } from "@/types/database";
 
 export default async function AdminTestsPage() {
   const supabase = await createClient();
   const { data: tests } = await supabase
     .from("tests")
-    .select("*")
+    // Explicit columns: `answer_key` is revoked from the authenticated role
+    // (migration 0034), so `select("*")` would fail even for an admin.
+    .select(
+      "id, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
+    )
     .order("created_at", { ascending: false });
   const list = (tests ?? []) as Test[];
 
@@ -52,7 +55,6 @@ export default async function AdminTestsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <PublicToggleButton id={t.id} isPublic={t.is_public ?? false} />
                     <a
                       href={`/api/test-html/${t.id}`}
                       target="_blank"

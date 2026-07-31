@@ -20,15 +20,20 @@ export async function TestDetail({
   const profile = await requireProfile();
   const supabase = await createClient();
 
+  // Explicit column list — `select("*")` would ask for `answer_key`, which is
+  // revoked from the `authenticated` role (migration 0034) precisely so the key
+  // can never reach a page that renders for a student.
   const { data: test } = await supabase
     .from("tests")
-    .select("*")
+    .select(
+      "id, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
+    )
     .eq("id", id)
     .eq("skill", skill)
     .single();
 
   if (!test) notFound();
-  const t = test as Test;
+  const t = test as unknown as Test;
 
   // Level gate: a Pre-IELTS / Intro test is only openable by students of that
   // level (admins pass). Treat it as not-found for everyone else.

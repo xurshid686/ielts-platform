@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
 import { asAnswerKey, asAnswers } from "@/lib/ielts/grade";
 import { normalizeAnswer } from "@/lib/ielts/extract-key";
@@ -45,7 +46,11 @@ export default async function ReviewPage({
   let title = "Test review";
   let answerKey = null as ReturnType<typeof asAnswerKey>;
   if (result.test_id) {
-    const { data: testRow } = await supabase
+    // The key is read with the SERVICE-ROLE client: `answer_key` is revoked
+    // from the `authenticated` role (migration 0034). It is safe here because
+    // this page only ever renders the key for questions the student has already
+    // submitted, and RLS above has already proven they own this result.
+    const { data: testRow } = await createAdminClient()
       .from("tests")
       .select("title, answer_key")
       .eq("id", result.test_id)

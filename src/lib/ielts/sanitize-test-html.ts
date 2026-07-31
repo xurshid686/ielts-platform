@@ -1,21 +1,24 @@
-// Sanitizes a CDI test's HTML for the PUBLIC (no-login) serving path.
+// Sanitizes a CDI test's HTML for EVERY serving path (see /api/test-html/[id]).
 //
-// A public test is taken by anonymous visitors and graded SERVER-SIDE from the
-// key stored on the `tests` row. So the browser must never receive the answer
-// key, the acceptable-answer variants, the explanations, or the evidence
-// snippets — and it must not offer a way to download the file. This strips all
-// of that and swaps the in-page scoring for a bridge that only reports the
-// user's raw answers to the parent window.
+// The browser must never receive the answer key, the acceptable-answer variants,
+// the explanations, or the evidence snippets — those are the paid product, and
+// until this ran on the authenticated path too, any signed-in user could read
+// the whole premium library out of devtools. Grading is therefore done
+// SERVER-SIDE from the key stored on the `tests` row; the page only reports the
+// user's raw answers upward.
 //
 // NOTE (told to the user): the passage & question TEXT must remain in the DOM to
 // render, so that text is still technically copyable. What this fully protects
 // is the answer key / explanations / evidence / band logic and the file itself
-// (no PDF button, no static .html URL — it is served only through this route).
+// (no PDF button, no static .html URL — it is served only through the route).
+//
+// The source CDI files in storage are never modified; this is a transform
+// applied to the response body on the way out.
 
 import { sliceObjectLiteral } from "./extract-key";
 import { HARVEST_ANSWERS_JS } from "./scoring-bridge";
 
-export const PUBLIC_BRIDGE_MARKER = "IELTS Platform public bridge";
+export const SANITIZED_BRIDGE_MARKER = "IELTS Platform sanitized bridge";
 
 // The JS object literals that reveal the key / model answers. Each is replaced
 // with an empty object so the test's own scripts still parse and run.
@@ -59,13 +62,19 @@ function stripDownloadTools(html: string): string {
 // result report, no-ops the on-page correctness painting (which would show
 // wrong marks now that the key is empty), and — on a genuine Submit — reports
 // the harvested answers to the parent for server-side grading.
-const PUBLIC_BRIDGE = `
+//
+// `__ORIGIN__` is substituted with the site origin so postMessage is never
+// broadcast with a wildcard target.
+const SANITIZED_BRIDGE = `
 <script>
-/* ${PUBLIC_BRIDGE_MARKER} (auto-injected by /api/public-test-html) */
+/* ${SANITIZED_BRIDGE_MARKER} (auto-injected by /api/test-html) */
 (function () {
 ${HARVEST_ANSWERS_JS}
 
+  var TARGET_ORIGIN = "__ORIGIN__";
+
   // Belt-and-suspenders: hide the test's own result report + retake button.
+  // With the key blanked it could only ever render a wrong 0/N.
   try {
     var css = document.createElement("style");
     css.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}#printReportBtn,#copyReportBtn{display:none!important}";
@@ -73,16 +82,16 @@ ${HARVEST_ANSWERS_JS}
   } catch (e) {}
 
   var posted = false;
-  function publicSubmit() {
+  function reportSubmit() {
     if (posted) return;
     posted = true;
     try {
       parent.postMessage({
         source: "IELTS_CDI_TEST",
-        type: "PUBLIC_SUBMIT",
+        type: "SUBMIT",
         payload: { answers: harvestAnswers() },
-      }, "*");
-    } catch (e) {}
+      }, TARGET_ORIGIN);
+    } catch (e) { console.error("reportSubmit", e); }
   }
 
   // Override the test's result rendering. showResults() (no arg) = a fresh
@@ -92,9 +101,21 @@ ${HARVEST_ANSWERS_JS}
   try { window.markOnPage = function () {}; } catch (e) {}
   try {
     window.showResults = function (hideModal) {
-      if (!hideModal) publicSubmit();
+      if (!hideModal) reportSubmit();
     };
   } catch (e) {}
+
+  // Fallback for any CDI build that submits through a path other than
+  // showResults(): catch a real Submit click directly. Harmless if showResults
+  // also fires — reportSubmit() is idempotent. The delay lets a confirm()
+  // dialog resolve and the final answer state settle first.
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest &&
+      e.target.closest('#submitBtn, .btn-submit, #deliver-button, .footer__deliverButton, ' +
+        '#doSubmit, #footerSubmit, .big-submit, .submit-btn, [onclick*="submit"], [onclick*="Submit"]');
+    if (!t) return;
+    setTimeout(reportSubmit, 400);
+  }, true);
 
   // Best-effort anti-copy / anti-download deterrents (a determined user with
   // devtools can still read the passage text — see the note at the top). We must
@@ -113,13 +134,17 @@ ${HARVEST_ANSWERS_JS}
 `;
 
 /**
- * Full public sanitization pipeline: strip the key/explanations/evidence, remove
- * the download tools, then inject the public bridge before </body>.
+ * Full sanitization pipeline: strip the key/explanations/evidence, remove the
+ * download tools, then inject the answers-only bridge before </body>.
+ *
+ * `origin` is the site origin used as the postMessage target. Pass the request's
+ * own origin so the message is never broadcast with "*".
  */
-export function sanitizePublicTestHtml(html: string): string {
+export function sanitizeTestHtml(html: string, origin: string): string {
   let out = stripSensitiveLiterals(html);
   out = stripDownloadTools(out);
+  const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin);
   const idx = out.toLowerCase().lastIndexOf("</body>");
-  if (idx === -1) return out + PUBLIC_BRIDGE;
-  return out.slice(0, idx) + PUBLIC_BRIDGE + out.slice(idx);
+  if (idx === -1) return out + bridge;
+  return out.slice(0, idx) + bridge + out.slice(idx);
 }

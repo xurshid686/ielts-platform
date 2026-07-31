@@ -118,16 +118,11 @@ export function UploadForm() {
         </div>
       </fieldset>
 
-      <label className="flex items-start gap-2.5 rounded-lg border border-border bg-surface p-3 text-sm has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5">
-        <input type="checkbox" name="is_public" className="mt-0.5 h-4 w-4" />
-        <span>
-          <span className="font-medium">Public — no login needed</span>
-          <span className="mt-0.5 block text-xs text-muted">
-            Shareable at <code>/practice/&lt;id&gt;</code>. Served with the answer key stripped and
-            graded server-side; visitors must register to save their result.
-          </span>
-        </span>
-      </label>
+      <p className="rounded-lg border border-border bg-surface p-3 text-xs text-muted">
+        The answer key is read out of the file on upload and stored on the server. It is then
+        stripped from the HTML before the test is ever served, so students receive the questions
+        but never the answers. A file whose key can&apos;t be read is rejected.
+      </p>
 
       {msg && (
         <p className={`text-sm ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>

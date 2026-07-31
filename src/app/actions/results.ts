@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { gradeAnswers, asAnswerKey, asAnswers, type Answers } from "@/lib/ielts/grade";
 
@@ -9,10 +10,12 @@ export type SaveResultInput = {
   testId: string | null;
   skill: "reading" | "listening";
   // Client-reported score — used ONLY as a fallback for tests that have no
-  // stored answer key. When a key exists, the server grades `answers` and
-  // ignores these, so the score cannot be fabricated.
-  raw: number;
-  total: number;
+  // stored answer key (those still score themselves in-page; see
+  // /api/test-html). When a key exists the server grades `answers` and never
+  // reads these, so the score cannot be fabricated. Sanitized tests don't send
+  // them at all, which is why they are optional.
+  raw?: number;
+  total?: number;
   band?: number;
   answers?: Answers;
   // Seconds the student spent on the test (TestRunner measures iframe-load →
@@ -36,6 +39,12 @@ export type SaveResultResult =
       ok: true;
       deduped: boolean; // true = identical submit already counted moments ago
       firstToday: boolean; // true = this was the first completed activity today
+      // The AUTHORITATIVE score. For a keyed test the client never computes
+      // these — it only reports answers — so the UI must render what comes back
+      // from here rather than anything it sent.
+      resultId: string | null;
+      raw: number;
+      total: number;
       band: number;
       streak: number;
       longest_streak: number;
@@ -59,7 +68,11 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
 
   let serverGraded = false;
   if (input.testId) {
-    const { data: testRow } = await supabase
+    // Read the key with the SERVICE-ROLE client — `answer_key` is revoked from
+    // the `authenticated` role (migration 0034) so it can never be fetched by
+    // anything running in the user's session. It is used here only to compute
+    // the score; it is never returned to the caller.
+    const { data: testRow } = await createAdminClient()
       .from("tests")
       .select("answer_key")
       .eq("id", input.testId)
@@ -78,6 +91,15 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   }
 
   if (!serverGraded) {
+    // Keyless test: the page scored itself and we have nothing to check it
+    // against. Refuse a submission that carries no numbers at all rather than
+    // writing a meaningless 0/1 row.
+    if (typeof input.raw !== "number" || typeof input.total !== "number") {
+      return {
+        ok: false,
+        error: "This test has no stored answer key yet, so it can't be scored. Please tell an admin.",
+      };
+    }
     raw = Math.max(0, Math.round(input.raw));
     total = Math.max(1, Math.round(input.total));
     band =
@@ -104,6 +126,9 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
       ok: true,
       deduped: true,
       firstToday: false,
+      resultId: null,
+      raw,
+      total,
       band,
       streak: 0,
       longest_streak: 0,
@@ -236,6 +261,9 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     ok: true,
     deduped: false,
     firstToday,
+    resultId,
+    raw,
+    total,
     band,
     streak: a?.streak ?? 0,
     longest_streak: a?.longest_streak ?? 0,

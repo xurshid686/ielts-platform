@@ -12,8 +12,8 @@ export default async function AdminPage() {
 
   const [{ data: students }, { count: testCount }, { count: resultCount }] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-    supabase.from("tests").select("*", { count: "exact", head: true }),
-    supabase.from("results").select("*", { count: "exact", head: true }),
+    supabase.from("tests").select("id", { count: "exact", head: true }),
+    supabase.from("results").select("id", { count: "exact", head: true }),
   ]);
 
   const people = (students ?? []) as Profile[];

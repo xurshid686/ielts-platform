@@ -57,11 +57,13 @@ export type Test = {
   passage: number | null; // reading single only: 1, 2 or 3
   file_url: string;
   file_path: string;
-  // Answer key for server-side grading: { "1": ["terminal"], ... }. NULL for
-  // legacy tests where no key could be extracted (falls back to client score).
+  // Answer key for server-side grading: { "1": ["terminal"], ... }. Never sent
+  // to the browser — reads go through the `tests_public` view, and the raw
+  // column is only readable with the service-role client. NULL only on legacy
+  // rows uploaded before the key became mandatory; those still score in-page
+  // and must be backfilled (scripts/backfill-keys.mjs).
   answer_key: Record<string, string[]> | null;
   total: number | null; // number of gradeable questions
-  is_public: boolean; // taken without login via /practice/[id] (migration 0033)
   created_by: string | null;
   created_at: string;
 };
