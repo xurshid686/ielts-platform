@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { UploadForm } from "@/components/admin/upload-form";
 import { DeleteTestButton } from "@/components/admin/delete-test-button";
+import { RenameTestButton } from "@/components/admin/rename-test-button";
 import type { Test } from "@/types/database";
 
 export default async function AdminTestsPage() {
@@ -44,7 +45,7 @@ export default async function AdminTestsPage() {
               {list.map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{t.title}</p>
+                    <RenameTestButton id={t.id} title={t.title} />
                     <p className="text-xs capitalize text-muted">
                       {t.skill}
                       {t.passage ? ` · Passage ${t.passage}` : ""}

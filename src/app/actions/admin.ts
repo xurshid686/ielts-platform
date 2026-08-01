@@ -330,6 +330,63 @@ export async function deleteTest(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+/**
+ * Renames a test IN PLACE, keeping its id.
+ *
+ * Why not delete-and-reupload: `results.test_id` is `on delete set null` and
+ * `unlocks` / `assignments` are `on delete cascade`, so a new row would silently
+ * strip every student's attempt history and any XP unlock for that test. The id
+ * is the identity; the title is just a label.
+ */
+export async function renameTest(id: string, title: string): Promise<ActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const { supabase } = gate;
+
+  const next = title.trim().replace(/\s+/g, " ");
+  if (!next) return { ok: false, error: "Title is required." };
+  if (next.length > 120) return { ok: false, error: "Title is too long (max 120 characters)." };
+
+  // `skill` is one of the columns migration 0034 still grants to `authenticated`,
+  // so this needs no service-role client (unlike deleteTest, which reads the
+  // revoked `file_path`).
+  const { data: row } = await supabase
+    .from("tests")
+    .select("skill, title")
+    .eq("id", id)
+    .single();
+  const test = row as { skill?: string; title?: string } | null;
+  if (!test) return { ok: false, error: "Test not found." };
+  if (test.title === next) return { ok: true };
+
+  // Two tests of the same skill must never share a title. This is not cosmetic:
+  // scripts/upload-listening.mjs and scripts/upload-premium-batch.mjs both run
+  // `delete().eq("title", …)` before inserting, so a duplicate title means the
+  // next re-upload quietly deletes the wrong row.
+  const { data: clash } = await supabase
+    .from("tests")
+    .select("id")
+    .eq("skill", test.skill ?? "")
+    .eq("title", next)
+    .neq("id", id)
+    .limit(1);
+  if (Array.isArray(clash) && clash.length > 0) {
+    return { ok: false, error: `Another ${test.skill} test is already called "${next}".` };
+  }
+
+  // No .select() chained: a returning clause needs column SELECT privileges and
+  // would fail under migration 0034.
+  const { error } = await supabase.from("tests").update({ title: next }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/tests");
+  if (test.skill) {
+    revalidatePath(`/${test.skill}`);
+    revalidatePath(`/${test.skill}/${id}`);
+  }
+  return { ok: true };
+}
+
 // ----------------------------------------------------------- student levels
 export type SetLevelResult =
   | { ok: true; email: string; level: string }
