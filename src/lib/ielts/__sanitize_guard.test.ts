@@ -63,3 +63,31 @@ describe("sanitizeTestHtml fails closed", () => {
     expect(() => sanitizeTestHtml(page(`var x = 1;`), ORIGIN, ID)).not.toThrow();
   });
 });
+
+// The listening player has no showResults(): #doSubmit grades inline off KEY[q],
+// so with KEY blanked it threw inside isCorrect(), never set testSubmitted, and
+// the click fallback — which trusts that flag — reported nothing. Every
+// listening attempt was silently lost. The bridge must therefore seed the key
+// BEFORE that handler runs and report after it. There is no DOM in this suite,
+// so this asserts the wiring is present; the behaviour itself is covered by the
+// Playwright run against a real listening file.
+describe("bridge covers shells that grade in their own submit handler", () => {
+  const out = sanitizeTestHtml(page(`const KEY = { 1:['a'] };`), ORIGIN, ID);
+
+  it("wraps the shell's own #doSubmit handler", () => {
+    expect(out).toContain("wrapOwnSubmit()");
+    expect(out).toContain('document.getElementById("doSubmit")');
+  });
+
+  it("only does so when the shell has no showResults() to intercept", () => {
+    expect(out).toMatch(/function wrapOwnSubmit\(\)\s*\{\s*\n\s*if \(origShowResults\) return;/);
+  });
+
+  it("seeds the key before running that handler, and reports after it", () => {
+    const wrap = out.slice(out.indexOf("function wrapOwnSubmit()"));
+    const body = wrap.slice(0, wrap.indexOf("wrapOwnSubmit();"));
+    expect(body.indexOf("seed(literals)")).toBeGreaterThan(-1);
+    expect(body.indexOf("seed(literals)")).toBeLessThan(body.indexOf("orig.apply"));
+    expect(body.indexOf("orig.apply")).toBeLessThan(body.indexOf("reportSubmit()"));
+  });
+});

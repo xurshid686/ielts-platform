@@ -279,6 +279,24 @@ ${HARVEST_ANSWERS_JS}
     put("KEY", literals.KEY);
   }
 
+  // Fetches the stripped literals once and caches the result. Resolves with null
+  // (never rejects) when the key can't be had, and forgets a null so a later
+  // attempt can retry.
+  var literalsPromise = null;
+  function fetchLiterals() {
+    if (!literalsPromise) {
+      literalsPromise = fetch("/api/test-key/" + TEST_ID, { credentials: "same-origin" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          var lit = data && data.literals ? data.literals : null;
+          if (!lit) literalsPromise = null;
+          return lit;
+        })
+        .catch(function () { literalsPromise = null; return null; });
+    }
+    return literalsPromise;
+  }
+
   var restored = false;
   // Fetches the key, seeds it, hands rendering back to the test's own code and
   // runs it. \`hideModal\` mirrors the test's own argument: false = a fresh
@@ -286,23 +304,21 @@ ${HARVEST_ANSWERS_JS}
   function restoreAndRender(hideModal) {
     if (restored) return;
     restored = true;
-    fetch("/api/test-key/" + TEST_ID, { credentials: "same-origin" })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (!data || !data.literals) throw new Error("no key");
-        seed(data.literals);
-        unhideReport();
-        if (origMarkOnPage) window.markOnPage = origMarkOnPage;
-        if (origShowResults) window.showResults = origShowResults;
-        try { if (origMarkOnPage) origMarkOnPage(); } catch (e) {}
-        try { if (origShowResults) origShowResults(hideModal); } catch (e) {}
-      })
-      .catch(function () {
+    fetchLiterals().then(function (literals) {
+      if (!literals) {
         // Couldn't get the key: leave the report hidden rather than show a
         // broken 0/N. The platform still grades and saves the attempt, and the
         // student gets the full breakdown on the review page.
         restored = false;
-      });
+        return;
+      }
+      seed(literals);
+      unhideReport();
+      if (origMarkOnPage) window.markOnPage = origMarkOnPage;
+      if (origShowResults) window.showResults = origShowResults;
+      try { if (origMarkOnPage) origMarkOnPage(); } catch (e) {}
+      try { if (origShowResults) origShowResults(hideModal); } catch (e) {}
+    });
   }
 
   // Intercept the test's result rendering. showResults() with no argument is a
@@ -315,6 +331,52 @@ ${HARVEST_ANSWERS_JS}
       restoreAndRender(!!hideModal);
     };
   } catch (e) {}
+
+  // ---- Shells that grade inside their OWN submit handler (the listening player)
+  //
+  // The reading shells route every result through showResults(), which is
+  // overridden above, so their grading never touches the blanked key. The
+  // listening player has no showResults() at all: #doSubmit grades inline and
+  // reads KEY[q] directly, so with KEY blanked to {} the very first answered
+  // question threw "Cannot read properties of undefined (reading 'map')" inside
+  // isCorrect(). The handler died there — testSubmitted was never set, the
+  // results panel never opened, and the click fallback below (which trusts that
+  // flag to tell a real submit from merely opening the review overlay) bailed
+  // out. Nothing was posted to the parent, so NO listening attempt was ever
+  // graded or saved.
+  //
+  // Fix: for those shells, pour the key back BEFORE the test's own handler runs,
+  // then let it grade itself exactly as it does standalone, and use its own
+  // testSubmitted flag to decide whether to report the attempt (so a submit the
+  // student cancels at the "you have N unanswered" confirm is not reported).
+  function wrapOwnSubmit() {
+    if (origShowResults) return; // showResults shells are already handled
+    var btn = document.getElementById("doSubmit");
+    if (!btn || typeof btn.onclick !== "function") return;
+    var orig = btn.onclick;
+    btn.onclick = function (opts) {
+      var self = this;
+      var args = arguments;
+      fetchLiterals().then(function (literals) {
+        var seeded = false;
+        if (literals) {
+          seed(literals);
+          unhideReport();
+          seeded = true;
+        }
+        var threw = false;
+        try { orig.apply(self, args); } catch (e) { threw = true; console.error("submit", e); }
+        var flagged = true;
+        try { if (typeof testSubmitted !== "undefined") flagged = !!testSubmitted; } catch (e) {}
+        // No key available: the test's own grading throws before it can set its
+        // flag, but the student did click through the confirm — report anyway so
+        // the server still grades and saves the attempt. They get the breakdown
+        // on the review page instead of the in-page report.
+        if (flagged || (!seeded && threw)) reportSubmit();
+      });
+    };
+  }
+  wrapOwnSubmit();
 
   // Fallback for any CDI build that submits through a path other than
   // showResults(). Both reportSubmit() and restoreAndRender() are idempotent,
