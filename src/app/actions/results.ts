@@ -82,7 +82,7 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     if (key) {
       // A keyed test with no/blank answers means harvesting failed — grade what
       // we have (a perfect-score fake is still impossible: raw comes from us).
-      const graded = gradeAnswers(key, answers ?? {});
+      const graded = gradeAnswers(key, answers ?? {}, input.skill);
       raw = graded.raw;
       total = graded.total;
       band = rawToBand(input.skill, raw, total);

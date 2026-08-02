@@ -12,13 +12,32 @@ export type Graded = { raw: number; total: number };
  * Grades a map of user answers against a stored answer key. A question is
  * correct when its normalised answer matches any accepted variant. Mirrors the
  * in-page isCorrect() so the server score equals what the test would show.
+ *
+ * `skill` exists because the two shells do not mark identically. The listening
+ * player's isCorrect() falls back to comparing with ALL spaces removed — its own
+ * comment says "postcode" — so it accepts `SW1 9AB` against a key of `sw19ab`.
+ * The reading shells have no such rule and mark that wrong. Applying the looser
+ * rule everywhere would make the server disagree with a reading page in the
+ * other direction, so it is enabled only where the page actually does it.
+ * Omitted, grading stays strict.
  */
-export function gradeAnswers(key: AnswerKey, answers: Answers): Graded {
+export function gradeAnswers(
+  key: AnswerKey,
+  answers: Answers,
+  skill?: "reading" | "listening",
+): Graded {
   const qs = Object.keys(key);
+  const ignoreSpaces = skill === "listening";
   let raw = 0;
   for (const q of qs) {
     const given = normalizeAnswer(answers?.[q]);
-    if (given && key[q].includes(given)) raw++;
+    if (!given) continue;
+    if (key[q].includes(given)) {
+      raw++;
+    } else if (ignoreSpaces) {
+      const bare = given.replace(/\s+/g, "");
+      if (bare && key[q].some((v) => v.replace(/\s+/g, "") === bare)) raw++;
+    }
   }
   return { raw, total: qs.length };
 }

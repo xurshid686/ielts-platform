@@ -43,6 +43,49 @@ export const HARVEST_ANSWERS_JS = `
       var zv = (zones[z].dataset && zones[z].dataset.value) || zones[z].getAttribute("data-value") || "";
       if (zv) out[zones[z].getAttribute("data-q")] = zv;
     }
+
+    // READING drag-and-drop. Unlike the listening .dropzone above, these shells
+    // keep the answer on the dropped TOKEN rather than on the zone, and each
+    // shell generation names it differently:
+    //   matching-headings   .heading-drop[data-q] > .heading-token[data-heading]
+    //   drag-token summary  .dd-drop[data-q]      > .dd-token[data-letter]
+    //   sentence endings    .ending-drop[data-q]  > .ending-token[data-ending]
+    // None was harvested, so on every live test that uses them the platform
+    // graded those questions as unanswered while the page showed them correct —
+    // a student could see 13/13 and have 7/13 saved.
+    //
+    // The zone is matched only as "something with a data-q", and the token by a
+    // generic fallback as well as the three known names, because chasing one
+    // attribute name per generation is exactly how this was missed three times
+    // over. out[dq] is never overwritten, so the input readers above still win.
+    var drops = document.querySelectorAll("[data-q]");
+    for (var d = 0; d < drops.length; d++) {
+      var dq = drops[d].getAttribute("data-q");
+      if (!dq || out[dq] || !drops[d].querySelector) continue;
+      // The token is normally inside the zone, but a shell could equally put
+      // data-q on the token itself — then this element IS the token.
+      var tok = drops[d].querySelector("[data-heading], [data-letter], [data-ending]") || drops[d];
+      var tv =
+        tok.getAttribute("data-heading") || tok.getAttribute("data-letter") || tok.getAttribute("data-ending") || "";
+      if (!tv) {
+        // An unrecognised generation: a dropped token carrying exactly one
+        // data-* attribute, which is where every one of these keeps its answer.
+        // Bookkeeping attributes are excluded, so neither does a data-index get
+        // submitted as an answer, nor does a data-q alongside the real one stop
+        // this from finding it.
+        var META = ",q,qs,id,idx,index,slot,order,position,num,number,";
+        var any = drops[d].querySelector('[class*="token"]');
+        var names = [];
+        if (any && any.dataset) {
+          for (var nk in any.dataset) {
+            if (META.indexOf("," + nk.toLowerCase() + ",") < 0) names.push(nk);
+          }
+        }
+        if (names.length === 1) tv = String(any.dataset[names[0]] || "");
+      }
+      tv = (tv || "").trim();
+      if (tv) out[dq] = tv;
+    }
     // Each multi group fills its question slots with the SORTED selected letters
     // (q[0] = first letter, q[1] = second), matching the test's in-page grading.
     var groups = document.querySelectorAll('.mcq.multi[data-qs]');

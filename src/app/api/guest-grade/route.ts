@@ -53,8 +53,8 @@ export async function POST(req: Request) {
   const key = asAnswerKey(test.answer_key);
   if (!key) return Response.json({ error: "This test cannot be scored" }, { status: 409 });
 
-  const graded = gradeAnswers(key, asAnswers(answers) ?? {});
   const skill = test.skill === "listening" ? "listening" : "reading";
+  const graded = gradeAnswers(key, asAnswers(answers) ?? {}, skill);
   const band = rawToBand(skill, graded.raw, graded.total);
 
   return Response.json(

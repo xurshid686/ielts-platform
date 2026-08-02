@@ -10,11 +10,19 @@ const SRC = "X:\\CDI READING PROJECT\\Orientation of birds Passage 2 by codex.ht
 const ORIGIN = "https://example.test";
 const TEST_ID = "11111111-2222-3333-4444-555555555555";
 
-describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
-  const raw = readFileSync(SRC, "utf8");
-  const out = sanitizeTestHtml(raw, ORIGIN, TEST_ID);
+// `describe.skipIf` still EXECUTES the describe body — it only skips the tests
+// inside it — so reading the fixture out here threw ENOENT and failed the whole
+// suite for anyone without the file. Read it lazily instead, so the skip is real.
+const HAVE_FIXTURE = existsSync(SRC);
+let _raw: string | null = null;
+let _out: string | null = null;
+const fixture = () => (_raw ??= readFileSync(SRC, "utf8"));
+const sanitized = () => (_out ??= sanitizeTestHtml(fixture(), ORIGIN, TEST_ID));
+
+describe.skipIf(!HAVE_FIXTURE)("sanitizeTestHtml (real CDI file)", () => {
 
   it("strips the answer key + model answers from the served HTML", () => {
+    const out = sanitized();
     // The literal DECLARATIONS remain (so the test's JS still parses) but must be empty.
     expect(out).toContain("correctAnswers = {}");
     expect(out).toContain("acceptableAnswers = {}");
@@ -30,21 +38,25 @@ describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   });
 
   it("removes the download tooling and injects the sanitized bridge", () => {
+    const out = sanitized();
     expect(out.toLowerCase()).not.toContain("html2pdf.bundle");
     expect(out).toContain("IELTS Platform sanitized bridge");
   });
 
   it("targets postMessage at the site origin, never a wildcard", () => {
+    const out = sanitized();
     expect(out).toContain(`var TARGET_ORIGIN = "${ORIGIN}"`);
     expect(out).not.toContain("__ORIGIN__");
   });
 
   it("carries the test id so the bridge can fetch the key back after submit", () => {
+    const out = sanitized();
     expect(out).toContain(`var TEST_ID = "${TEST_ID}"`);
     expect(out).not.toContain("__TEST_ID__");
   });
 
   it("captures the stripped literals so the results screen can be restored", () => {
+    const raw = fixture();
     const lit = extractSensitiveLiterals(raw);
     // This file is the X:\ CDI generation: correctAnswers + acceptableAnswers +
     // explanations + evidence.
@@ -73,10 +85,12 @@ describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   });
 
   it("returns nothing for a file that was already stripped", () => {
+    const out = sanitized();
     expect(extractSensitiveLiterals(out)).toEqual({});
   });
 
   it("keeps every inline script syntactically valid (no parser breakage)", () => {
+    const out = sanitized();
     // Regression guard: a bad rewrite (e.g. html2pdf() -> `void 0.set(...)`,
     // where `0.` is a number literal) is a SyntaxError that kills the whole
     // script and disables the test. new Function() parses without running.
@@ -90,11 +104,13 @@ describe.skipIf(!existsSync(SRC))("sanitizeTestHtml (real CDI file)", () => {
   });
 
   it("still exposes the questions/passage so the test renders", () => {
+    const out = sanitized();
     expect(out).toContain("deliver-button");
     expect(out).toContain('name="q14"'); // first question input survives
   });
 
   it("server can still grade from the extracted key (parity check)", () => {
+    const raw = fixture();
     // The key is extracted from the ORIGINAL html at upload time and stored;
     // grading the correct answers must yield a perfect score.
     const ex = extractAnswerKey(raw);

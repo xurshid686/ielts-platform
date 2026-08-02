@@ -77,6 +77,30 @@ describe("gradeAnswers", () => {
   it("an empty submission scores zero out of the full total", () => {
     expect(gradeAnswers(key, {})).toEqual({ raw: 0, total: 10 });
   });
+
+  // The saved score must equal the score the page showed the student, and the
+  // two shells do not mark identically: the listening player also compares with
+  // all spaces removed (its own comment says "postcode"), the reading shells do
+  // not. Grading both the same way makes the server disagree with one of them.
+  describe("matches the shell that showed the score", () => {
+    const postcode = { "1": ["sw19ab"], "2": ["10 30"] };
+
+    it("accepts differently-spaced answers for listening", () => {
+      expect(gradeAnswers(postcode, { "1": "SW1 9AB", "2": "1030" }, "listening").raw).toBe(2);
+    });
+
+    it("does not for reading, which marks those wrong on the page", () => {
+      expect(gradeAnswers(postcode, { "1": "SW1 9AB", "2": "1030" }, "reading").raw).toBe(0);
+    });
+
+    it("stays strict when no skill is given", () => {
+      expect(gradeAnswers(postcode, { "1": "SW1 9AB" }).raw).toBe(0);
+    });
+
+    it("still requires the right letters, not just the right spacing", () => {
+      expect(gradeAnswers(postcode, { "1": "SW2 9AB" }, "listening").raw).toBe(0);
+    });
+  });
 });
 
 describe("payload narrowing", () => {
