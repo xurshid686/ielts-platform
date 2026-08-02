@@ -80,7 +80,21 @@ describe("bridge covers shells that grade in their own submit handler", () => {
   });
 
   it("only does so when the shell has no showResults() to intercept", () => {
-    expect(out).toMatch(/function wrapOwnSubmit\(\)\s*\{\s*\n\s*if \(origShowResults\) return;/);
+    expect(out).toMatch(/function wrapOwnSubmit\(\)\s*\{\s*\n\s*if \([^)]*origShowResults\) return;/);
+  });
+
+  it("grades once per submit, and retries wiring if the shell binds onclick late", () => {
+    expect(out).toContain("if (ownSubmitBusy) return;");
+    expect(out).toContain('document.addEventListener("DOMContentLoaded", wrapOwnSubmit)');
+    expect(out).toContain('window.addEventListener("load", wrapOwnSubmit)');
+  });
+
+  it("reveals the report only when the submit really went through", () => {
+    const wrap = out.slice(out.indexOf("function wrapOwnSubmit()"));
+    const body = wrap.slice(0, wrap.indexOf("wrapOwnSubmit();"));
+    // unhideReport() must sit inside the reported branch, never before orig runs
+    expect(body.indexOf("unhideReport()")).toBeGreaterThan(body.indexOf("orig.apply"));
+    expect(body.indexOf("unhideReport()")).toBeGreaterThan(body.indexOf("reportSubmit()"));
   });
 
   it("seeds the key before running that handler, and reports after it", () => {

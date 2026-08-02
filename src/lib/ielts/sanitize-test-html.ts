@@ -349,19 +349,26 @@ ${HARVEST_ANSWERS_JS}
   // then let it grade itself exactly as it does standalone, and use its own
   // testSubmitted flag to decide whether to report the attempt (so a submit the
   // student cancels at the "you have N unanswered" confirm is not reported).
+  var ownSubmitWrapped = false;
+  var ownSubmitBusy = false;
   function wrapOwnSubmit() {
-    if (origShowResults) return; // showResults shells are already handled
+    if (ownSubmitWrapped || origShowResults) return; // showResults shells are already handled
     var btn = document.getElementById("doSubmit");
     if (!btn || typeof btn.onclick !== "function") return;
     var orig = btn.onclick;
+    ownSubmitWrapped = true;
     btn.onclick = function (opts) {
       var self = this;
       var args = arguments;
+      // The key arrives asynchronously and the button is not disabled while it
+      // is in flight, so a double-click would queue a second callback and grade
+      // the paper twice (duplicate rows in the review table).
+      if (ownSubmitBusy) return;
+      ownSubmitBusy = true;
       fetchLiterals().then(function (literals) {
         var seeded = false;
         if (literals) {
           seed(literals);
-          unhideReport();
           seeded = true;
         }
         var threw = false;
@@ -372,11 +379,23 @@ ${HARVEST_ANSWERS_JS}
         // flag, but the student did click through the confirm — report anyway so
         // the server still grades and saves the attempt. They get the breakdown
         // on the review page instead of the in-page report.
-        if (flagged || (!seeded && threw)) reportSubmit();
+        if (flagged || (!seeded && threw)) {
+          reportSubmit();
+          // Only reveal the report once the submit actually went through — the
+          // student can back out at the shell's "you still have N unanswered"
+          // confirm, and that must not leave them looking at the answers.
+          unhideReport();
+        } else {
+          ownSubmitBusy = false; // cancelled at the confirm — allow a retry
+        }
       });
     };
   }
   wrapOwnSubmit();
+  // A shell that assigns #doSubmit.onclick from DOMContentLoaded / window.onload
+  // has not done so yet at this point. Both retries are no-ops once wrapped.
+  document.addEventListener("DOMContentLoaded", wrapOwnSubmit);
+  window.addEventListener("load", wrapOwnSubmit);
 
   // Fallback for any CDI build that submits through a path other than
   // showResults(). Both reportSubmit() and restoreAndRender() are idempotent,
