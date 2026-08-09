@@ -37,10 +37,14 @@ export async function GET(
   // The player fetches the whole file up front and plays it from memory, so a
   // single 200 is enough — no Range handling needed, and advertising none keeps
   // media players from probing for one.
-  return new Response(await data.arrayBuffer(), {
+  const bytes = await data.arrayBuffer();
+  return new Response(bytes, {
     status: 200,
     headers: {
       "Content-Type": "video/mp4",
+      // Set explicitly: without it the player cannot show a percentage and falls
+      // back to counting megabytes, which reads as if it were stuck.
+      "Content-Length": String(bytes.byteLength),
       "Content-Disposition": "inline",
       "Accept-Ranges": "none",
       "X-Content-Type-Options": "nosniff",
