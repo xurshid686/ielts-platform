@@ -187,6 +187,25 @@ export function extractSensitiveLiterals(html: string): Record<string, string> {
  * / window.print() call sites — doing so produced invalid JS (e.g. `void 0.set`
  * → `0.` is a number literal, a syntax error) that killed the whole script.
  */
+/**
+ * Points a test's intro-video gate at this platform's own gated route.
+ *
+ * A test built with `mock-intro-video` carries `__TEST_VIDEO_SRC__` and falls
+ * back to a public URL when nothing replaces it, so the standalone file still
+ * works on its own. Served from here it gets `/api/test-video/<id>` instead,
+ * which applies the same entitlement check as the test — the video for a premium
+ * test is then unreachable without a membership, and there is no shareable link.
+ *
+ * A file without the placeholder is left untouched, so this is safe for the
+ * whole existing library.
+ */
+function pointVideoAtGatedRoute(html: string, origin: string, testId: string): string {
+  return html.replaceAll(
+    "__TEST_VIDEO_SRC__",
+    `${origin}/api/test-video/${encodeURIComponent(testId)}`,
+  );
+}
+
 function stripDownloadTools(html: string): string {
   return html.replace(/<script[^>]*html2pdf[^>]*>\s*<\/script>/gi, "");
 }
@@ -486,6 +505,7 @@ export function sanitizeTestHtml(html: string, origin: string, testId: string): 
   const leftover = findUnstrippedLiterals(out);
   if (leftover.length) throw new SanitizeIncompleteError(leftover);
   out = stripDownloadTools(out);
+  out = pointVideoAtGatedRoute(out, origin, testId);
   const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin).replace(
     "__TEST_ID__",
     encodeURIComponent(testId),
