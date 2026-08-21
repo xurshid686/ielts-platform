@@ -88,9 +88,22 @@ export const HARVEST_ANSWERS_JS = `
     }
     // Each multi group fills its question slots with the SORTED selected letters
     // (q[0] = first letter, q[1] = second), matching the test's in-page grading.
-    var groups = document.querySelectorAll('.mcq.multi[data-qs]');
+    // Two generations name this group differently: the listening shell uses
+    // .mcq.multi[data-qs]="21,22", the reading shell .mcq-block[data-mcq-group]
+    // with a RANGE ("18-19"). Reading's slots were never harvested, so every
+    // "choose TWO letters" question in those files saved as unanswered.
+    var groups = document.querySelectorAll('.mcq.multi[data-qs], [data-mcq-group]');
     for (var k = 0; k < groups.length; k++) {
-      var qs = (groups[k].getAttribute("data-qs") || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      var spec = groups[k].getAttribute("data-qs") || groups[k].getAttribute("data-mcq-group") || "";
+      var qs = spec.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      // Expand an "a-b" range into every question number it covers.
+      if (qs.length === 1) {
+        var rm = qs[0].match(/^(\\d+)\\s*[-\\u2013\\u2014]\\s*(\\d+)$/);
+        if (rm) {
+          qs = [];
+          for (var r = Number(rm[1]); r <= Number(rm[2]); r++) qs.push(String(r));
+        }
+      }
       var boxes = groups[k].querySelectorAll('input[type="checkbox"]');
       var picked = [];
       for (var b = 0; b < boxes.length; b++) if (boxes[b].checked) picked.push(boxes[b].value);

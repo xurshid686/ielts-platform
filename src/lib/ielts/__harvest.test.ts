@@ -43,6 +43,7 @@ class El {
       if (one === ".dropzone[data-q]") return this.cls().includes("dropzone") && "data-q" in this.attrs;
       if (one === ".mcq.multi[data-qs]")
         return this.cls().includes("mcq") && this.cls().includes("multi") && "data-qs" in this.attrs;
+      if (one === "[data-mcq-group]") return "data-mcq-group" in this.attrs;
       if (one === "[data-q]") return "data-q" in this.attrs;
       if (one === '[class*="token"]') return (this.attrs.class ?? "").includes("token");
       if (one === '[type="checkbox"]' || one === 'input[type="checkbox"]')
@@ -172,6 +173,19 @@ describe("harvestAnswers", () => {
       ]),
     );
     expect(out).toEqual({ "21": "B", "22": "D" });
+  });
+
+  it("expands the reading shell's data-mcq-group range into its slots", () => {
+    const out = harvestFrom(
+      new El({}, [
+        new El({ class: "mcq-block", "data-mcq-group": "18-19" }, [
+          input({ type: "checkbox", value: "E", checked: "true" }),
+          input({ type: "checkbox", value: "C", checked: "true" }),
+          input({ type: "checkbox", value: "A" }),
+        ]),
+      ]),
+    );
+    expect(out).toEqual({ "18": "C", "19": "E" });
   });
 
   it("omits blank answers rather than sending empty strings", () => {
