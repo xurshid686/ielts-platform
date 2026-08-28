@@ -29,10 +29,22 @@ export function testFormat(t: SeoTest): string {
   return "Section";
 }
 
-/** The <title>. Leads with the passage name, which is the search term. */
+/**
+ * The <title>. Leads with the passage name, then the exact words students type.
+ *
+ * Reading searches follow three patterns, and the title has to cover all of
+ * them because it is the strongest relevance signal Google has:
+ *
+ *   "<name> reading"           -> "Reading"
+ *   "<name> reading passage"   -> "Reading Passage"
+ *   "<name> reading answers"   -> "Answers"
+ *
+ * "Practice" covered only the first. Listening searches use "Section" and
+ * "Answers" the same way.
+ */
 export function testTitle(t: SeoTest): string {
-  const skill = t.skill === "reading" ? "Reading" : "Listening";
-  return `${t.title} — IELTS ${skill} Practice`;
+  const noun = t.skill === "reading" ? "Reading Passage" : "Listening Test";
+  return `${t.title} — IELTS ${noun} & Answers`;
 }
 
 /**
@@ -41,19 +53,25 @@ export function testTitle(t: SeoTest): string {
  * Kept under ~160 characters so Google does not truncate it mid-sentence.
  */
 export function testDescription(t: SeoTest): string {
-  const skill = t.skill === "reading" ? "Reading" : "Listening";
-  const parts: string[] = [`Practice the IELTS ${skill} test “${t.title}”`];
+  const noun = t.skill === "reading" ? "Reading passage" : "Listening test";
+
+  // "answers" and "passage" go in the FIRST clause, not the last: the tail is
+  // what gets cut, and those are the words students actually search for.
+  const head = `${t.title} — IELTS ${noun} with answers and explanations.`;
 
   const bits: string[] = [testFormat(t)];
   if (t.total && t.total > 0) bits.push(`${t.total} questions`);
-  parts.push(bits.join(", "));
-
   const types = (t.question_types ?? []).filter(Boolean).slice(0, 2);
-  if (types.length) parts.push(`with ${types.join(" and ")}`);
+  if (types.length) bits.push(types.join(", "));
 
-  let out = `${parts.join(" — ")}. Instant scoring, answers and explanations.`;
-  if (out.length > 160) out = `${out.slice(0, 157).replace(/[\s—,.]+$/, "")}…`;
-  return out;
+  const tail = ` ${bits.join(" · ")}. Free online practice.`;
+
+  // Trim on a word boundary — the old cap sliced mid-word ("explana…"), which
+  // reads as a broken page in the search result.
+  const full = head + tail;
+  if (full.length <= 160) return full;
+  if (head.length <= 160) return head;
+  return `${head.slice(0, 157).replace(/\s+\S*$/, "")}…`;
 }
 
 /** Absolute canonical URL for a test, always on the canonical host. */

@@ -14,10 +14,22 @@ const base: SeoTest = {
 
 describe("testTitle", () => {
   it("leads with the passage name, which is what students search", () => {
-    expect(testTitle(base)).toBe("Life on Mars? — IELTS Reading Practice");
+    expect(testTitle(base)).toBe("Life on Mars? — IELTS Reading Passage & Answers");
   });
-  it("says Listening for a listening test", () => {
-    expect(testTitle({ ...base, skill: "listening" })).toContain("IELTS Listening Practice");
+
+  // The three real search patterns, all of which must hit the title.
+  it.each([
+    ["<name> reading", /reading/i],
+    ["<name> reading passage", /reading passage/i],
+    ["<name> reading answers", /answers/i],
+  ])("covers the %s pattern", (_label, re) => {
+    expect(testTitle(base)).toMatch(re);
+  });
+
+  it("uses the listening wording for a listening test", () => {
+    const t = testTitle({ ...base, skill: "listening" });
+    expect(t).toContain("Listening Test");
+    expect(t).toContain("Answers");
   });
 });
 
@@ -42,7 +54,22 @@ describe("testDescription", () => {
     expect(d).toContain("Life on Mars?");
     expect(d).toContain("Passage 3");
     expect(d).toContain("14 questions");
-    expect(d).toContain("Multiple choice and Yes/No/Not Given");
+    expect(d).toContain("Multiple choice");
+  });
+
+  it("puts 'passage' and 'answers' in the part that never gets truncated", () => {
+    // The tail is what Google cuts, so the searched-for words go first.
+    const head = testDescription(base).slice(0, 100);
+    expect(head).toMatch(/reading passage/i);
+    expect(head).toMatch(/answers/i);
+  });
+
+  it("never truncates mid-word", () => {
+    const d = testDescription({
+      ...base,
+      title: "When and why did we learn to stand on our own two feet and walk upright across the plains",
+    });
+    expect(d.endsWith("…") ? d.slice(0, -1) : d).not.toMatch(/\s\S{1,3}$/);
   });
 
   it("stays within Google's ~160 character display limit", () => {
@@ -55,7 +82,7 @@ describe("testDescription", () => {
   });
 
   it("omits the question-type clause when none are tagged", () => {
-    expect(testDescription({ ...base, question_types: [] })).not.toContain("with ");
+    expect(testDescription({ ...base, question_types: [] })).not.toContain("Multiple choice");
   });
 
   it("omits the question count when total is missing", () => {
