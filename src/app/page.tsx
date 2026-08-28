@@ -475,8 +475,12 @@ function Shot({
         <Image
           src={`/shots/${name}-light.png`}
           alt={alt}
-          priority={priority}
-          loading={priority ? undefined : "lazy"}
+          // Deliberately NOT `priority`: that emits a <link rel="preload"> in
+          // <head>, which fires regardless of the display:none wrapper — so a
+          // dark-mode visitor downloaded the light PNG as well. eager +
+          // fetchPriority gets the same head start without the preload.
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           {...common}
         />
       </div>
