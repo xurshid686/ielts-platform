@@ -80,8 +80,9 @@ permissive than the file route, it would hand out answers for tests the caller
 could not open. Any new route that touches test content uses this helper.
 
 Rules it enforces: anonymous callers get free, regular-track tests only; premium
-needs an active membership, an admin, or a legacy XP unlock; non-regular tracks
-(pre_ielts/intro) are 404 to everyone else.
+needs an active membership or an admin; non-regular tracks (pre_ielts/intro) are
+404 to everyone else. There is no per-test XP unlock any more — that mechanic and
+its `unlocks` table were removed in 0039.
 
 Accepted exposure, by design: anyone entitled to *take* a test can call the key
 route and read its answers without answering honestly. Submitting a blank test
@@ -122,17 +123,31 @@ Because of 0034, `answer_key` / `file_path` / `file_url` are readable **only**
 with the service-role client (`createAdminClient()`). Client-side queries must
 name their columns — `select("*")` on `tests` will fail.
 
-## Data realities (checked against production, 2026-07-31)
+## Data realities (checked against production, 2026-08-29)
 
-- 121 regular-track reading tests: **57 free, 64 premium**. 8 listening.
-- `question_types` — all 121 tagged, backfilled by
+Re-check these before reasoning about them — the previous snapshot (2026-07-31)
+had gone badly stale and advice was built on it.
+
+- **185 tests: 172 reading + 13 listening.** 184 regular-track, 1 pre_ielts.
+- **`tier` is `free` on every single test — there are ZERO premium tests.** The
+  whole premium/free split described below still exists in code, and the DB
+  still has the column, but nothing is currently gated. Do not repeat the old
+  "57 free / 64 premium" claim, and do not build a monetisation argument on a
+  paid catalogue that isn't there.
+- **18 profiles hold an active `premium_until`** (of 102 accounts) — they are
+  paying for, or were granted, access to a premium library that is currently
+  empty. Worth resolving before selling more memberships.
+- `question_types` — **all 185 tagged**, backfilled by
   `scripts/backfill-question-types.mjs` from the papers' own rubric wording
   (`src/lib/ielts/infer-question-types.ts`, unit-tested). Re-run after bulk uploads.
-- `difficulty` (Elo) — **still 1500 on ~120 of 121.** It only moves after 5+
-  scored first attempts. Do not build a difficulty filter on it yet, and do not
-  present it as meaningful.
-- `level` (free text) — **NULL on 119 of 121.** Not displayed; do not add filters
+- `difficulty` (Elo) — **has moved on exactly 1 of 185** (range 1136–1500). It
+  only moves after 5+ scored first attempts. Do not build a difficulty filter on
+  it, and do not present it as meaningful.
+- `level` (free text) — **NULL on 184 of 185.** Not displayed; do not add filters
   on it. Not the same thing as `profiles.level` / `tests.track`.
+- Every test has a stored answer key (`total > 0`), so all of them are
+  server-graded; the manual score-entry fallback should never appear.
+- 200 saved results across 102 accounts.
 - No topic or Cambridge book/series taxonomy exists.
 
 ## The reading catalogue
@@ -158,8 +173,8 @@ with no account can browse everything and take a **free** test; the attempt is
 graded by `/api/guest-grade`, which **persists nothing**, and they are invited to
 register to save it.
 
-`src/proxy.ts` guards only `/dashboard`, `/writing`, `/speaking`, `/admin`,
-`/assignments`. The `(app)` layout falls through to `PublicShell` when there is
+`src/proxy.ts` guards only `/dashboard`, `/writing`, `/speaking` and `/admin`.
+The `(app)` layout falls through to `PublicShell` when there is
 no profile — use `getProfile()` (nullable) on public pages, `requireProfile()`
 (redirects) on account-only ones.
 
@@ -197,9 +212,44 @@ before concluding the feature is broken.
 - The PDF export button is hidden: `stripDownloadTools` removes the html2pdf
   library, so it would silently do nothing.
 - Question-type filter is single-select; no combining types.
-- No "show more" paging — all 121 cards render at once.
+- No "show more" paging — all 185 cards render at once.
 - No admin UI yet for correcting inferred question types.
 - `/pricing` and a real upgrade flow don't exist; Premium is arranged by
   contacting the admin on Telegram (`src/lib/site.ts`).
-- Writing is a nav item pointing at a `ComingSoon` stub, but still counts in the
-  dashboard's overall-band maths and goal tracker.
+- Writing is a nav item pointing at a `ComingSoon` stub. It does NOT drag the
+  overall band down (`dashboard/page.tsx` filters nulls out of `skillAverages`),
+  but it is still counted in the `x/4 skills` denominator and the goal tracker.
+- Every landing-page link goes to `/register` or `/login` — including the footer
+  link labelled "Reading & Listening". The public catalogue that `5d803b8` /
+  `45050be` opened up is unreachable from the front door.
+- The rating delta shown after a test grades the student against a `difficulty`
+  that has barely moved off its 1500 default (see Data realities), so the number
+  is close to meaningless today.
+
+---
+
+# Removed features — do not resurrect
+
+Both were deleted in `0039_drop_xp_unlocks_and_my_students.sql` (2026-08-29),
+code first and then the schema, in that order.
+
+- **Per-test XP unlock.** `unlock-button.tsx`, `actions/unlock.ts`, the `unlocks`
+  table and `unlock_test()`. `canAccessTest()` no longer takes an `unlocked`
+  argument. XP still exists and still drives streaks, badges and leaderboards —
+  it just has no spend path, which is deliberate. The landing FAQ no longer
+  promises one.
+- **The "My student" teaching system in full.** `/assignments`, `/feedback`,
+  `/admin/my-students`, `/admin/students/[id]`, `/admin/assignments`,
+  send-to-teacher on both the test runner and the speaking recorder, the
+  `assignments` / `assignment_targets` / `teacher_feedback` tables, the six RPCs,
+  and `profiles.is_my_student` / `can_send_to_teacher`. The privacy and terms
+  pages were updated to match — Telegram is now only a contact link, not a
+  processor that receives student work.
+- The speaking **recorder itself was kept** (record + play back your own answer).
+  Only the sending was removed, which took the in-browser MP3 encoder with it.
+- The rows live on in a private `archive` schema (`archive.unlocks`,
+  `archive.assignments`, `archive.assignment_targets`, `archive.teacher_feedback`),
+  revoked from `anon` / `authenticated`. Never copy them back into `public` — a
+  bare table there inherits Supabase's default grants with no RLS, which would
+  publish the feedback notes.
+- `TEACHER_CHAT_ID` in the env files and Vercel is now dead; nothing reads it.
