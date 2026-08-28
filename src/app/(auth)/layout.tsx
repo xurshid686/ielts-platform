@@ -51,7 +51,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute right-4 top-4">
           <ThemeToggle />
         </div>
-        <div className="relative w-full max-w-sm animate-fade-in-up">{children}</div>
+        <div className="relative w-full max-w-sm animate-fade-in-up">
+          {children}
+          {/* Every page in this group inherits this — login, register and both
+              password-reset steps — which is where the visible legal links live. */}
+          <p className="mt-6 text-center text-xs leading-relaxed text-muted">
+            By continuing you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     </div>
   );

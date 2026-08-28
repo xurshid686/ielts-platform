@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import {
   BookOpen,
@@ -23,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { TIERS, type TierName } from "@/lib/rating";
+import { CONTACT_TELEGRAM_URL } from "@/lib/site";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -123,13 +125,22 @@ export default async function Home() {
             className="animate-rise mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
             style={{ "--rise-delay": "240ms" } as React.CSSProperties}
           >
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/register">
-                Start practising free <ArrowRight className="h-4 w-4" />
+            {/* The catalogue is public and a free test is gradeable without an
+                account, so the primary action is the product itself, not a
+                signup form. `h-auto … whitespace-normal` because size="lg" is a
+                fixed h-11 and this label wraps on a narrow phone. */}
+            <Button
+              asChild
+              size="lg"
+              className="h-auto min-h-11 w-full whitespace-normal py-2.5 leading-snug sm:w-auto"
+            >
+              <Link href="/reading">
+                Try a free Reading test — no account needed{" "}
+                <ArrowRight className="h-4 w-4 shrink-0" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-              <Link href="/login">I have an account</Link>
+              <Link href="/register">Create a free account</Link>
             </Button>
           </div>
 
@@ -137,29 +148,49 @@ export default async function Home() {
             className="animate-rise mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted"
             style={{ "--rise-delay": "320ms" } as React.CSSProperties}
           >
-            {["Free to start", "Real exam format", "Instant band scores"].map((t) => (
+            {["No account needed", "Real exam format", "Instant band scores"].map((t) => (
               <li key={t} className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-success" /> {t}
               </li>
             ))}
           </ul>
+
+          {/* Proof, not adjectives: the actual player a student sits in.
+              --rise-delay continues the hero's 0/80/160/240/320 stagger. */}
+          <figure
+            className="animate-rise mt-14"
+            style={{ "--rise-delay": "400ms" } as React.CSSProperties}
+          >
+            <Shot
+              name="player"
+              alt="The exam player: passage on the left, questions on the right, timer running."
+              priority
+            />
+            <figcaption className="mt-3 text-sm text-muted">
+              The real computer-delivered layout — passage left, questions right, timer
+              running. Nothing to install.
+            </figcaption>
+          </figure>
         </section>
 
         {/* ---- Skill cards ---- */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Feature
+            href="/reading"
             icon={<BookOpen />}
             title="Reading"
             desc="Full exam-style tests, graded on the server the moment you submit."
             tone="indigo"
           />
           <Feature
+            href="/listening"
             icon={<Headphones />}
             title="Listening"
             desc="Audio tests scored automatically, with history and best-band tracking."
             tone="teal"
           />
           <Feature
+            href="/register?next=%2Fspeaking"
             icon={<Mic />}
             title="Speaking"
             desc="Talk live with an AI examiner, or record a full mock for band feedback."
@@ -189,6 +220,17 @@ export default async function Home() {
               you exactly what to fix next.
             </p>
           </div>
+
+          <figure className="mt-12">
+            <Shot
+              name="report"
+              alt="A finished score report: band 7.5, 33 of 40 correct, and every question marked."
+            />
+            <figcaption className="mt-3 text-sm text-muted">
+              The moment you submit: your band, your score, and every question marked
+              against the official answer — with what you should have written.
+            </figcaption>
+          </figure>
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             <Highlight
@@ -368,11 +410,28 @@ export default async function Home() {
               <Link href="/login" className="text-muted transition-colors hover:text-foreground">
                 Sign in
               </Link>
-              <Link href="/register" className="text-muted transition-colors hover:text-foreground">
-                Reading & Listening
+              <Link href="/reading" className="text-muted transition-colors hover:text-foreground">
+                Reading
+              </Link>
+              <Link href="/listening" className="text-muted transition-colors hover:text-foreground">
+                Listening
               </Link>
               <Link href="/register" className="text-muted transition-colors hover:text-foreground">
                 Speaking with AI
+              </Link>
+              <a
+                href={CONTACT_TELEGRAM_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted transition-colors hover:text-foreground"
+              >
+                Contact us
+              </a>
+              <Link href="/privacy" className="text-muted transition-colors hover:text-foreground">
+                Privacy
+              </Link>
+              <Link href="/terms" className="text-muted transition-colors hover:text-foreground">
+                Terms
               </Link>
             </nav>
           </div>
@@ -381,6 +440,50 @@ export default async function Home() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * A product screenshot, in the viewer's theme.
+ *
+ * Two <Image>s rather than one swapped at runtime: the hidden variant sits
+ * inside a `display: none` wrapper, which browsers do not fetch — so a
+ * light-mode visitor downloads one PNG, not two. Doing this with `useTheme()`
+ * instead would make the page's largest element wait for hydration.
+ *
+ * Captured by `npm run shots` (scripts/capture-screenshots.mjs) at 2160×1350.
+ */
+function Shot({
+  name,
+  alt,
+  priority = false,
+}: {
+  name: "player" | "report";
+  alt: string;
+  priority?: boolean;
+}) {
+  const common = {
+    width: 2160,
+    height: 1350,
+    sizes: "(min-width: 1024px) 960px, 100vw",
+    className: "h-auto w-full",
+  };
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-soft">
+      <div className="dark:hidden">
+        <Image
+          src={`/shots/${name}-light.png`}
+          alt={alt}
+          priority={priority}
+          loading={priority ? undefined : "lazy"}
+          {...common}
+        />
+      </div>
+      <div className="hidden dark:block">
+        {/* Same picture, so it is decorative to a screen reader. */}
+        <Image src={`/shots/${name}-dark.png`} alt="" aria-hidden loading="lazy" {...common} />
+      </div>
     </div>
   );
 }
@@ -410,19 +513,23 @@ function Feature({
   desc,
   badge,
   tone,
+  href,
 }: {
   icon: React.ReactNode;
   title: string;
   desc: string;
   badge?: string;
   tone: keyof typeof tones;
+  // Omitted for a skill that has nowhere to send anyone yet (Writing). A card
+  // that promises a page and delivers "coming soon" is worse than one that
+  // doesn't move.
+  href?: string;
 }) {
   const t = tones[tone];
-  return (
-    <Link
-      href="/register"
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
-    >
+  const base =
+    "group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300";
+  const body = (
+    <>
       {/* Accent edge that lights up on hover */}
       <span
         className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${t.edge} to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
@@ -441,9 +548,22 @@ function Feature({
       </div>
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
-      <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-        Start now <ArrowRight className="h-3.5 w-3.5" />
-      </span>
+      {href && (
+        <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+          Start now <ArrowRight className="h-3.5 w-3.5" />
+        </span>
+      )}
+    </>
+  );
+
+  if (!href) return <div className={base}>{body}</div>;
+
+  return (
+    <Link
+      href={href}
+      className={`${base} hover:-translate-y-1 hover:border-primary/40 hover:shadow-[var(--shadow-glow)]`}
+    >
+      {body}
     </Link>
   );
 }

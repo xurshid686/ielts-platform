@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BookOpen, Headphones } from "lucide-react";
+import { BookOpen, Headphones, Send } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CONTACT_TELEGRAM_URL } from "@/lib/site";
 
 /**
  * Chrome for the pages a logged-out visitor can see — the reading and listening
@@ -36,6 +37,15 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
               <Headphones className="h-4 w-4" />
               <span className="hidden sm:inline">Listening</span>
             </Link>
+            <a
+              href={CONTACT_TELEGRAM_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground"
+            >
+              <Send className="h-4 w-4" />
+              <span className="hidden sm:inline">Contact</span>
+            </a>
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -57,6 +67,28 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+
+      <footer className="mt-12 border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-muted">
+          <span>© {new Date().getFullYear()} IELTS Practice</span>
+          <nav className="flex flex-wrap gap-x-6 gap-y-2">
+            <a
+              href={CONTACT_TELEGRAM_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="transition-colors hover:text-foreground"
+            >
+              Contact us
+            </a>
+            <Link href="/privacy" className="transition-colors hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/terms" className="transition-colors hover:text-foreground">
+              Terms
+            </Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

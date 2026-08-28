@@ -21,5 +21,13 @@ export async function GET(request: Request) {
   }
 
   // Use a fixed error code (not reflected text) to avoid content-injection / phishing.
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  //
+  // A password-recovery link that fails to exchange is the common case here —
+  // expired, already used, or opened in a browser that never held the PKCE
+  // verifier. Sending those to "Could not sign you in" on /login is a dead end;
+  // send them back to the form that can issue a fresh link instead.
+  const isRecovery = next.startsWith("/reset-password");
+  return NextResponse.redirect(
+    `${origin}${isRecovery ? "/forgot-password?error=expired" : "/login?error=auth"}`,
+  );
 }

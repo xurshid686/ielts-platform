@@ -19,6 +19,7 @@ import {
   Gift,
   GraduationCap,
   Compass,
+  Send,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -26,9 +27,17 @@ import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
 import { LEVELS } from "@/lib/levels";
+import { CONTACT_TELEGRAM_URL } from "@/lib/site";
 import type { Profile, Notification } from "@/types/database";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  // Renders a plain <a target="_blank"> instead of a next/link <Link>. `href`
+  // is then an absolute URL, so it must never be matched against `pathname`.
+  external?: boolean;
+};
 
 const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
   {
@@ -85,6 +94,13 @@ export function AppShell({
       items: [{ href: "/admin", label: "Admin", icon: Shield }],
     });
   }
+  // Support sits last, below Manage — the conventional place for it.
+  groups.push({
+    label: "Help",
+    items: [
+      { href: CONTACT_TELEGRAM_URL, label: "Contact us", icon: Send, external: true },
+    ],
+  });
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[260px_1fr]">
@@ -118,20 +134,18 @@ export function AppShell({
                 </p>
               )}
               <div className="space-y-1">
-                {group.items.map(({ href, label, icon: Icon }) => {
-                  const active = pathname === href || pathname.startsWith(href + "/");
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        active
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted hover:bg-surface-2 hover:text-foreground",
-                      )}
-                    >
+                {group.items.map(({ href, label, icon: Icon, external }) => {
+                  // An external item is a URL, not a route — never "active".
+                  const active =
+                    !external && (pathname === href || pathname.startsWith(href + "/"));
+                  const cls = cn(
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted hover:bg-surface-2 hover:text-foreground",
+                  );
+                  const inner = (
+                    <>
                       {/* Active indicator bar */}
                       <span
                         className={cn(
@@ -146,6 +160,23 @@ export function AppShell({
                         )}
                       />
                       {label}
+                    </>
+                  );
+
+                  return external ? (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setOpen(false)}
+                      className={cls}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <Link key={href} href={href} onClick={() => setOpen(false)} className={cls}>
+                      {inner}
                     </Link>
                   );
                 })}

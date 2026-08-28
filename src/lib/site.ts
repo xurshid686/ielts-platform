@@ -6,6 +6,13 @@ export const PREMIUM_TELEGRAM = "AdmniMaterialsUzbot";
 export const PREMIUM_TELEGRAM_HANDLE = "@AdmniMaterialsUzbot";
 export const PREMIUM_TELEGRAM_URL = "https://t.me/AdmniMaterialsUzbot";
 
+// Support / general contact. A public Telegram account a student can message
+// directly — deliberately NOT the premium bot above, which exists to arrange
+// paid access.
+export const CONTACT_TELEGRAM = "ListeningReadingTests";
+export const CONTACT_TELEGRAM_HANDLE = "@ListeningReadingTests";
+export const CONTACT_TELEGRAM_URL = "https://t.me/ListeningReadingTests";
+
 // The one canonical public address. Every absolute URL the site emits —
 // canonical tags, the sitemap, OpenGraph — is built from this.
 //

@@ -138,6 +138,30 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 1px solid var(--border);
 }
 
+/* Auth form inputs. Lives here, not in a <style jsx> block inside AuthForm,
+   because four pages need it now: login, register, forgot-password and
+   reset-password. NOT appended at the end of this file — the tail is inside a
+   `prefers-reduced-motion` media query. */
+.auth-input {
+  width: 100%;
+  height: 2.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--foreground);
+  padding: 0 0.875rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+.auth-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+/* Room for the show/hide button sitting inside the field. */
+.auth-input.has-affix {
+  padding-right: 2.75rem;
+}
+
 /* A hairline highlight on top edges of elevated surfaces */
 .ring-hairline {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.35);

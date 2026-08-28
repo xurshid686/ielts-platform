@@ -93,7 +93,7 @@ export async function submitSpeakingMock(
     }
   }
 
-  const { data: subRow, error: insErr } = await supabase
+  const { error: insErr } = await supabase
     .from("speaking_submissions")
     .insert({
       user_id: user.id,

@@ -30,7 +30,7 @@ export function MarkComplete({
     return (
       <div className="rounded-2xl border border-emerald-600/30 bg-emerald-600/5 p-5">
         <p className="flex items-center gap-2 font-semibold text-emerald-600">
-          <CheckCircle2 className="h-5 w-5" /> You've completed this topic
+          <CheckCircle2 className="h-5 w-5" /> You&apos;ve completed this topic
         </p>
         <button
           type="button"

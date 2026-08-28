@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
 import { GoogleButton } from "@/components/auth/google-button";
+import { authErrorMessage } from "@/lib/auth-errors";
 
 export default async function LoginPage({
   searchParams,
@@ -9,11 +10,8 @@ export default async function LoginPage({
 }) {
   const { next, error } = await searchParams;
 
-  // Map known error codes to fixed copy — never render the raw query param.
-  const ERROR_MESSAGES: Record<string, string> = {
-    auth: "Could not sign you in. Please try again.",
-  };
-  const errorMessage = error ? ERROR_MESSAGES[error] ?? "Something went wrong. Please try again." : null;
+  // Fixed copy per code — never render the raw query param.
+  const errorMessage = authErrorMessage(error);
 
   return (
     <div className="space-y-6">

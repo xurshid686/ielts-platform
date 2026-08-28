@@ -8,6 +8,9 @@ import { SITE_HOST } from "@/lib/site";
 // the content itself lives in /api/test-html/[id], which independently checks
 // tier and membership on every request.
 const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin"];
+// Exact match, and deliberately only these two. /reset-password must NOT be
+// added: a recovery link signs the user in before they land there, so bouncing
+// signed-in users away from it would make resetting a password impossible.
 const AUTH_PAGES = ["/login", "/register"];
 
 export async function proxy(request: NextRequest) {

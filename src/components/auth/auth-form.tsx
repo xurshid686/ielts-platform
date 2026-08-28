@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeNext } from "@/lib/utils";
+import { friendlySupabaseError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
+import { PasswordField } from "@/components/auth/password-field";
 
 export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: string }) {
   const router = useRouter();
@@ -32,7 +35,7 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
         },
       });
       if (error) {
-        setError(error.message);
+        setError(friendlySupabaseError(error.message));
         setLoading(false);
         return;
       }
@@ -45,7 +48,7 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        setError(error.message);
+        setError(friendlySupabaseError(error.message));
         setLoading(false);
         return;
       }
@@ -59,36 +62,54 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
     <form onSubmit={handleSubmit} className="space-y-4">
       {mode === "register" && (
         <Field label="Full name">
-          <input
-            className="auth-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Jane Doe"
-            required
-          />
+          {(id) => (
+            <input
+              id={id}
+              name="name"
+              className="auth-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Jane Doe"
+              autoComplete="name"
+              required
+            />
+          )}
         </Field>
       )}
       <Field label="Email">
-        <input
-          type="email"
-          className="auth-input"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          required
-        />
+        {(id) => (
+          <input
+            id={id}
+            name="email"
+            type="email"
+            className="auth-input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+          />
+        )}
       </Field>
-      <Field label="Password">
-        <input
-          type="password"
-          className="auth-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          minLength={6}
-          required
-        />
-      </Field>
+
+      <PasswordField
+        value={password}
+        onChange={setPassword}
+        // Tells a password manager to offer a saved password on login and to
+        // generate/save a new one on register. Both were missing.
+        autoComplete={mode === "register" ? "new-password" : "current-password"}
+        newPassword={mode === "register"}
+        labelAccessory={
+          mode === "login" ? (
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          ) : undefined
+        }
+      />
 
       {error && <p className="text-sm text-danger">{error}</p>}
       {info && <p className="text-sm text-success">{info}</p>}
@@ -96,33 +117,29 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
       <Button type="submit" size="lg" className="w-full" disabled={loading}>
         {loading ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}
       </Button>
-
-      <style jsx>{`
-        :global(.auth-input) {
-          width: 100%;
-          height: 2.75rem;
-          border-radius: 0.5rem;
-          border: 1px solid var(--border);
-          background: var(--surface-2);
-          color: var(--foreground);
-          padding: 0 0.875rem;
-          font-size: 0.95rem;
-          outline: none;
-        }
-        :global(.auth-input:focus) {
-          border-color: var(--ring);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
-        }
-      `}</style>
     </form>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * A labelled field. Takes a render function so the input can receive the
+ * generated id — an explicit htmlFor/id pair, rather than relying on the label
+ * wrapping the control.
+ */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: (id: string) => React.ReactNode;
+}) {
+  const id = useId();
   return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      {children}
-    </label>
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
+        {label}
+      </label>
+      {children(id)}
+    </div>
   );
 }

@@ -134,7 +134,7 @@ export function TestBrowser({
       if (byTier !== 0) return byTier;
       return +new Date(b.createdAt) - +new Date(a.createdAt);
     });
-  }, [items, activeTab, qType, query, access, isOpen, tierRank]);
+  }, [items, activeTab, qType, query, access, tierRank]);
 
   // Where the second tier group starts, so a divider can be drawn there. Only
   // meaningful in the unfiltered "All" view — once a search or facet is active,

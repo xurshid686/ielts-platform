@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "save-dev": "node scripts/save-dev.mjs",
+    "shots": "node scripts/capture-screenshots.mjs",
     "go-live": "node scripts/go-live.mjs"
   },
   "dependencies": {
