@@ -27,7 +27,7 @@ export type AccessResult =
  *
  * Anonymous callers may have FREE, regular-track tests only — that is what
  * makes the public catalogue worth anything. Everyone else is checked against
- * their membership, their level track, and any legacy XP unlock.
+ * their membership and their level track.
  *
  * The row is read with the service-role client because `answer_key` is revoked
  * from the client roles (migration 0034).
@@ -88,18 +88,10 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
   }
 
   if (row.tier === "premium") {
-    const { data: unlock } = await supabase
-      .from("unlocks")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("test_id", id)
-      .limit(1);
-    const unlocked = Array.isArray(unlock) && unlock.length > 0;
     if (
       !canAccessTest(
         { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
         { tier: "premium" },
-        unlocked,
       )
     ) {
       return { ok: false, status: 403, message: "Premium membership required" };

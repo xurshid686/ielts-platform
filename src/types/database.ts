@@ -28,8 +28,6 @@ export type Profile = {
   referral_code: string | null; // the user's own shareable invite code (migration 0019)
   referred_by: string | null; // profile id of whoever invited this user, or null
   hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
-  is_my_student: boolean; // teacher's hand-picked student: assignments, send-to-teacher, private tracking (migration 0029)
-  can_send_to_teacher: boolean; // legacy (0027); kept in sync with is_my_student. Prefer is_my_student.
   created_at: string;
 };
 
@@ -111,7 +109,7 @@ export type UserAchievement = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: "weekly_report" | "info" | "referral" | "teacher_feedback" | string;
+  type: "weekly_report" | "info" | "referral" | string;
   title: string;
   body: string | null;
   data: Record<string, unknown> | null;
@@ -259,63 +257,6 @@ export type SpeakingQuestion = {
   created_at: string;
 };
 
-/** A teacher-given assignment in any section (migration 0030). */
-export type Assignment = {
-  id: string;
-  created_by: string;
-  skill: Skill;
-  test_id: string | null; // reading/listening
-  speaking_question_id: string | null; // speaking (from the bank)
-  writing_prompt: string | null; // writing, or a free-text speaking prompt
-  title: string;
-  due_date: string | null; // ISO date, or null for no deadline
-  created_at: string;
-};
-
-export type AssignmentStatus = "assigned" | "in_progress" | "submitted";
-
-/** Per-student delivery + progress for an assignment (migration 0030). */
-export type AssignmentTarget = {
-  id: string;
-  assignment_id: string;
-  user_id: string;
-  status: AssignmentStatus;
-  result_id: string | null;
-  speaking_submission_id: string | null;
-  writing_submission_id: string | null;
-  started_at: string | null;
-  submitted_at: string | null;
-};
-
-/** Written feedback from the teacher to a My-student (migration 0032). */
-export type TeacherFeedback = {
-  id: string;
-  student_id: string;
-  author_id: string;
-  body: string;
-  assignment_id: string | null;
-  skill: string | null;
-  title: string | null;
-  read_at: string | null;
-  created_at: string;
-};
-
-// Row shape returned by the my_students_leaderboard() RPC (admin-only).
-export type MyStudentLeaderboardRow = {
-  id: string;
-  name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  rating: number;
-  peak_rating: number;
-  rated_count: number;
-  tests_completed: number;
-  xp: number;
-  streak: number;
-  level: string;
-  rank: number;
-};
-
 type Row<T> = T;
 type Insert<T> = Partial<T>;
 type Update<T> = Partial<T>;
@@ -347,45 +288,8 @@ export type Database = {
         Insert: Insert<UserAchievement>;
         Update: Update<UserAchievement>;
       };
-      assignments: { Row: Row<Assignment>; Insert: Insert<Assignment>; Update: Update<Assignment> };
-      assignment_targets: {
-        Row: Row<AssignmentTarget>;
-        Insert: Insert<AssignmentTarget>;
-        Update: Update<AssignmentTarget>;
-      };
-      teacher_feedback: {
-        Row: Row<TeacherFeedback>;
-        Insert: Insert<TeacherFeedback>;
-        Update: Update<TeacherFeedback>;
-      };
     };
     Functions: {
-      set_my_student: {
-        Args: { target_email: string; flag: boolean };
-        Returns: { id: string; email: string | null; name: string | null; is_my_student: boolean }[];
-      };
-      start_assignment: { Args: { p_assignment_id: string }; Returns: undefined };
-      complete_assignments: {
-        Args: {
-          p_skill: Skill;
-          p_test_id: string | null;
-          p_result_id: string | null;
-          p_speaking_submission_id: string | null;
-          p_writing_submission_id: string | null;
-        };
-        Returns: undefined;
-      };
-      my_students_leaderboard: { Args: Record<string, never>; Returns: MyStudentLeaderboardRow[] };
-      admin_send_feedback: {
-        Args: {
-          p_student: string;
-          p_body: string;
-          p_assignment_id: string | null;
-          p_skill: string | null;
-          p_title: string | null;
-        };
-        Returns: string;
-      };
       record_activity: {
         Args: { p_xp?: number };
         Returns: { streak: number; longest_streak: number; xp: number }[];

@@ -23,13 +23,7 @@ function Highlighted({ text }: { text: string }) {
   );
 }
 
-export function TopicPractice({
-  question,
-  canSendToTeacher,
-}: {
-  question: SpeakingQuestion;
-  canSendToTeacher: boolean;
-}) {
+export function TopicPractice({ question }: { question: SpeakingQuestion }) {
   const study = question.study;
 
   if (!study) {
@@ -93,11 +87,7 @@ export function TopicPractice({
                   ))}
                 </div>
                 <div className="mt-4">
-                  <AnswerRecorder
-                    topicTitle={question.title}
-                    prompt={s.prompt}
-                    canSendToTeacher={canSendToTeacher}
-                  />
+                  <AnswerRecorder />
                 </div>
               </div>
             ))}

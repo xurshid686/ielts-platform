@@ -9,7 +9,7 @@ import { renameTest } from "@/app/actions/admin";
  * The test title, editable in place.
  *
  * Renaming edits the existing row rather than replacing it: the id is what
- * `results` / `unlocks` / `assignments` point at, so a delete-and-reupload would
+ * `results` rows point at, so a delete-and-reupload would
  * take a student's history with it. See renameTest() in app/actions/admin.ts.
  */
 export function RenameTestButton({ id, title }: { id: string; title: string }) {

@@ -73,8 +73,6 @@ function fallbackProfile(user: {
     referral_code: null,
     referred_by: null,
     hidden_from_leaderboard: false,
-    is_my_student: false,
-    can_send_to_teacher: false,
     created_at: new Date().toISOString(),
   };
 }

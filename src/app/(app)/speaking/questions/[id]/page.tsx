@@ -82,7 +82,7 @@ export default async function TopicPracticePage({
       {q.part === 2 && <CueCardTimer />}
 
       {/* Practice material */}
-      <TopicPractice question={q} canSendToTeacher={profile.is_my_student} />
+      <TopicPractice question={q} />
 
       {/* Mark this topic as completed */}
       <MarkComplete questionId={q.id} initialCompleted={isCompleted} />

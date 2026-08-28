@@ -59,7 +59,6 @@ export default function PrivacyPage() {
             "Grading your tests on the server and showing you the result.",
             "Building your dashboard, progress history and weekly report.",
             "Ranking on the leaderboard, if you are visible on it.",
-            "Letting your teacher see work you explicitly send to them.",
           ]}
         />
         <p>
@@ -86,11 +85,6 @@ export default function PrivacyPage() {
               <strong>Google</strong> — provides &ldquo;Sign in with Google&rdquo;, and,
               where you use AI speaking feedback, receives that recording in order to
               produce the feedback.
-            </>,
-            <>
-              <strong>Telegram</strong> — used only when you choose to send a piece of
-              work to your teacher; the submission is delivered to your teacher through
-              a bot.
             </>,
           ]}
         />

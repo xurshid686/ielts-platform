@@ -7,7 +7,7 @@ import { SITE_HOST } from "@/lib/site";
 // engine can see what exists before being asked to register. Access control for
 // the content itself lives in /api/test-html/[id], which independently checks
 // tier and membership on every request.
-const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin", "/assignments"];
+const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin"];
 const AUTH_PAGES = ["/login", "/register"];
 
 export async function proxy(request: NextRequest) {

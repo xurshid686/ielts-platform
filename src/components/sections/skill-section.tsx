@@ -17,7 +17,7 @@ const META = {
 
 export async function SkillSection({ skill }: { skill: "reading" | "listening" }) {
   // Public page: `profile` is null for a logged-out visitor, who still gets the
-  // full catalogue. Anything personal (attempts, best band, unlocks) is simply
+  // full catalogue. Anything personal (attempts, best band) is simply
   // absent for them.
   const profile = await getProfile();
   const supabase = await createClient();
@@ -43,7 +43,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
     return (fallback.data ?? []) as unknown as Test[];
   }
 
-  const [tests, results, unlocks] = await Promise.all([
+  const [tests, results] = await Promise.all([
     fetchTests(),
     profile
       ? supabase
@@ -54,12 +54,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           .order("submitted_at", { ascending: false })
           .then((r) => r.data)
       : Promise.resolve(null),
-    profile
-      ? supabase.from("unlocks").select("test_id").eq("user_id", profile.id).then((r) => r.data)
-      : Promise.resolve(null),
   ]);
-
-  const unlockedIds = ((unlocks ?? []) as { test_id: string }[]).map((u) => u.test_id);
 
   // Only the normal IELTS tests belong on these pages; level-specific tests
   // (pre_ielts / intro) live in their own menus. Missing track = regular.
@@ -188,7 +183,6 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         items={items}
         skill={skill}
         canAccessPremium={canAccessPremium}
-        unlockedIds={unlockedIds}
         isAdmin={profile?.role === "admin"}
       />
 

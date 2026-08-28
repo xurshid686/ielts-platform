@@ -28,10 +28,10 @@ export default async function ReviewPage({
   const result = resultRow as Result;
 
   // If an admin is viewing another student's attempt (allowed by RLS), name the
-  // student and send the back link to that student's attempts list.
+  // student. There is no per-student attempts list any more, so no back link.
   let subjectName: string | undefined;
-  let backHref: string | undefined;
-  let backLabel: string | undefined;
+  const backHref: string | undefined = undefined;
+  const backLabel: string | undefined = undefined;
   if (result.user_id !== viewer.id) {
     const { data: subjRow } = await supabase
       .from("profiles")
@@ -40,8 +40,6 @@ export default async function ReviewPage({
       .single();
     const subj = subjRow as { name: string | null; email: string | null } | null;
     subjectName = subj?.name || subj?.email || "Student";
-    backHref = `/admin/students/${result.user_id}`;
-    backLabel = "Back to attempts";
   }
 
   let title = "Test review";

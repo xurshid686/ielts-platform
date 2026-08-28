@@ -19,8 +19,6 @@ import {
   Gift,
   GraduationCap,
   Compass,
-  ClipboardList,
-  MessageSquare,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -71,16 +69,6 @@ export function AppShell({
   const homeHref = "/dashboard";
 
   const groups: typeof NAV_GROUPS = [...NAV_GROUPS];
-  // My-students get an "Assignments" + "Feedback" group right under Dashboard.
-  if (profile.is_my_student) {
-    groups.splice(1, 0, {
-      label: "My teacher",
-      items: [
-        { href: "/assignments", label: "Assignments", icon: ClipboardList },
-        { href: "/feedback", label: "Feedback", icon: MessageSquare },
-      ],
-    });
-  }
   // Beginner-track menu — visible only to students assigned that level. Sits
   // right under Dashboard, above the full IELTS "Practise" group.
   if (profile.level === "pre_ielts" || profile.level === "intro") {

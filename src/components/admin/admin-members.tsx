@@ -12,8 +12,6 @@ import {
   EyeOff,
   Eye,
   GraduationCap,
-  Star,
-  FileText,
 } from "lucide-react";
 import {
   searchUsers,
@@ -21,7 +19,6 @@ import {
   giftXp,
   setLeaderboardHidden,
   setUserLevel,
-  setMyStudent,
   type MemberRow,
 } from "@/app/actions/admin";
 import { adminSendWeeklyReport } from "@/app/actions/reports";
@@ -47,7 +44,6 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [hideBusyId, setHideBusyId] = useState<string | null>(null);
   const [levelBusyId, setLevelBusyId] = useState<string | null>(null);
-  const [myStudentBusyId, setMyStudentBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -136,28 +132,6 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     });
   }
 
-  async function toggleMyStudent(u: MemberRow) {
-    if (!u.email) return;
-    const next = !u.is_my_student;
-    setMyStudentBusyId(u.id);
-    setMsg(null);
-    const res = await setMyStudent(u.email, next);
-    setMyStudentBusyId(null);
-    if (!res.ok) {
-      setMsg({ ok: false, text: res.error });
-      return;
-    }
-    setUsers((prev) =>
-      prev.map((x) => (x.id === u.id ? { ...x, is_my_student: res.isMyStudent } : x)),
-    );
-    setMsg({
-      ok: true,
-      text: res.isMyStudent
-        ? `${res.name || res.email} is now one of your students.`
-        : `${res.name || res.email} is no longer a My-student.`,
-    });
-  }
-
   async function sendReport(u: MemberRow) {
     setReportBusyId(u.id);
     setMsg(null);
@@ -241,11 +215,6 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                             <GraduationCap className="h-2.5 w-2.5" /> {levelLabel(u.level)}
                           </span>
                         )}
-                        {u.is_my_student && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                            <Star className="h-2.5 w-2.5" /> My student
-                          </span>
-                        )}
                       </p>
                       <p className="truncate text-xs text-muted">
                         {u.email} · {u.xp} XP
@@ -257,17 +226,6 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Full results report — every attempt + per-question breakdown */}
-                    <Link
-                      href={`/admin/students/${u.id}`}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-primary hover:bg-surface-2"
-                      title="View this student's attempts and full per-question reports"
-                    >
-                      <FileText className="h-3.5 w-3.5" /> Attempts
-                    </Link>
-
-                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
-
                     {/* Learning level (track) */}
                     <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 pl-2 pr-1 text-sm">
                       {levelBusyId === u.id ? (
@@ -394,30 +352,6 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                       {u.hidden_from_leaderboard ? "Show in rating" : "Hide from rating"}
                     </button>
 
-                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
-
-                    {/* My-student status — unlocks assignments + send-to-teacher */}
-                    <button
-                      onClick={() => toggleMyStudent(u)}
-                      disabled={myStudentBusyId === u.id}
-                      className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium disabled:opacity-50 ${
-                        u.is_my_student
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
-                          : "border-border text-muted hover:bg-surface-2 hover:text-foreground"
-                      }`}
-                      title={
-                        u.is_my_student
-                          ? "Remove from your students"
-                          : "Make this person one of your students"
-                      }
-                    >
-                      {myStudentBusyId === u.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Star className="h-3.5 w-3.5" />
-                      )}
-                      {u.is_my_student ? "My student" : "Add as student"}
-                    </button>
                   </div>
                 </li>
               );

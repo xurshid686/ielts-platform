@@ -41,7 +41,6 @@ export function NotificationBell({ notifications }: { notifications: Notificatio
 
   function linkFor(n: Notification): string | null {
     if (n.type === "weekly_report" && n.data?.report_id) return `/reports/${n.data.report_id}`;
-    if (n.type === "teacher_feedback") return "/feedback";
     return null;
   }
 

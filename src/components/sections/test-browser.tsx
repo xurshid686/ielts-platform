@@ -42,15 +42,11 @@ export function TestBrowser({
   items,
   skill,
   canAccessPremium,
-  unlockedIds = [],
   isAdmin = false,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
   canAccessPremium: boolean;
-  // Tests unlocked one-off with XP before subscriptions became the only
-  // currency. Grandfathered: they must not show as locked.
-  unlockedIds?: string[];
   isAdmin?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -60,10 +56,9 @@ export function TestBrowser({
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
 
-  const unlocked = useMemo(() => new Set(unlockedIds), [unlockedIds]);
   const isOpen = useMemo(
-    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium || unlocked.has(i.id),
-    [canAccessPremium, unlocked],
+    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium,
+    [canAccessPremium],
   );
 
   const openCount = useMemo(() => items.filter(isOpen).length, [items, isOpen]);

@@ -187,8 +187,8 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   const firstToday = profile?.last_activity_date !== today;
 
   // --- XP award: tie XP to genuine practice so it can't be farmed into free
-  // premium unlocks. Full XP for the FIRST attempt of a real test; a small
-  // amount for an occasional retake (at most once per test per day); nothing
+  // progress and the leaderboards. Full XP for the FIRST attempt of a real
+  // test; a small amount for an occasional retake (at most once per test per day); nothing
   // for keyless / no-test submissions (those scores are unverifiable). The
   // rating engine is unaffected — it independently gates on server-grading. ---
   let xpAward = 0;
@@ -256,22 +256,6 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   }
   if (error) return { ok: false, error: error.message };
   resultId = (inserted as { id?: string } | null)?.id ?? null;
-
-  // Mark any matching assignment (same skill + test) as submitted for this
-  // student. Best-effort: a missing RPC (pre-0030) must not break saving.
-  if (resultId && input.testId) {
-    try {
-      await supabase.rpc("complete_assignments", {
-        p_skill: skill,
-        p_test_id: input.testId,
-        p_result_id: resultId,
-        p_speaking_submission_id: null,
-        p_writing_submission_id: null,
-      });
-    } catch {
-      /* assignments feature not migrated yet — ignore */
-    }
-  }
 
   // --- Rating: only the FIRST attempt of a server-graded reading test moves
   // the standing. apply_rating() is the single trusted place for that logic

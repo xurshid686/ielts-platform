@@ -64,8 +64,7 @@ export default function TermsPage() {
           remain the property of their respective owners and are provided for your
           personal study only. The answers, essays and recordings you produce remain
           yours; you grant us permission to store and process them so the service can
-          score them, show them back to you, and — where you choose to send work to a
-          teacher — deliver them to that teacher.
+          score them and show them back to you.
         </p>
       </Section>
 

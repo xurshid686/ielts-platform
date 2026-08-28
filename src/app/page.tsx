@@ -41,7 +41,7 @@ const rankLadder = METAL_ORDER.map((name) => TIERS.find((t) => t.name === name)!
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is it really free?",
-    a: "Yes. You can create an account and practise Reading, Listening and Speaking tests for free. Premium unlocks extra exclusive materials, and you can also unlock individual premium tests with the XP you earn from practising.",
+    a: "Yes. You can create an account and practise Reading, Listening and Speaking tests for free. Premium adds the rest of the library — extra exclusive materials on top of everything the free plan already gives you.",
   },
   {
     q: "How is my band score calculated?",

@@ -56,20 +56,8 @@ export async function TestDetail({
   // full-screen overlay around an entitlement-gated iframe.
   if (!profile) return <GuestTestGate skill={skill} test={t} />;
 
-  // Has the user unlocked this specific premium test with XP?
-  let unlocked = false;
-  if (t.tier === "premium") {
-    const { data: u } = await supabase
-      .from("unlocks")
-      .select("id")
-      .eq("user_id", profile.id)
-      .eq("test_id", t.id)
-      .limit(1);
-    unlocked = Array.isArray(u) && u.length > 0;
-  }
-
-  // Premium tests are locked unless subscriber/admin/unlocked.
-  if (!canAccessTest(profile, t, unlocked)) {
+  // Premium tests are locked unless subscriber/admin.
+  if (!canAccessTest(profile, t)) {
     return (
       <div className="mx-auto max-w-md py-12 text-center">
         <Link
@@ -109,13 +97,7 @@ export async function TestDetail({
   const graded = (t.total ?? 0) > 0;
 
   return (
-    <TestRunner
-      testId={t.id}
-      title={t.title}
-      skill={skill}
-      graded={graded}
-      isMyStudent={profile.is_my_student}
-    />
+    <TestRunner testId={t.id} title={t.title} skill={skill} graded={graded} />
   );
 }
 
