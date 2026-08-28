@@ -164,7 +164,6 @@ export default async function Home() {
             <Shot
               name="player"
               alt="The exam player: passage on the left, questions on the right, timer running."
-              priority
             />
             <figcaption className="mt-3 text-sm text-muted">
               The real computer-delivered layout — passage left, questions right, timer
@@ -448,21 +447,13 @@ export default async function Home() {
  * A product screenshot, in the viewer's theme.
  *
  * Two <Image>s rather than one swapped at runtime: the hidden variant sits
- * inside a `display: none` wrapper, which browsers do not fetch — so a
- * light-mode visitor downloads one PNG, not two. Doing this with `useTheme()`
- * instead would make the page's largest element wait for hydration.
+ * inside a `display: none` wrapper, so its lazy fetch never fires and each
+ * visitor downloads one PNG, not two. Doing this with `useTheme()` instead
+ * would make the page's largest element wait for hydration.
  *
  * Captured by `npm run shots` (scripts/capture-screenshots.mjs) at 2160×1350.
  */
-function Shot({
-  name,
-  alt,
-  priority = false,
-}: {
-  name: "player" | "report";
-  alt: string;
-  priority?: boolean;
-}) {
+function Shot({ name, alt }: { name: "player" | "report"; alt: string }) {
   const common = {
     width: 2160,
     height: 1350,
@@ -472,17 +463,12 @@ function Shot({
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-soft">
       <div className="dark:hidden">
-        <Image
-          src={`/shots/${name}-light.png`}
-          alt={alt}
-          // Deliberately NOT `priority`: that emits a <link rel="preload"> in
-          // <head>, which fires regardless of the display:none wrapper — so a
-          // dark-mode visitor downloaded the light PNG as well. eager +
-          // fetchPriority gets the same head start without the preload.
-          loading={priority ? "eager" : "lazy"}
-          fetchPriority={priority ? "high" : undefined}
-          {...common}
-        />
+        {/* Both variants are lazy on purpose. `display: none` suppresses a
+            LAZY fetch but not an eager one and not a `priority` preload — with
+            either of those a dark-mode visitor also downloaded the light PNG.
+            A lazy image that is already in the viewport still loads straight
+            away, so light mode gives up nothing. */}
+        <Image src={`/shots/${name}-light.png`} alt={alt} loading="lazy" {...common} />
       </div>
       <div className="hidden dark:block">
         {/* Same picture, so it is decorative to a screen reader. */}
