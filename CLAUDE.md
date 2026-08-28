@@ -219,14 +219,63 @@ before concluding the feature is broken.
 - Writing is a nav item pointing at a `ComingSoon` stub. It does NOT drag the
   overall band down (`dashboard/page.tsx` filters nulls out of `skillAverages`),
   but it is still counted in the `x/4 skills` denominator and the goal tracker.
-- Every landing-page link goes to `/register` or `/login` — including the footer
-  link labelled "Reading & Listening". The public catalogue that `5d803b8` /
-  `45050be` opened up is unreachable from the front door.
 - The rating delta shown after a test grades the student against a `difficulty`
   that has barely moved off its 1500 default (see Data realities), so the number
   is close to meaningless today.
 
 ---
+
+# The landing page sells the product, not the signup form
+
+The hero CTA goes to `/reading`, not `/register` — a guest can sit a free test
+and be graded, so the product is the pitch. Only six links still point at
+`/register`: the header, the hero's secondary button, the rank-ladder CTA, the
+bottom CTA band, and two footer links — all things that genuinely need an
+account. The Writing card has no `href` at all while it is a `ComingSoon` stub.
+
+The two product screenshots come from `npm run shots`
+(`scripts/capture-screenshots.mjs`), which drives the REAL site (production by
+default, `--base` to point elsewhere):
+
+- the player shot is the guest flow — note the CDI file has its own "Start Test"
+  screen behind the platform's launcher, so the script clicks twice;
+- the report shot is `/review/<id>` with a `results` row INSERTED by the
+  service-role client, not a scripted CDI submit — shells are not uniform and
+  scripting submit is the harness bug this file warns about. A throwaway account
+  is created and deleted in a `finally`.
+- Before the shutter it blurs `.passageContent p` and hides `img.ielts-logo-img`.
+  Do not remove either: the passage is exam copy, and the IELTS wordmark is a
+  registered mark whose appearance in our marketing implies an affiliation this
+  site does not have. `--no-blur` / `--keep-logo` exist for local inspection.
+
+On the page, BOTH theme variants are `loading="lazy"`. `display: none` suppresses
+a lazy fetch but NOT an eager one and NOT a `priority` preload — with either of
+those, dark-mode visitors also downloaded the light PNG. Verified: one image pair
+per theme, ~66 KB over the wire.
+
+# Password reset
+
+`/forgot-password` → `resetPasswordForEmail` with
+`redirectTo=/auth/callback?next=/reset-password`. The browser client is PKCE by
+default, so the emailed link arrives with `?code=` and the EXISTING callback
+exchanges it — there is no second route handler, and none is needed.
+
+- `/reset-password` is deliberately NOT in `AUTH_PAGES`: the recovery link signs
+  the user in before they land there, so bouncing signed-in users would make a
+  reset impossible. There is a comment in `proxy.ts` saying so.
+- A failed exchange whose `next` is `/reset-password` redirects to
+  `/forgot-password?error=expired`, not `/login?error=auth`.
+- The redirect URLs did NOT need adding in the Supabase dashboard — the allow
+  list already carries host-wide `/**` entries. Verified with `generate_link`
+  against all three hosts.
+- **Untestable without a real inbox:** the happy path. `generate_link` mints a
+  token unrelated to the browser's PKCE verifier, so it always fails the
+  exchange — useful for testing the expiry path, useless for the success path.
+- Known failure mode: opening the link in a DIFFERENT browser from the one that
+  requested it fails the same way, because the verifier is a cookie. The copy on
+  the confirmation says to use the same browser. If it becomes a support burden,
+  the fix is the `{{ .TokenHash }}` email template plus an `/auth/confirm` route
+  calling `verifyOtp({ type: "recovery" })`.
 
 # Removed features — do not resurrect
 
