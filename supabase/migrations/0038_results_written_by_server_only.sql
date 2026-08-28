@@ -1,0 +1,50 @@
+-- ============================================================
+-- IELTS Platform — 0038: only the server may write a results row
+-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
+-- Safe to re-run.
+-- ============================================================
+--
+--  *** DEPLOY THE CODE FIRST. THIS MIGRATION IS NOT BACKWARD COMPATIBLE. ***
+--
+-- saveResult() previously inserted with the USER'S session, so it needed the
+-- `authenticated` INSERT grant this migration removes. The version that writes
+-- with the service-role client instead ships in the same change set as this
+-- file (src/app/actions/results.ts).
+--
+-- Applying this while the OLD code is live means every test submission fails
+-- with a permissions error at the moment a student finishes a paper. Order:
+--
+--   1. npm run save-dev, check the dev preview
+--   2. npm run go-live, confirm production is serving the new code
+--   3. run this migration
+--
+-- TO ROLL BACK (restores the old behaviour and the hole):
+--   grant insert on public.results to authenticated;
+--
+-- WHY
+--
+-- `results_insert_owner` (0001:135) let any authenticated user POST a results
+-- row straight to PostgREST. saveResult() was never in that path, so none of
+-- its grading, entitlement or XP logic could gate it. Two consequences:
+--
+--   * The referral trigger (0019) paid a month of Premium for any inserted
+--     row. 0037 now demands a plausible one — but a hand-written row can
+--     satisfy any check the trigger makes, because the attacker chooses every
+--     column. The gate only becomes meaningful once the row itself can only
+--     come from the server. That is this migration.
+--   * A fabricated band could be written straight into the dashboard,
+--     leaderboard inputs and teacher reports.
+--
+-- Reads are untouched: `results_select_owner_or_admin` still governs who can
+-- see a row, and /review, /reports and the dashboard rely on it.
+--
+-- ============================================================
+
+-- The INSERT policy is now unreachable for `authenticated` (no table grant),
+-- but it is left in place: it is the thing that documents the intended shape
+-- of a row, and it still applies to any future role that is granted INSERT.
+revoke insert on public.results from authenticated, anon;
+
+-- UPDATE/DELETE were never granted to clients; make that explicit so a future
+-- `grant all` cannot quietly reopen them.
+revoke update, delete on public.results from authenticated, anon;

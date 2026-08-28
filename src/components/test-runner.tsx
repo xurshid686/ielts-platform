@@ -152,7 +152,28 @@ export function TestRunner({
       handled.current = false;
       return;
     }
-    if (res.deduped) return; // already counted moments ago — stay silent
+    if (res.deduped) {
+      // Already counted moments ago. Don't celebrate again or re-award
+      // anything — but do keep the original result id, so Exit still reaches
+      // /review/[id]. A retry after a dropped connection lands here, and
+      // dropping the id used to send the student back to the catalogue with
+      // no way to see the attempt they had just finished.
+      if (res.resultId) {
+        setSaved({
+          resultId: res.resultId,
+          band: res.band,
+          raw: res.raw,
+          total: res.total,
+          streak: 0,
+          longest_streak: 0,
+          xp: 0,
+          firstToday: false,
+          rating: null,
+          answers,
+        });
+      }
+      return;
+    }
     // Save quietly: just a small badge. The celebration waits until Exit.
     // raw/total come back from the SERVER — for a sanitized test the client
     // never knew the score in the first place.

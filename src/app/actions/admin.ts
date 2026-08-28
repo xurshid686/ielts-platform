@@ -78,10 +78,12 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   });
   if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("tests").getPublicUrl(path);
-
+  // `file_url` used to hold getPublicUrl(path). The bucket is private as of
+  // migration 0035, so that link is dead — and while it worked it was a
+  // standing invitation to download the unsanitized file, answer key included.
+  // The column is `not null` and predates the gated routes, so it is kept and
+  // filled with the storage path. Nothing reads it: delivery is
+  // /api/test-html -> createAdminClient().storage.download(file_path).
   const row: Record<string, unknown> = {
     title,
     skill,
@@ -91,7 +93,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     level,
     track,
     passage,
-    file_url: publicUrl,
+    file_url: path, // vestigial; see note above
     file_path: path,
     answer_key: extracted.key,
     total: extracted.total,

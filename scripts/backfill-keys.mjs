@@ -137,7 +137,7 @@ const supabase = createClient(url, serviceKey, { auth: { persistSession: false }
 
 const { data: tests, error } = await supabase
   .from("tests")
-  .select("id, title, file_url, answer_key");
+  .select("id, title, file_path, answer_key");
 if (error) {
   console.error("Could not list tests:", error.message);
   process.exit(1);
@@ -147,9 +147,13 @@ let updated = 0, skipped = 0, failed = 0;
 for (const t of tests) {
   if (t.answer_key && Object.keys(t.answer_key).length) { skipped++; continue; }
   try {
-    const res = await fetch(t.file_url, { cache: "no-store" });
-    if (!res.ok) { console.error(`Fetch failed (${t.title}): ${res.status}`); failed++; continue; }
-    const html = await res.text();
+    // Download with the service-role client. This used to fetch t.file_url
+    // over plain HTTP, which only worked because the bucket was public —
+    // migration 0035 closed that, and file_url is no longer written.
+    if (!t.file_path) { console.error(`No file_path (${t.title})`); failed++; continue; }
+    const { data: blob, error: dlErr } = await supabase.storage.from("tests").download(t.file_path);
+    if (dlErr || !blob) { console.error(`Download failed (${t.title}): ${dlErr?.message ?? "no data"}`); failed++; continue; }
+    const html = await blob.text();
     const ex = extractAnswerKey(html);
     if (!ex) { console.warn(`No key found (${t.title}) — left as fallback.`); failed++; continue; }
     const { error: upErr } = await supabase
