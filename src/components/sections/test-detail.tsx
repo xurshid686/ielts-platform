@@ -7,6 +7,8 @@ import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import { TestRunner } from "@/components/test-runner";
 import { PremiumContact } from "@/components/premium-contact";
+import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
+import { testJsonLd } from "@/lib/seo";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
@@ -44,18 +46,15 @@ export async function TestDetail({
   // A signed-out visitor may TAKE a free test — proving the product beats any
   // amount of marketing copy. Their attempt is graded server-side but not
   // saved, and the result screen asks them to register. Premium stays gated.
-  if (!profile) {
-    if (t.tier === "premium") return <GuestTestGate skill={skill} test={t} />;
-    return (
-      <TestRunner
-        testId={t.id}
-        title={t.title}
-        skill={skill}
-        graded={(t.total ?? 0) > 0}
-        guest
-      />
-    );
-  }
+  // A logged-out visitor now always lands on the described page first — free or
+  // premium. For a free test it carries a "Start test" button that mounts the
+  // runner in place, so guests keep their unauthenticated free attempt; for a
+  // premium one it carries the sign-in links it always did.
+  //
+  // Returning TestRunner directly here used to mean a search engine saw 17
+  // words and no <h1> on every free test page, because the runner is a
+  // full-screen overlay around an entitlement-gated iframe.
+  if (!profile) return <GuestTestGate skill={skill} test={t} />;
 
   // Has the user unlocked this specific premium test with XP?
   let unlocked = false;
@@ -136,9 +135,17 @@ function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: 
           : "Single passage"
         : "Section";
   const next = `/${skill}/${test.id}`;
+  const isFree = test.tier !== "premium";
 
   return (
     <div className="mx-auto max-w-lg py-10">
+      {/* Structured data: what produces a rich result for practice-test
+          queries. Built from the same row the page renders, so it can never
+          describe something different from what the visitor sees. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(testJsonLd({ ...test, skill })) }}
+      />
       <Link
         href={`/${skill}`}
         className="mb-6 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
@@ -180,21 +187,42 @@ function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: 
         </p>
 
         <div className="mt-6 flex flex-wrap gap-2">
-          <Link
-            href={`/register?next=${encodeURIComponent(next)}`}
-            className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          >
-            Create a free account to start
-          </Link>
-          <Link
-            href={`/login?next=${encodeURIComponent(next)}`}
-            className="inline-flex h-10 items-center rounded-lg border border-border px-5 text-sm font-medium hover:bg-surface-2"
-          >
-            Sign in
-          </Link>
+          {isFree ? (
+            <>
+              <GuestTestLauncher
+                testId={test.id}
+                title={test.title}
+                skill={skill}
+                graded={(test.total ?? 0) > 0}
+              />
+              <Link
+                href={`/register?next=${encodeURIComponent(next)}`}
+                className="inline-flex h-10 items-center rounded-lg border border-border px-5 text-sm font-medium hover:bg-surface-2"
+              >
+                Create a free account
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href={`/register?next=${encodeURIComponent(next)}`}
+                className="inline-flex h-10 items-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                Create a free account to start
+              </Link>
+              <Link
+                href={`/login?next=${encodeURIComponent(next)}`}
+                className="inline-flex h-10 items-center rounded-lg border border-border px-5 text-sm font-medium hover:bg-surface-2"
+              >
+                Sign in
+              </Link>
+            </>
+          )}
         </div>
         <p className="mt-3 text-xs text-muted">
-          It takes a moment, and your scores are saved so you can track your band over time.
+          {isFree
+            ? "No account needed to try it. Create one to save your score and track your band over time."
+            : "It takes a moment, and your scores are saved so you can track your band over time."}
         </p>
       </div>
     </div>

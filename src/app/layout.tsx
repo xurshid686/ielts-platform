@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { Bricolage_Grotesque, Hanken_Grotesk, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -19,9 +20,23 @@ const sans = Hanken_Grotesk({
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "IELTS Practice Platform",
+  // metadataBase makes every relative canonical/OpenGraph URL below resolve to
+  // the ONE canonical host, whichever of the four hosts actually served the
+  // page. Without it Next emits relative URLs and Google indexes duplicates.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "IELTS Practice Platform",
+    // Page titles become "Life on Mars? — IELTS Reading Practice · MockOnline".
+    template: `%s · ${SITE_NAME}`,
+  },
   description:
     "Practice IELTS Reading, Listening, Writing & Speaking. Track progress, build streaks.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+  },
 };
 
 export default function RootLayout({
