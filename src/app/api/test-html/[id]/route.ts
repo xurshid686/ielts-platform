@@ -1,5 +1,6 @@
 import { injectScoringBridge } from "@/lib/ielts/scoring-bridge";
 import { sanitizeTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-test-html";
+import { publicOrigin } from "@/lib/public-origin";
 import { asAnswerKey } from "@/lib/ielts/grade";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
 
@@ -40,7 +41,7 @@ export async function GET(
   let html: string;
   try {
     html = hasKey
-      ? sanitizeTestHtml(raw, new URL(req.url).origin, id)
+      ? sanitizeTestHtml(raw, publicOrigin(req), id)
       : injectScoringBridge(raw);
   } catch (e) {
     if (e instanceof SanitizeIncompleteError) {

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/utils";
+import { publicOrigin } from "@/lib/public-origin";
 
 // OAuth + email-confirmation redirect target.
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // NOT new URL(request.url).origin — behind DigitalOcean's proxy that is
+  // https://localhost:8080 and sign-in lands on a dead address.
+  const origin = publicOrigin(request);
   const code = searchParams.get("code");
   const next = safeNext(searchParams.get("next"));
 
