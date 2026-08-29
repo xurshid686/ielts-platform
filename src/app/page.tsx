@@ -222,6 +222,17 @@ export default async function Home() {
 
           <figure className="mt-12">
             <Shot
+              name="listening"
+              alt="The listening player: audio transport across the top, note-completion questions below."
+            />
+            <figcaption className="mt-3 text-sm text-muted">
+              Listening runs the same way — the recording plays across the top while you
+              type, with the four parts tracked along the bottom.
+            </figcaption>
+          </figure>
+
+          <figure className="mt-12">
+            <Shot
               name="report"
               alt="A finished score report: band 7.5, 33 of 40 correct, and every question marked."
             />
@@ -453,7 +464,7 @@ export default async function Home() {
  *
  * Captured by `npm run shots` (scripts/capture-screenshots.mjs) at 2160×1350.
  */
-function Shot({ name, alt }: { name: "player" | "report"; alt: string }) {
+function Shot({ name, alt }: { name: "player" | "listening" | "report"; alt: string }) {
   const common = {
     width: 2160,
     height: 1350,
