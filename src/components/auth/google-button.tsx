@@ -1,133 +1,56 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { safeNext } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-// Google Identity Services, loaded from accounts.google.com.
-type CredentialResponse = { credential: string };
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: CredentialResponse) => void;
-            nonce?: string;
-            use_fedcm_for_prompt?: boolean;
-          }) => void;
-          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
-        };
-      };
-    };
-  }
-}
-
-const GSI_SRC = "https://accounts.google.com/gsi/client";
-
-// Inlined at build time, so it is a constant for the life of the bundle.
-const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-// GIS wants the SHA-256 of the nonce; Supabase verifies against the raw value.
-async function makeNonce(): Promise<{ raw: string; hashed: string }> {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const raw = btoa(String.fromCharCode(...bytes));
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-  const hashed = Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return { raw, hashed };
-}
-
-function loadGsi(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.google?.accounts?.id) return resolve();
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("gsi")));
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = GSI_SRC;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("gsi"));
-    document.head.appendChild(script);
-  });
-}
-
-// Signs in with the ID token Google hands us directly, so the consent screen
-// names this site — not the Supabase project host, which is what a
-// signInWithOAuth redirect through <ref>.supabase.co/auth/v1/callback showed.
 export function GoogleButton({ next }: { next?: string }) {
-  const router = useRouter();
-  const target = useRef<HTMLDivElement>(null);
-  const [error, setError] = useState<string | null>(
-    CLIENT_ID ? null : "Google sign-in is not configured.",
-  );
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!CLIENT_ID) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const [{ raw, hashed }] = await Promise.all([makeNonce(), loadGsi()]);
-        if (cancelled || !target.current || !window.google) return;
-
-        window.google.accounts.id.initialize({
-          client_id: CLIENT_ID,
-          nonce: hashed,
-          use_fedcm_for_prompt: true,
-          callback: async ({ credential }) => {
-            const supabase = createClient();
-            const { error: signInError } = await supabase.auth.signInWithIdToken({
-              provider: "google",
-              token: credential,
-              nonce: raw,
-            });
-            if (signInError) {
-              setError(signInError.message);
-              return;
-            }
-            router.push(safeNext(next));
-            router.refresh();
-          },
-        });
-
-        window.google.accounts.id.renderButton(target.current, {
-          type: "standard",
-          theme: "outline",
-          size: "large",
-          text: "continue_with",
-          shape: "rectangular",
-          logo_alignment: "left",
-          width: target.current.offsetWidth || 320,
-        });
-      } catch {
-        if (!cancelled) setError("Could not load Google sign-in.");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [next, router]);
+  async function signIn() {
+    setLoading(true);
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback${
+      next ? `?next=${encodeURIComponent(next)}` : ""
+    }`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    if (error) {
+      setLoading(false);
+      alert(error.message);
+    }
+  }
 
   return (
-    <div className="space-y-2">
-      {/* GIS replaces this node with Google's own rendered button. */}
-      <div ref={target} className="flex w-full justify-center [&>div]:w-full" />
-      {error && (
-        <p className="text-center text-sm text-danger" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      className="w-full"
+      onClick={signIn}
+      disabled={loading}
+    >
+      <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
+        <path
+          fill="#4285F4"
+          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"
+        />
+        <path
+          fill="#34A853"
+          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"
+        />
+        <path
+          fill="#EA4335"
+          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
+        />
+      </svg>
+      {loading ? "Redirecting…" : "Continue with Google"}
+    </Button>
   );
 }
