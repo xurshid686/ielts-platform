@@ -5,7 +5,7 @@
 //   node scripts/capture-screenshots.mjs                 # against production
 //   node scripts/capture-screenshots.mjs --base http://127.0.0.1:3100
 //   node scripts/capture-screenshots.mjs --test <uuid>   # pin a specific test
-//   node scripts/capture-screenshots.mjs --no-blur       # don't blur the passage
+//   node scripts/capture-screenshots.mjs --blur          # blur the passage body
 //   node scripts/capture-screenshots.mjs --keep-logo     # keep the IELTS mark
 //
 // Requirements:
@@ -56,7 +56,9 @@ const arg = (name, fallback) => {
   return i === -1 ? fallback : argv[i + 1];
 };
 const BASE = (arg("base", "https://mockonline.uz")).replace(/\/+$/, "");
-const BLUR = !argv.includes("--no-blur");
+// The passage is shown in full: the point of the shot is to prove the product
+// is real, and a blurred passage undercuts that. Opt back in with --blur.
+const BLUR = argv.includes("--blur");
 const HIDE_LOGO = !argv.includes("--keep-logo");
 
 const VIEWPORT = { width: 1440, height: 900 };
@@ -169,14 +171,11 @@ async function main() {
           }
         }
 
-        // Two edits before the shutter, both about not publishing someone
-        // else's property in our own marketing:
+        // The passage renders in full by default — see BLUR above.
         //
-        //   * the passage body is exam copy — blurred, which also reads better
-        //     as a product image because the eye goes to the question column;
-        //   * the shell renders the official IELTS wordmark from Cambridge's
-        //     CDN. Showing a registered mark in an ad implies an affiliation
-        //     this site does not have, so it comes out.
+        // The IELTS wordmark is still hidden: the shell loads it from
+        // Cambridge's CDN, and a registered mark in our own marketing implies
+        // an affiliation this site does not have. --keep-logo overrides.
         const touched = await frame.locator("body").evaluate(
           (body, { blur, hideLogo }) => {
             let blurred = 0;

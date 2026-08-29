@@ -243,10 +243,12 @@ default, `--base` to point elsewhere):
   service-role client, not a scripted CDI submit — shells are not uniform and
   scripting submit is the harness bug this file warns about. A throwaway account
   is created and deleted in a `finally`.
-- Before the shutter it blurs `.passageContent p` and hides `img.ielts-logo-img`.
-  Do not remove either: the passage is exam copy, and the IELTS wordmark is a
-  registered mark whose appearance in our marketing implies an affiliation this
-  site does not have. `--no-blur` / `--keep-logo` exist for local inspection.
+- The passage is captured in FULL — the owner's call, made deliberately: the
+  shot exists to prove the product is real, and a blurred passage undercuts
+  that. `--blur` opts back into blurring `.passageContent p`.
+- It still hides `img.ielts-logo-img`, because the shell loads the IELTS
+  wordmark from Cambridge's CDN and a registered mark in our own marketing
+  implies an affiliation this site does not have. `--keep-logo` overrides.
 
 On the page, BOTH theme variants are `loading="lazy"`. `display: none` suppresses
 a lazy fetch but NOT an eager one and NOT a `priority` preload — with either of
