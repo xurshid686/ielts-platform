@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Level, Profile } from "@/types/database";
@@ -9,8 +10,15 @@ import type { Level, Profile } from "@/types/database";
  * page), which render for anonymous visitors: they arrive from Telegram or a
  * search engine and must be able to see what exists before being asked to
  * register. Pages that genuinely require an account keep using requireProfile().
+ *
+ * Wrapped in React's `cache()` so it runs ONCE per request, not once per
+ * caller. Rendering /reading called it twice — `(app)/layout.tsx` for the shell
+ * and `skill-section.tsx` for the catalogue — and each call is a `getUser()`
+ * round trip to Supabase (it revalidates the JWT over the network) plus a
+ * profiles select. The cache is per-request, so it never leaks one viewer's
+ * profile into another's render.
  */
-export async function getProfile(): Promise<Profile | null> {
+export const getProfile = cache(async function getProfile(): Promise<Profile | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -24,7 +32,7 @@ export async function getProfile(): Promise<Profile | null> {
     .single();
 
   return (profile as Profile | null) ?? fallbackProfile(user);
-}
+});
 
 /** Returns the signed-in user's profile or redirects to /login. */
 export async function requireProfile(): Promise<Profile> {

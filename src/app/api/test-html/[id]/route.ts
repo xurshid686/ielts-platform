@@ -3,6 +3,7 @@ import { sanitizeTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-
 import { publicOrigin } from "@/lib/public-origin";
 import { asAnswerKey } from "@/lib/ielts/grade";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
+import { getCachedTestHtml, setCachedTestHtml } from "@/lib/tests/html-cache";
 
 // Serves a test's HTML with the correct Content-Type so the iframe RENDERS it
 // (Supabase storage labels uploaded .html as text/plain, which browsers show as source).
@@ -20,8 +21,18 @@ export async function GET(
 
   // The bucket is private and this is the only path that reads it, so a leaked
   // storage URL is useless and the gate above cannot be bypassed.
-  const raw = await downloadTestHtml(access.row.file_path!);
-  if (raw === null) return new Response("Upstream error", { status: 502 });
+  //
+  // The download is memoised per file_path (see html-cache.ts). The gate above
+  // has already run, so a cache hit skips only the Storage round trip — never a
+  // permission check. Sanitizing stays below, out of the cache, so the key is
+  // never stored and the fail-closed check runs on every response.
+  const filePath = access.row.file_path!;
+  let raw = getCachedTestHtml(filePath);
+  if (raw === null) {
+    raw = await downloadTestHtml(filePath);
+    if (raw === null) return new Response("Upstream error", { status: 502 });
+    setCachedTestHtml(filePath, raw);
+  }
 
   // A test with a stored key is graded server-side, so the key / explanations /
   // evidence are stripped before the file reaches the browser. The injected

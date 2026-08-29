@@ -18,6 +18,18 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
+/**
+ * How many cards are rendered before "Show more".
+ *
+ * The catalogue is 171 tests. Rendering every card put 506 KB of HTML on the
+ * wire and made the browser hydrate 171 card subtrees before the page would
+ * respond — the measured reason /reading felt slower than a static competitor
+ * whose TTFB we already beat. Filtering and search still run over the FULL
+ * `items` array, so nothing is hidden from a search; only the drawn list is
+ * capped. A multiple of 12 keeps the 2- and 3-column grids flush.
+ */
+const PAGE_SIZE = 24;
+
 export type BrowserItem = {
   id: string;
   title: string;
@@ -55,6 +67,7 @@ export function TestBrowser({
   const [access, setAccess] = useState<Access>("all");
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   const isOpen = useMemo(
     () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium,
@@ -135,6 +148,23 @@ export function TestBrowser({
       return +new Date(b.createdAt) - +new Date(a.createdAt);
     });
   }, [items, activeTab, qType, query, access, tierRank]);
+
+  // Any change to the query or facets produces a different result set, so the
+  // cap goes back to the first page — otherwise a search made after "Show more"
+  // would keep rendering an expanded list for no reason.
+  //
+  // Adjusted during render rather than in an effect: React re-runs this
+  // component immediately with the corrected value, so the capped list never
+  // paints at the wrong length (an effect would flash the expanded list first).
+  const facetKey = `${query}|${filter}|${qType}|${access}`;
+  const [prevFacetKey, setPrevFacetKey] = useState(facetKey);
+  if (prevFacetKey !== facetKey) {
+    setPrevFacetKey(facetKey);
+    setVisible(PAGE_SIZE);
+  }
+
+  const shown = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
+  const remaining = filtered.length - shown.length;
 
   // Where the second tier group starts, so a divider can be drawn there. Only
   // meaningful in the unfiltered "All" view — once a search or facet is active,
@@ -293,7 +323,7 @@ export function TestBrowser({
               count={leadingTier === "free" ? freeCount : premiumCount}
             />
           )}
-          {filtered.map((t, idx) => {
+          {shown.map((t, idx) => {
             const locked = !isOpen(t);
             const isNew = now - new Date(t.createdAt).getTime() < NEW_WINDOW_MS;
             return (
@@ -405,6 +435,18 @@ export function TestBrowser({
               </Fragment>
             );
           })}
+        </div>
+      )}
+
+      {remaining > 0 && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={() => setVisible((v) => v + PAGE_SIZE)}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-semibold shadow-soft transition-colors hover:bg-surface-2"
+          >
+            Show {Math.min(remaining, PAGE_SIZE)} more
+            <span className="text-muted tabular-nums">({remaining} left)</span>
+          </button>
         </div>
       )}
     </section>
