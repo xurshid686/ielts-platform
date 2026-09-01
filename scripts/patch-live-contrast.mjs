@@ -15,15 +15,13 @@
 // The footer variant is for older builds whose active footer pill stays pale #ffffca while
 // -webkit-text-fill-color is #fff. It must ONLY be applied to files measured as failing: on a
 // canonical shell (dark active pill, white text) forcing black text would create the same bug.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-}
+loadEnv();
 const APPLY = process.argv.includes("--apply");
 const FOOTER = process.argv.includes("--footer");
 const ONLY = (() => { const i = process.argv.indexOf("--only"); return i > 0 ? process.argv[i + 1] : null; })();

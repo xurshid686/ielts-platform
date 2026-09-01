@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CompletionResult =
   | { ok: true; completed: boolean }
@@ -10,8 +9,16 @@ export type CompletionResult =
 
 /**
  * Mark a speaking topic as completed (or undo it) for the signed-in student.
- * The user id comes from the verified session; the write uses the service-role
- * client so it works regardless of row-level-security configuration.
+ *
+ * Uses the SESSION client. `speaking_completions` already has owner-scoped
+ * select / insert / delete policies (migration 0028), so RLS is the check —
+ * this used to run as the service role "so it works regardless of
+ * row-level-security configuration", which is how service-role usage spreads
+ * until one hand-written filter is wrong.
+ *
+ * The insert is ON CONFLICT DO NOTHING (`ignoreDuplicates`) rather than a true
+ * upsert: 0028 grants no UPDATE policy, and there is nothing to update anyway
+ * — the row existing IS the completion.
  */
 export async function setSpeakingCompletion(
   questionId: string,
@@ -23,14 +30,12 @@ export async function setSpeakingCompletion(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
-  const admin = createAdminClient();
-
   if (completed) {
-    const { error } = await admin
+    const { error } = await supabase
       .from("speaking_completions")
       .upsert(
         { user_id: user.id, question_id: questionId },
-        { onConflict: "user_id,question_id" },
+        { onConflict: "user_id,question_id", ignoreDuplicates: true },
       );
     if (error) {
       console.error("completion upsert failed:", error.message);
@@ -41,7 +46,7 @@ export async function setSpeakingCompletion(
     return { ok: true, completed: true };
   }
 
-  const { error } = await admin
+  const { error } = await supabase
     .from("speaking_completions")
     .delete()
     .eq("user_id", user.id)

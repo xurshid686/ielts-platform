@@ -84,10 +84,81 @@ needs an active membership or an admin; non-regular tracks (pre_ielts/intro) are
 404 to everyone else. There is no per-test XP unlock any more — that mechanic and
 its `unlocks` table were removed in 0039.
 
-Accepted exposure, by design: anyone entitled to *take* a test can call the key
-route and read its answers without answering honestly. Submitting a blank test
-reveals the same thing, in the standalone file too. What matters is that premium
-keys stay unreachable without a membership.
+Accepted exposure, and its limit: anyone entitled to *take* a test can call the
+key route and read its answers without answering honestly. Submitting a blank
+test reveals the same thing, in the standalone file too. What matters is that
+premium keys stay unreachable without a membership.
+
+**That reasoning does not cover the rating ladder, and this is a known open
+hole.** Fetch the key, POST perfect answers to `saveResult` with a plausible
+`durationSeconds`, and the attempt is server-graded, passes `apply_rating`'s
+anti-cheat (which trusts the client-supplied duration) and tops the leaderboard.
+The blank-submit argument holds for *seeing* answers; it does not hold for
+*banking a rated result*. The fix is a server-issued attempt record —
+`startAttempt -> submit -> grade -> review` — which would also give the
+anti-cheat a duration it measured itself. Not built yet. Do not widen the key
+route's access before it is.
+
+## Scored records are written by the server. All of them.
+
+The rule: **anything that moves a number a student is judged on — a result, a
+speaking band, XP, streak — is written by a server action using the
+service-role client, with the user id taken from the verified session.** No
+client-side write path exists for any of them, and the table grants say so.
+
+This was true for `results` only (0038). Three siblings were still open, and
+0041 closed them:
+
+| what | was | now |
+| --- | --- | --- |
+| `results` | `revoke insert` (0038) | unchanged |
+| `speaking_submissions` | owner `FOR ALL` — a member could POST `score: 9.0` | `revoke insert, update, delete` (0041) |
+| `writing_submissions` | same, and the feature hasn't shipped yet | `revoke insert, update, delete` (0041) |
+| `record_activity(int)` | granted to `authenticated`, 30 XP per call, **no per-day cap** | revoked; server calls `record_activity_for(uuid, int)` (0040) |
+
+Two things follow that are easy to get wrong:
+
+- **`record_activity_for` takes the user id explicitly.** The old function read
+  `auth.uid()`, which is NULL under the service role — swapping the client
+  without swapping the function silently awards nothing. Always pass
+  `p_user_id: user.id` from the verified session.
+- **`apply_rating` deliberately KEEPS its `authenticated` grant.** It cannot
+  fabricate anything: it rates an existing row, checks ownership, refuses
+  keyless tests and retakes, and is idempotent (0036). Do not "tidy" it into
+  the revoke list.
+
+`saveResult` also refuses a submission with no `testId`, and one whose test has
+no stored key. Those two branches used to write the caller's own numbers.
+
+## Applying 0040 and 0041
+
+Same class of hazard as 0034 — read that section first.
+
+- **0040 is additive.** It only creates `record_activity_for`. Safe any time.
+- **0041 is NOT backward compatible.** It revokes the grants the *old* code
+  depends on. Applying it before the deploy breaks speaking submissions and
+  silently stops awarding XP.
+
+Order: **run 0040 → deploy the code → confirm it is live → run 0041.**
+Verification queries are in 0041's header.
+
+## Which database a script talks to
+
+Every script in `scripts/` now gets its credentials from `scripts/env.mjs`, and
+prints the target host on every run. Nothing hardcodes `.env.local` any more.
+
+```
+node scripts/audit-answer-keys.mjs                 # live (.env.frankfurt)
+node scripts/audit-answer-keys.mjs --env=local     # .env.local
+IELTS_ENV=local node scripts/audit-answer-keys.mjs # same
+```
+
+**This matters because `.env.local` still points at the OLD, DEAD project.**
+Each script used to carry its own copy of a loader that hardcoded that file, so
+`npm run seed`, `backfill:keys` and the answer-key audit connected to a database
+nothing serves, did their work and reported success. The default is now `live`,
+and the target is printed, so a wrong-database run is visible rather than
+silent. Fixing `.env.local` itself is still worth doing — `next dev` reads it.
 
 ## CDI shells are not uniform
 
@@ -123,12 +194,13 @@ Because of 0034, `answer_key` / `file_path` / `file_url` are readable **only**
 with the service-role client (`createAdminClient()`). Client-side queries must
 name their columns — `select("*")` on `tests` will fail.
 
-## Data realities (checked against production, 2026-08-29)
+## Data realities (checked against production, 2026-09-01)
 
 Re-check these before reasoning about them — the previous snapshot (2026-07-31)
 had gone badly stale and advice was built on it.
 
-- **185 tests: 172 reading + 13 listening.** 184 regular-track, 1 pre_ielts.
+- **186 tests: 173 reading + 13 listening** (2026-09-01, `scripts/audit-answer-keys.mjs`
+  against the LIVE Frankfurt project). Was 185 on 2026-08-29.
 - **`tier` is `free` on every single test — there are ZERO premium tests.** The
   whole premium/free split described below still exists in code, and the DB
   still has the column, but nothing is currently gated. Do not repeat the old
@@ -137,16 +209,21 @@ had gone badly stale and advice was built on it.
 - **18 profiles hold an active `premium_until`** (of 102 accounts) — they are
   paying for, or were granted, access to a premium library that is currently
   empty. Worth resolving before selling more memberships.
-- `question_types` — **all 185 tagged**, backfilled by
+- `question_types` — **all tagged**, backfilled by
   `scripts/backfill-question-types.mjs` from the papers' own rubric wording
   (`src/lib/ielts/infer-question-types.ts`, unit-tested). Re-run after bulk uploads.
-- `difficulty` (Elo) — **has moved on exactly 1 of 185** (range 1136–1500). It
+- `difficulty` (Elo) — **has moved on exactly 1 of the library** (range 1136–1500). It
   only moves after 5+ scored first attempts. Do not build a difficulty filter on
   it, and do not present it as meaningful.
-- `level` (free text) — **NULL on 184 of 185.** Not displayed; do not add filters
+- `level` (free text) — **NULL on all but one.** Not displayed; do not add filters
   on it. Not the same thing as `profiles.level` / `tests.track`.
 - Every test has a stored answer key (`total > 0`), so all of them are
-  server-graded; the manual score-entry fallback should never appear.
+  server-graded; the manual score-entry fallback should never appear. Since
+  0041 this is enforced rather than assumed: `saveResult` REFUSES a submission
+  with no `testId` and one whose test has no stored key. Both used to be
+  written with the caller's own raw/total/band. Re-run
+  `scripts/backfill-keys.mjs` if a keyless row ever appears again — students
+  will be told the test can't be scored until you do.
 - 200 saved results across 102 accounts.
 - No topic or Cambridge book/series taxonomy exists.
 
@@ -207,7 +284,94 @@ before concluding the feature is broken.
 
 ---
 
+# Database types are generated. Regenerate them.
+
+`src/types/supabase.ts` is **generated from the live Frankfurt schema** and must
+not be hand-edited:
+
+```
+SUPABASE_ACCESS_TOKEN=<token> npm run types
+```
+
+(The token is a Supabase *personal access token* — it is never stored in the
+repo. `npm run types` wraps the generator; the project id is pinned in
+`package.json`.)
+
+`src/types/database.ts` derives the app's types (`Profile`, `Test`, `Result`, …)
+from those rows and adds two things the generator cannot know: narrowed unions
+(Postgres has `role text`, not an enum) and the real shapes of the `jsonb`
+columns. Because it derives with a `Narrow<>` helper whose keys are constrained
+to the row's keys, **a renamed or dropped column fails the build in that file**.
+
+All four Supabase clients now take `<Database>` (`server`, `client`, `admin`,
+`middleware`). A wrong table, view, column or RPC name is a compile error —
+verified: `from("leaderboard_globl")` fails `tsc`.
+
+**Run the generator after every migration.** The types are only as true as the
+last run. What this replaced was a hand-written file claiming to match
+`0001_init.sql` — 40 migrations behind — that described a `tests_public` view
+which has never existed.
+
+Two things to know:
+
+- **`PendingFunctions` in `database.ts`.** A function that exists in a migration
+  but is not yet applied cannot be in the generated types, so it is declared
+  there temporarily. `record_activity_for` (0040) is listed now. **Delete each
+  entry once its migration is applied and the types are regenerated** — a stale
+  override would hide a signature change.
+- **`rows<T>()`, exported from `database.ts`,** is the one sanctioned place to
+  assert a query result into an app row type, because text-column unions and
+  `jsonb` shapes cannot be proven by the compiler. It replaced seven scattered
+  `as unknown as T[]` casts. Do not reintroduce those; if a value comes from
+  outside the app's own writes, narrow it at runtime instead (`asAnswerKey` /
+  `asAnswers`).
+
+# Patterns deliberately removed — do not reintroduce
+
+## Schema-probe fallbacks
+
+Seven call sites used to run a query including a newer column, and if the error
+message mentioned that column, run a second query without it — a standing
+apology for migrations that might not have been applied. They are gone from
+`access.ts`, `dashboard/page.tsx`, `skill-section.tsx`, `admin.ts`,
+`admin/members/page.tsx`, `refer/page.tsx` and `results.ts`.
+
+Do not add another. They cost a doubled query path, they were never exercised
+by a test, and they swallow real errors: `access.ts` retried on *any* error
+whose text contained "track", so a permissions failure looked like a missing
+column and silently degraded a security-relevant read. The schema is settled —
+assert it. If a migration is genuinely pending, the right answer is the
+deploy-order rule above, not a runtime probe.
+
+## `select("*")` on `results`
+
+`results.answers` holds the student's whole 40-question response map. The
+dashboard and the catalogue pulled every row of it to compute an average and a
+count. Both now name their columns. `/review/[id]` still selects `*` because it
+genuinely renders the answers.
+
+`skill-section` also built its per-card attempt counts with a `res.filter` per
+test — O(tests x attempts), 185 cards deep. It builds one Map in a single pass
+now.
+
+## Error boundaries
+
+`app/error.tsx`, `app/(app)/error.tsx` and `app/global-error.tsx` exist. There
+were none, so any transient Supabase failure in a server component became Next's
+raw digest screen. `(app)/error.tsx` renders inside the app shell so the student
+keeps the nav; `global-error.tsx` replaces the document and therefore ships
+inline styles, not Tailwind.
+
 # Known gaps / deliberate omissions
+
+- **The test iframe's sandbox does nothing.** `test-runner.tsx` sets
+  `sandbox="allow-scripts allow-same-origin"` on a frame served from our own
+  origin, which disables the sandbox for that document: uploaded test HTML can
+  reach `window.parent.document`, read session cookies and call server actions,
+  and the restored key is evaluated with `new Function` on the parent origin.
+  Scores are safe (the server grades); the session is not. The fix is a
+  separate origin for `/api/test-html`, which needs DNS and a full re-test of
+  the submit-and-restore flow. Today the only uploader is the owner.
 
 - The PDF export button is hidden: `stripDownloadTools` removes the html2pdf
   library, so it would silently do nothing.

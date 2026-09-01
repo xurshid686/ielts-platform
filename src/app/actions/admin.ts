@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { TablesInsert } from "@/types/database";
+import { rows } from "@/types/database";
 import { extractAnswerKey } from "@/lib/ielts/extract-key";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 
@@ -84,7 +86,11 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   // The column is `not null` and predates the gated routes, so it is kept and
   // filled with the storage path. Nothing reads it: delivery is
   // /api/test-html -> createAdminClient().storage.download(file_path).
-  const row: Record<string, unknown> = {
+  // Typed against the generated schema (`Database["public"]["Tables"]["tests"]`)
+  // rather than Record<string, unknown>, so a column this insert gets wrong is
+  // a build error instead of a runtime PostgREST message. The 0021 `track`
+  // retry that used to wrap this is gone — the migration is long applied.
+  const row: TablesInsert<"tests"> = {
     title,
     skill,
     kind,
@@ -100,13 +106,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     created_by: user!.id,
   };
 
-  let { error: insErr } = await supabase.from("tests").insert(row);
-  // Graceful fallback if the 0021 (tests.track) migration hasn't been run yet —
-  // drop the unknown column and retry.
-  if (insErr && /track/.test(insErr.message)) {
-    delete row.track;
-    ({ error: insErr } = await supabase.from("tests").insert(row));
-  }
+  const { error: insErr } = await supabase.from("tests").insert(row);
   if (insErr) {
     // best-effort cleanup of the orphaned file
     await supabase.storage.from("tests").remove([path]);
@@ -184,38 +184,20 @@ export async function searchUsers(
   // Strip characters with meaning in PostgREST filter syntax before interpolating.
   const q = query.trim().replace(/[,()*\\]/g, "");
 
-  // Select including level (0021) + hidden_from_leaderboard
-  // (0020); fall back without them if those migrations haven't run yet, so the
-  // page keeps working.
-  for (const cols of [
-    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard",
-    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard",
-    "id, email, name, role, premium_until, xp, hidden_from_leaderboard",
-    "id, email, name, role, premium_until, xp",
-  ]) {
-    let req = supabase
-      .from("profiles")
-      .select(cols)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
+  // `level` (0021) and `hidden_from_leaderboard` (0020) are long applied. This
+  // used to try four progressively older column lists and retry on any error
+  // whose text mentioned one of them, which meant a permissions failure looked
+  // like a missing column and silently degraded the result.
+  let req = supabase
+    .from("profiles")
+    .select("id, email, name, role, level, premium_until, xp, hidden_from_leaderboard")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
 
-    const { data, error } = await req;
-    if (!error) {
-      const rows = (data ?? []) as unknown as Record<string, unknown>[];
-      const users = rows.map((u) => ({
-        hidden_from_leaderboard: false,
-        level: "regular",
-        ...u,
-      })) as unknown as MemberRow[];
-      return { ok: true, users };
-    }
-    // Only retry on a missing-column error; otherwise surface it.
-    if (!/hidden_from_leaderboard|level/.test(error.message)) {
-      return { ok: false, error: error.message };
-    }
-  }
-  return { ok: false, error: "Could not load accounts." };
+  const { data, error } = await req;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, users: rows<MemberRow>(data) };
 }
 
 export type SetPremiumResult =
@@ -319,11 +301,29 @@ export async function deleteTest(id: string): Promise<ActionResult> {
     .single();
 
   const test = testRow as { file_path?: string; skill?: string } | null;
-  if (test?.file_path) {
-    await supabase.storage.from("tests").remove([test.file_path]);
-  }
+
+  // Order matters, and so does checking the result.
+  //
+  // This used to remove the storage object first and DISCARD its error, then
+  // delete the row. Both failure orders lose data: a failed removal orphans the
+  // file, and a successful removal followed by a failed row delete leaves a
+  // test that is still listed and still openable but whose only HTML file has
+  // been destroyed — an uploaded paper exists nowhere else.
+  //
+  // Deleting the row first inverts that. The worst case becomes an orphaned
+  // object in the bucket, which costs storage and nothing else, and the paper
+  // is still recoverable until the second step succeeds.
   const { error } = await supabase.from("tests").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  if (test?.file_path) {
+    const { error: rmErr } = await supabase.storage.from("tests").remove([test.file_path]);
+    // The test is gone from the student's point of view, so this is not a
+    // failed action — but the orphan needs to be visible to someone.
+    if (rmErr) {
+      console.error(`[deleteTest] row ${id} deleted, storage object left behind: ${rmErr.message}`);
+    }
+  }
 
   revalidatePath("/admin/tests");
   if (test?.skill) revalidatePath(`/${test.skill}`);

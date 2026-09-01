@@ -20,12 +20,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const supabase = await createClient();
 
-  // Lazily deliver this week's progress report (idempotent; fires on Sunday).
-  // Degrades silently if migration 0017 hasn't been applied yet.
-  await supabase.rpc("ensure_weekly_report").then(
-    () => {},
-    () => {},
-  );
+  // The weekly progress report is built by the cron at
+  // /api/cron/weekly-reports (vercel.json: Sundays 17:00 UTC), which calls
+  // cron_weekly_reports() for every active user.
+  //
+  // This layout used to `await rpc("ensure_weekly_report")` here as a lazy
+  // fallback, with both callbacks empty — so every authenticated page render
+  // blocked on a round trip that duplicated the cron's job and could not
+  // report its own failure. `ensure_weekly_report` is left defined in the
+  // database; nothing calls it from the app any more.
 
   const { data: notifications } = await supabase
     .from("notifications")

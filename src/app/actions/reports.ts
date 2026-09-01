@@ -51,10 +51,14 @@ export async function adminSendWeeklyReport(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
-  const { data: reportId, error } = await supabase.rpc("admin_send_weekly_report", {
-    p_user: userId,
-    p_period_start: periodStart ?? null,
-  });
+  // `p_period_start` is `date default null` and the function coalesces it to
+  // last week, so OMITTING it is identical to passing null — and it is what the
+  // signature actually accepts. This passed `null` before, which the untyped
+  // client had no way to flag.
+  const { data: reportId, error } = await supabase.rpc(
+    "admin_send_weekly_report",
+    periodStart ? { p_user: userId, p_period_start: periodStart } : { p_user: userId },
+  );
   if (error) return { ok: false, error: error.message };
 
   // Read back the freshly written report for a confirmation summary.

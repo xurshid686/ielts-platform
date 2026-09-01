@@ -35,6 +35,7 @@ import { computeTypeStats, weakestType } from "@/lib/analytics";
 import { isPremiumActive } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
+import { rows } from "@/types/database";
 
 type Activity = {
   id: string;
@@ -54,29 +55,34 @@ export default async function DashboardPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
-  // Fetch reading tests incl. `track` (0021), with a graceful pre-migration fallback.
-  const readingCols = "id, title, kind, tier, passage, question_types, difficulty";
+  const readingCols =
+    "id, title, kind, tier, passage, question_types, difficulty, track";
   type ReadingTestRow = Pick<
     Test,
     "id" | "title" | "kind" | "tier" | "passage" | "question_types" | "difficulty" | "track"
   >;
-  async function fetchReadingTests(): Promise<ReadingTestRow[]> {
-    const withTrack = await supabase
-      .from("tests")
-      .select(`${readingCols}, track`)
-      .eq("skill", "reading");
-    if (!withTrack.error) return (withTrack.data ?? []) as unknown as ReadingTestRow[];
-    if (!/track/.test(withTrack.error.message)) return [];
-    const fallback = await supabase.from("tests").select(readingCols).eq("skill", "reading");
-    return (fallback.data ?? []) as unknown as ReadingTestRow[];
-  }
+
+  // The seven result columns this page reads. `select("*")` also pulled
+  // `answers` — the full response map per attempt — which is never used here.
+  type ResultRow = Pick<
+    Result,
+    | "id"
+    | "skill"
+    | "band"
+    | "raw"
+    | "total"
+    | "submitted_at"
+    | "test_id"
+    | "rated"
+    | "rating_after"
+  >;
 
   // Reading / listening / writing live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }, { data: rankRow }, readingTests] =
+  const [{ data: results }, { data: speaking }, { data: rankRow }, { data: readingTestRows }] =
     await Promise.all([
       supabase
         .from("results")
-        .select("*")
+        .select("id, skill, band, raw, total, submitted_at, test_id, rated, rating_after")
         .eq("user_id", profile.id)
         .order("submitted_at", { ascending: false }),
       supabase
@@ -85,12 +91,13 @@ export default async function DashboardPage() {
         .eq("user_id", profile.id)
         .order("created_at", { ascending: false }),
       supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
-      fetchReadingTests(),
+      supabase.from("tests").select(readingCols).eq("skill", "reading"),
     ]);
+  const readingTests = rows<ReadingTestRow>(readingTestRows);
 
   const globalRank = (rankRow as Pick<LeaderboardGlobalRow, "rank"> | null)?.rank ?? null;
 
-  const all = (results ?? []) as Result[];
+  const all = rows<ResultRow>(results);
   const speak = (speaking ?? []) as Pick<
     SpeakingSubmission,
     "id" | "score" | "created_at" | "feedback"

@@ -13,18 +13,15 @@ export default async function ReferPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
-  // Degrades gracefully if migration 0019 hasn't been applied yet.
-  let referrals: Pick<Referral, "status" | "reward_months" | "created_at" | "qualified_at">[] = [];
-  try {
-    const { data } = await supabase
-      .from("referrals")
-      .select("status, reward_months, created_at, qualified_at")
-      .eq("referrer_id", profile.id)
-      .order("created_at", { ascending: false });
-    referrals = (data ?? []) as typeof referrals;
-  } catch {
-    /* table not present yet */
-  }
+  const { data: referralRows } = await supabase
+    .from("referrals")
+    .select("status, reward_months, created_at, qualified_at")
+    .eq("referrer_id", profile.id)
+    .order("created_at", { ascending: false });
+  const referrals = (referralRows ?? []) as Pick<
+    Referral,
+    "status" | "reward_months" | "created_at" | "qualified_at"
+  >[];
 
   const invited = referrals.length;
   const qualified = referrals.filter((r) => r.status === "qualified");

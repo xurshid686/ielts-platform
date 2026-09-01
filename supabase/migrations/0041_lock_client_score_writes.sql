@@ -1,0 +1,99 @@
+-- ============================================================
+-- IELTS Platform — 0041: finish what 0038 started
+-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
+-- Safe to re-run.  ⚠️ SECURITY-CRITICAL — apply as soon as the code is live.
+-- ============================================================
+--
+-- *** NOT BACKWARD COMPATIBLE. Deploy the code FIRST, confirm it is live,
+--     THEN run this. *** Same rule as 0034 — see CLAUDE.md, "Migrations can
+--     be deploy-order-sensitive". Running this against the old code breaks
+--     speaking submissions and silently stops awarding XP.
+--
+-- Requires 0040 (record_activity_for) to have been run already.
+--
+-- ------------------------------------------------------------
+-- WHAT WAS WRONG
+-- ------------------------------------------------------------
+--
+-- 0038 stopped a student POSTing a fabricated `results` row straight through
+-- PostgREST. It stopped there. Three sibling paths write the same kind of
+-- scored record and were all still open to any signed-in member:
+--
+--   1) speaking_submissions. `speaking_owner_cud` (0001_init.sql:183) is
+--      FOR ALL for the row owner, so:
+--
+--        POST /rest/v1/speaking_submissions  {"user_id":"<own>","score":9.0}
+--
+--      lands on the dashboard skill average, the goal tracker and the badge
+--      thresholds. submitSpeakingMock() — which actually calls Gemini — is
+--      not on that path at all.
+--
+--   2) writing_submissions. Identical policy (0001_init.sql:159). The
+--      feature is a ComingSoon stub, so nothing legitimate writes here yet;
+--      that is exactly why it should be shut before it ships.
+--
+--   3) record_activity(int), still granted to `authenticated` (0036:327).
+--      Capped at 30 XP per call, uncapped in calls per day.
+--
+-- In all three cases the server-side rules (entitlement, one grade per
+-- submission, first-attempt-only XP) are simply not on the path.
+--
+-- ------------------------------------------------------------
+-- WHAT THE APP DOES NOW, and why this is safe
+-- ------------------------------------------------------------
+--
+--   src/app/actions/speaking.ts       — inserts the submission with
+--                                       createAdminClient(), user_id taken
+--                                       from the verified session.
+--   src/app/actions/speaking.ts       — record_activity_for(user.id, 30)
+--   src/app/actions/results.ts        — record_activity_for(user.id, xp)
+--
+-- The SELECT policies are untouched: students still read their own rows, and
+-- admins still read everyone's. Only client-side WRITES go away.
+--
+-- apply_rating() keeps its `authenticated` grant deliberately. It cannot
+-- fabricate anything — it rates an existing row, checks ownership, refuses
+-- keyless tests and retakes, and is idempotent (0036:125-215).
+--
+-- ------------------------------------------------------------
+-- TO ROLL BACK
+--   grant insert, update, delete on public.speaking_submissions to authenticated;
+--   grant insert, update, delete on public.writing_submissions  to authenticated;
+--   grant execute on function public.record_activity(int) to authenticated;
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 1. Scored submissions are written by the server, never by the client.
+--
+-- The owner policies stay in place. Revoking the table grant makes the
+-- INSERT/UPDATE/DELETE arms unreachable for `authenticated` regardless of
+-- policy, and the policy still guards any future role that IS granted —
+-- the same belt-and-braces 0038 used for `results`.
+-- ------------------------------------------------------------
+revoke insert, update, delete on public.speaking_submissions from authenticated, anon;
+revoke insert, update, delete on public.writing_submissions  from authenticated, anon;
+
+-- ------------------------------------------------------------
+-- 2. XP is awarded by the server only.
+--
+-- record_activity_for (0040) is the path the app uses now. The old
+-- session-scoped wrapper stays defined so a stale deploy fails loudly with a
+-- permission error rather than silently awarding nothing.
+-- ------------------------------------------------------------
+revoke execute on function public.record_activity(int) from public, anon, authenticated;
+grant  execute on function public.record_activity(int) to service_role;
+
+-- ------------------------------------------------------------
+-- 3. Verification — run these after applying. All three must come back
+--    denied when executed with an ANON or authenticated key:
+--
+--   POST /rest/v1/speaking_submissions {"user_id":"<own>","score":9}
+--     -> 42501 permission denied for table speaking_submissions
+--   POST /rest/v1/writing_submissions  {"user_id":"<own>","score":9}
+--     -> 42501 permission denied for table writing_submissions
+--   POST /rest/v1/rpc/record_activity  {"p_xp":30}
+--     -> 42501 permission denied for function record_activity
+--
+-- And the app must still work: submit a speaking mock and confirm the row
+-- appears with a band, and that the streak/XP in the header moves.
+-- ------------------------------------------------------------

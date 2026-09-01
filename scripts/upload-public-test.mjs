@@ -8,23 +8,12 @@
 // Requires SUPABASE_SERVICE_ROLE_KEY in .env.local (bypasses RLS). Run AFTER
 // applying supabase/migrations/0033_public_tests.sql.
 import { readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, "..");
 
-function loadEnv() {
-  try {
-    const txt = readFileSync(join(root, ".env.local"), "utf8");
-    for (const line of txt.split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    }
-  } catch {}
-}
 loadEnv();
 
 // ---- key extraction (port of src/lib/ielts/extract-key.ts) ----

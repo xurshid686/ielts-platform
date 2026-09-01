@@ -11,11 +11,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-}
+loadEnv();
 const dir = process.argv[2];
 const idsFile = process.argv[3];
 if (!dir) { console.error("usage: upload-patched-by-id.mjs <dir> [ids-file]"); process.exit(1); }

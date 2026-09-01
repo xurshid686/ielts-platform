@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "save-dev": "node scripts/save-dev.mjs",
     "shots": "node scripts/capture-screenshots.mjs",
-    "go-live": "node scripts/go-live.mjs"
+    "go-live": "node scripts/go-live.mjs",
+    "types": "node scripts/gen-types.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

@@ -39,18 +39,11 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
   } = await supabase.auth.getUser();
 
   const admin = createAdminClient();
-  let testRes = await admin
+  const testRes = await admin
     .from("tests")
     .select("file_path, tier, track, skill, answer_key")
     .eq("id", id)
     .single();
-  if (testRes.error && /track/.test(testRes.error.message)) {
-    testRes = await admin
-      .from("tests")
-      .select("file_path, tier, skill, answer_key")
-      .eq("id", id)
-      .single();
-  }
 
   const row = testRes.data as TestRow | null;
   if (!row?.file_path) return { ok: false, status: 404, message: "Not found" };
@@ -65,18 +58,11 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
     return { ok: true, row, userId: null };
   }
 
-  let profRes = await supabase
+  const profRes = await supabase
     .from("profiles")
     .select("role, premium_until, level")
     .eq("id", user.id)
     .single();
-  if (profRes.error && /level/.test(profRes.error.message)) {
-    profRes = await supabase
-      .from("profiles")
-      .select("role, premium_until")
-      .eq("id", user.id)
-      .single();
-  }
   const profile = (profRes.data as {
     role?: string;
     premium_until?: string | null;

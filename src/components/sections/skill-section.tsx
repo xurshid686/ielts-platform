@@ -9,6 +9,7 @@ import { TestBrowser, type BrowserItem } from "@/components/sections/test-browse
 import { RecentBandsChart, type RecentBandPoint } from "@/components/sections/recent-bands";
 import { PremiumContact } from "@/components/premium-contact";
 import type { Result, Test } from "@/types/database";
+import { rows } from "@/types/database";
 
 const META = {
   reading: { title: "Reading", icon: BookOpen, blurb: "Academic passages with instant scoring." },
@@ -25,50 +26,58 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   // Note: file_url/file_path are intentionally NOT selected — premium content
   // is fetched only via /api/test-html (which gates access).
   const baseCols =
-    "id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at";
-  async function fetchTests(): Promise<Test[]> {
-    // Include `track` (0021) but fall back gracefully if the migration is pending.
-    const withTrack = await supabase
-      .from("tests")
-      .select(`${baseCols}, track`)
-      .eq("skill", skill)
-      .order("created_at", { ascending: false });
-    if (!withTrack.error) return (withTrack.data ?? []) as unknown as Test[];
-    if (!/track/.test(withTrack.error.message)) return [];
-    const fallback = await supabase
+    "id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at, track";
+
+  // Only the three columns this page actually reads. `select("*")` also pulled
+  // `results.answers` — the whole 40-question response map for every attempt —
+  // to compute an average and a count.
+  type AttemptRow = Pick<Result, "test_id" | "band" | "submitted_at">;
+
+  const [tests, results] = await Promise.all([
+    supabase
       .from("tests")
       .select(baseCols)
       .eq("skill", skill)
-      .order("created_at", { ascending: false });
-    return (fallback.data ?? []) as unknown as Test[];
-  }
-
-  const [tests, results] = await Promise.all([
-    fetchTests(),
+      .order("created_at", { ascending: false })
+      .then((r) => rows<Test>(r.data)),
     profile
       ? supabase
           .from("results")
-          .select("*")
+          .select("test_id, band, submitted_at")
           .eq("user_id", profile.id)
           .eq("skill", skill)
           .order("submitted_at", { ascending: false })
-          .then((r) => r.data)
+          .then((r) => rows<AttemptRow>(r.data))
       : Promise.resolve(null),
   ]);
 
   // Only the normal IELTS tests belong on these pages; level-specific tests
   // (pre_ielts / intro) live in their own menus. Missing track = regular.
   const testList = ((tests ?? []) as Test[]).filter((t) => (t.track ?? "regular") === "regular");
-  const res = (results ?? []) as Result[];
+  const res = results ?? [];
   const canAccessPremium = !!profile && (profile.role === "admin" || isPremiumActive(profile));
+
+  // Attempts indexed by test, built in ONE pass. This was a `res.filter` per
+  // card, i.e. O(tests x attempts) — 185 cards against a student's whole
+  // history on every render of this page.
+  const byTest = new Map<string, { count: number; best: number | null }>();
+  for (const r of res) {
+    if (!r.test_id) continue;
+    const entry = byTest.get(r.test_id) ?? { count: 0, best: null };
+    entry.count++;
+    if (r.band != null) {
+      const b = Number(r.band);
+      entry.best = entry.best == null ? b : Math.max(entry.best, b);
+    }
+    byTest.set(r.test_id, entry);
+  }
 
   // Enrich each test with the user's attempt count + best band. Newest uploads
   // first so freshly added tests appear at the top.
   const items: BrowserItem[] = [...testList]
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
     .map((t) => {
-      const attempts = res.filter((r) => r.test_id === t.id);
-      const bandAttempts = attempts.filter((a) => a.band != null).map((a) => Number(a.band));
+      const attempts = byTest.get(t.id);
       return {
         id: t.id,
         title: t.title,
@@ -79,8 +88,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         questionTypes: t.question_types ?? [],
         questionCount: t.total ?? null,
         timesDone: t.times_done ?? 0,
-        attempts: attempts.length,
-        best: bandAttempts.length ? Math.max(...bandAttempts) : null,
+        attempts: attempts?.count ?? 0,
+        best: attempts?.best ?? null,
         createdAt: t.created_at,
       };
     });

@@ -9,19 +9,8 @@
 //
 // Fix anything it reports with:  node scripts/backfill-keys.mjs
 
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-
-function loadEnv() {
-  try {
-    for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
-    }
-  } catch {
-    /* rely on the ambient environment */
-  }
-}
+import { loadEnv } from "./env.mjs";
 
 loadEnv();
 

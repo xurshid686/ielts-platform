@@ -8,25 +8,14 @@
 // Filename convention: "<Title> Passage <N> by <agent>.html" or "<Title> Full Test by <agent>.html".
 // The stored title is ONLY the title (agent + "Passage N"/"Full Test" stripped);
 // passage/kind go in their own columns. De-dupes by title+skill on re-run.
-// Requires SUPABASE_SERVICE_ROLE_KEY in .env.local.
+// Requires SUPABASE_SERVICE_ROLE_KEY — see scripts/env.mjs for target selection.
 import { readFileSync, readdirSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, "..");
 
-function loadEnv() {
-  try {
-    const txt = readFileSync(join(root, ".env.local"), "utf8");
-    for (const line of txt.split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    }
-  } catch {}
-}
 loadEnv();
 
 // ---- key extraction (same as upload-public-test.mjs / src/lib/ielts/extract-key.ts) ----

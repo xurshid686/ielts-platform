@@ -1,21 +1,10 @@
 // One-off read-only check: are migrations 0019 (referrals) and 0020
 // (leaderboard visibility) applied? Uses the service role key.
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const env = {};
-for (const line of readFileSync(join(root, ".env.local"), "utf8").split(/\r?\n/)) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-}
-
-const supabase = createClient(
-  env.NEXT_PUBLIC_SUPABASE_URL,
-  env.SUPABASE_SERVICE_ROLE_KEY,
-);
+const { url, serviceKey } = loadEnv();
+const supabase = createClient(url, serviceKey);
 
 async function colExists(table, col) {
   const { error } = await supabase.from(table).select(col).limit(1);

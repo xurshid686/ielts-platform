@@ -34,8 +34,19 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
   return (profile as Profile | null) ?? fallbackProfile(user);
 });
 
-/** Returns the signed-in user's profile or redirects to /login. */
-export async function requireProfile(): Promise<Profile> {
+/**
+ * Returns the signed-in user's profile or redirects to /login.
+ *
+ * Wrapped in `cache()` for the same reason getProfile() is, and it was not:
+ * every account-only page calls this, several of them alongside a layout or a
+ * component that calls it again, and each call is a getUser() round trip that
+ * revalidates the JWT over the network plus a profiles select. Per-request, so
+ * it never leaks one viewer's profile into another's render.
+ *
+ * `redirect()` throws, and React's cache replays a rejected promise to later
+ * callers, so the redirect still happens for every caller in the request.
+ */
+export const requireProfile = cache(async function requireProfile(): Promise<Profile> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -50,8 +61,8 @@ export async function requireProfile(): Promise<Profile> {
     .single();
 
   // Fallback in the rare window before the signup trigger has run.
-  return profile ?? fallbackProfile(user);
-}
+  return (profile as Profile | null) ?? fallbackProfile(user);
+});
 
 /** Stand-in profile for the window between signup and the DB trigger firing. */
 function fallbackProfile(user: {

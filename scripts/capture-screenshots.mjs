@@ -39,26 +39,17 @@
 // The throwaway account and its result row are removed in a `finally`. If that
 // ever fails, the ids are printed so they can be cleaned up by hand.
 
-import { readFileSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "playwright";
+import { loadEnv } from "./env.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "public", "shots");
 
-function loadEnv() {
-  const env = {};
-  for (const line of readFileSync(join(ROOT, ".env.local"), "utf8").split(/\r?\n/)) {
-    const t = line.trim();
-    if (!t || t.startsWith("#") || !t.includes("=")) continue;
-    const i = t.indexOf("=");
-    env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
-  }
-  return env;
-}
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -206,10 +197,7 @@ async function shoot(browser, theme, path, prepare) {
 }
 
 async function main() {
-  const env = loadEnv();
-  const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env.local");
+  const { url, serviceKey } = loadEnv();
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
   const probe = await fetch(BASE, { redirect: "manual" }).catch(() => null);

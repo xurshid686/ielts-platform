@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { TopicPractice } from "@/components/speaking/topic-practice";
 import { MarkComplete } from "@/components/speaking/mark-complete";
 import { CueCardTimer } from "@/components/speaking/cue-card-timer";
@@ -28,7 +27,8 @@ export default async function TopicPracticePage({
   const q = data as SpeakingQuestion;
 
   // Has this student already marked the topic as completed?
-  const { data: completion } = await createAdminClient()
+  // Session client: owner-scoped RLS from migration 0028 is the check.
+  const { data: completion } = await supabase
     .from("speaking_completions")
     .select("question_id")
     .eq("question_id", id)

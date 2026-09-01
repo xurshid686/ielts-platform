@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getTopic } from "@/lib/ielts/speaking-prompts";
 import {
   gradeSpeaking,
@@ -93,7 +94,14 @@ export async function submitSpeakingMock(
     }
   }
 
-  const { error: insErr } = await supabase
+  // Written with the SERVICE-ROLE client, and `user_id` comes from the verified
+  // session above. `speaking_owner_cud` was FOR ALL for the row owner, so a
+  // student could POST /rest/v1/speaking_submissions with score 9.0 straight
+  // past this action and land it on their dashboard average, goal tracker and
+  // badges. Migration 0041 revokes the client INSERT grant — the same lock
+  // 0038 put on `results` — which makes this the only path that writes one.
+  const writer = createAdminClient();
+  const { error: insErr } = await writer
     .from("speaking_submissions")
     .insert({
       user_id: user.id,
@@ -109,7 +117,17 @@ export async function submitSpeakingMock(
   if (insErr) return { ok: false, error: `Saving failed: ${insErr.message}` };
 
   // Speaking counts toward the daily streak / XP just like reading & listening.
-  const { data: act } = await supabase.rpc("record_activity", { p_xp: 30 });
+  // Service-role for the same reason as saveResult(): `record_activity` was
+  // callable directly by any member and had no per-day cap. See 0040/0041.
+  const { data: act, error: actErr } = await writer.rpc("record_activity_for", {
+    p_user_id: user.id,
+    p_xp: 30,
+  });
+  // Recording is saved; don't fail the submission over the streak. Log it,
+  // because a missing function here means 0040 hasn't been applied.
+  if (actErr) {
+    console.error(`[submitSpeakingMock] record_activity_for failed for ${user.id}: ${actErr.message}`);
+  }
   const a = act?.[0];
 
   revalidatePath("/speaking");

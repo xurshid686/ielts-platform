@@ -27,19 +27,34 @@ export function gradeAnswers(
   skill?: "reading" | "listening",
 ): Graded {
   const qs = Object.keys(key);
-  const ignoreSpaces = skill === "listening";
   let raw = 0;
   for (const q of qs) {
-    const given = normalizeAnswer(answers?.[q]);
-    if (!given) continue;
-    if (key[q].includes(given)) {
-      raw++;
-    } else if (ignoreSpaces) {
-      const bare = given.replace(/\s+/g, "");
-      if (bare && key[q].some((v) => v.replace(/\s+/g, "") === bare)) raw++;
-    }
+    if (isAnswerCorrect(key[q], answers?.[q], skill)) raw++;
   }
   return { raw, total: qs.length };
+}
+
+/**
+ * Marks ONE answer, with exactly the rules gradeAnswers uses.
+ *
+ * Exported because /review/[id] needs to show the same per-question verdict the
+ * score was computed from. It used to re-implement the check as a bare
+ * `accepted.includes(given)`, which omits the listening space-insensitive rule
+ * above — so a student could be told Band 7 on submit and then shown a
+ * breakdown marking one of the counted answers wrong.
+ */
+export function isAnswerCorrect(
+  accepted: string[] | undefined,
+  given: unknown,
+  skill?: "reading" | "listening",
+): boolean {
+  if (!accepted) return false;
+  const value = normalizeAnswer(given);
+  if (!value) return false;
+  if (accepted.includes(value)) return true;
+  if (skill !== "listening") return false;
+  const bare = value.replace(/\s+/g, "");
+  return !!bare && accepted.some((v) => v.replace(/\s+/g, "") === bare);
 }
 
 // Narrow an untrusted jsonb value from the DB into an AnswerKey.

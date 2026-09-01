@@ -2,22 +2,11 @@
 // `tests` row) with its answer key, exactly like the admin uploadTest action.
 // Usage: node scripts/upload-listening.mjs "<path-to.html>" "<Title>"
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv } from "./env.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, "..");
 
-function loadEnv() {
-  try {
-    for (const line of readFileSync(join(root, ".env.local"), "utf8").split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-    }
-  } catch {}
-}
 loadEnv();
 
 // --- pure parser, ported 1:1 from src/lib/ielts/extract-key.ts ---

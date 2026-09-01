@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { extractAnswerKey, normalizeAnswer } from "./extract-key";
-import { gradeAnswers, asAnswers, asAnswerKey } from "./grade";
+import { gradeAnswers, isAnswerCorrect, asAnswers, asAnswerKey } from "./grade";
 import { rawToBand } from "./bandTable";
 
 const seed = (p: string) =>
@@ -49,6 +49,40 @@ describe("extractAnswerKey", () => {
     expect(ex!.key["21"]).toEqual(["b", "d"]);
     // a single picked letter still grades against the two-letter slot key
     expect(gradeAnswers(ex!.key, { "21": "b", "22": "d" }).raw).toBe(2);
+  });
+});
+
+// /review/[id] shows a per-question breakdown of an attempt whose SCORE came
+// from gradeAnswers. It used to re-implement the check as a bare
+// `accepted.includes(given)`, which drops the listening rule below — so the
+// breakdown could mark an answer wrong that the band had been awarded for.
+// Both now go through isAnswerCorrect; these tests hold them together.
+describe("isAnswerCorrect agrees with gradeAnswers, question by question", () => {
+  const key = { "1": ["sw19ab"], "2": ["10 30"], "3": ["east"] };
+
+  for (const skill of ["reading", "listening"] as const) {
+    it(`counts exactly the questions it marks correct (${skill})`, () => {
+      const answers = { "1": "SW1 9AB", "2": "1030", "3": "EAST", "4": "ignored" };
+      const marked = Object.keys(key).filter((q) =>
+        isAnswerCorrect(key[q as keyof typeof key], answers[q as keyof typeof answers], skill),
+      ).length;
+      expect(marked).toBe(gradeAnswers(key, answers, skill).raw);
+    });
+  }
+
+  it("treats a blank answer as not correct rather than throwing", () => {
+    expect(isAnswerCorrect(key["1"], "", "listening")).toBe(false);
+    expect(isAnswerCorrect(key["1"], undefined, "listening")).toBe(false);
+    expect(isAnswerCorrect(key["1"], null, "listening")).toBe(false);
+  });
+
+  it("returns false for a question the key does not have", () => {
+    expect(isAnswerCorrect(undefined, "anything", "reading")).toBe(false);
+  });
+
+  it("applies the listening spacing rule, and only for listening", () => {
+    expect(isAnswerCorrect(key["1"], "SW1 9AB", "listening")).toBe(true);
+    expect(isAnswerCorrect(key["1"], "SW1 9AB", "reading")).toBe(false);
   });
 });
 

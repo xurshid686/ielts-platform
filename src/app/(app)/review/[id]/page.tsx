@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
-import { asAnswerKey, asAnswers } from "@/lib/ielts/grade";
-import { normalizeAnswer } from "@/lib/ielts/extract-key";
+import { asAnswerKey, asAnswers, isAnswerCorrect } from "@/lib/ielts/grade";
 import { ReviewView, type ReviewRow } from "@/components/review/review-view";
 import type { Result, Test } from "@/types/database";
+import { rows as asRows } from "@/types/database";
 
 export default async function ReviewPage({
   params,
@@ -80,7 +80,7 @@ export default async function ReviewPage({
     ]);
 
     type Row = { id: string; title: string; kind: "single" | "full"; tier: string; track: string | null };
-    const rowsAll = ((catalogue ?? []) as unknown as Row[]).filter(
+    const rowsAll = asRows<Row>(catalogue).filter(
       (t) => (t.track ?? "regular") === "regular",
     );
     const attempted = new Set(
@@ -107,14 +107,20 @@ export default async function ReviewPage({
     note =
       "Answers weren't recorded for this attempt (it predates answer-saving, or was entered manually). Retake the test to get a full breakdown next time.";
   } else {
+    // `results.skill` is the wider Skill union; only the two auto-graded ones
+    // reach this branch (the others have no answer key).
+    const markingSkill = result.skill === "listening" ? "listening" : "reading";
+    // isAnswerCorrect is the SAME matcher gradeAnswers uses to compute the
+    // score, skill and all. Re-implementing it here as a bare
+    // `accepted.includes(given)` dropped the listening space-insensitive rule,
+    // so this breakdown could mark an answer wrong that the band was awarded for.
     rows = Object.keys(answerKey)
       .sort((a, b) => Number(a) - Number(b))
       .map((q) => {
         const yours = answers[q] ?? null;
-        const given = normalizeAnswer(yours);
-        const status: ReviewRow["status"] = !given
+        const status: ReviewRow["status"] = !yours?.trim()
           ? "blank"
-          : answerKey![q].includes(given)
+          : isAnswerCorrect(answerKey![q], yours, markingSkill)
             ? "correct"
             : "incorrect";
         return { q, yours, accepted: answerKey![q], status };

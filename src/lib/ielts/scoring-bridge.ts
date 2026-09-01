@@ -125,9 +125,11 @@ ${HARVEST_ANSWERS_JS}
         source: "IELTS_CDI_TEST",
         type: "RESULT",
         payload: {
-          // Client-reported score — kept only as a fallback for tests with no
-          // stored key. When a key exists the server ignores this and grades
-          // 'answers' itself, so the score cannot be faked.
+          // Client-reported score. The server NEVER persists these: it grades
+          // 'answers' against the stored key, and refuses a test that has no
+          // key rather than trusting a page-reported number. Still sent
+          // because copies of this bridge are embedded in already-uploaded
+          // files, and because the guest flow echoes the numbers back.
           raw: Number(raw),
           total: Number(total),
           band: band != null && !isNaN(band) ? Number(band) : undefined,

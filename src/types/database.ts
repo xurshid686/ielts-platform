@@ -1,164 +1,264 @@
-// Hand-written DB types matching supabase/migrations/0001_init.sql.
-// Regenerate later with: npx supabase gen types typescript --project-id <ref>
+// The app's view of the database.
+//
+// Every table type here is DERIVED from `./supabase.ts`, which is generated
+// from the live schema — so a renamed or dropped column is a compile error at
+// the line that uses it, not a wrong assumption that survives to production.
+// This file used to be hand-written "matching 0001_init.sql", 40 migrations
+// behind, and described a `tests_public` view that never existed.
+//
+// What this file adds on top of the generated rows, and why:
+//
+//   - **Narrowed unions.** Postgres has `role text`, not an enum, so the
+//     generated type is `string`. `Role`, `Skill`, `Level`, `tier` and friends
+//     are the values the app actually writes. Narrowing here means a typo is
+//     caught once, at the boundary.
+//   - **Parsed JSON.** `answer_key`, `answers`, `feedback` and `study` are
+//     `jsonb`, so the generator can only say `Json`. The real shapes are
+//     documented below; `asAnswerKey` / `asAnswers` in lib/ielts/grade.ts are
+//     the runtime narrowing that makes them safe to assert.
+//
+// Regenerate ./supabase.ts after every migration — see its header.
+
+import type { Database as GeneratedDatabase } from "./supabase";
+
+export type { Json } from "./supabase";
+
+/**
+ * Functions that exist in a migration but not yet in the live schema, so the
+ * generator has not seen them.
+ *
+ * ⚠️ TEMPORARY. Each entry here is a promise the database has not made yet.
+ * Delete an entry the moment its migration is applied and ./supabase.ts is
+ * regenerated — the generated type is then the real one, and leaving a stale
+ * override would hide a signature change.
+ *
+ * Currently pending:
+ *   - `record_activity_for` — migration 0040. The service-role replacement for
+ *     `record_activity`, which reads auth.uid() and so awards nothing when
+ *     called with the service role. See CLAUDE.md, "Applying 0040 and 0041".
+ */
+type PendingFunctions = {
+  record_activity_for: {
+    Args: { p_user_id: string; p_xp?: number };
+    Returns: { longest_streak: number; streak: number; xp: number }[];
+  };
+};
+
+/** The generated schema, passed to every Supabase client. */
+export type Database = Omit<GeneratedDatabase, "public"> & {
+  public: Omit<GeneratedDatabase["public"], "Functions"> & {
+    Functions: GeneratedDatabase["public"]["Functions"] & PendingFunctions;
+  };
+};
+
+type Tables = GeneratedDatabase["public"]["Tables"];
+type Views = GeneratedDatabase["public"]["Views"];
+
+/** A table's row, exactly as the database returns it. */
+type Row<T extends keyof Tables> = Tables[T]["Row"];
+
+/** The shape an INSERT into a table accepts (optional columns, defaults applied). */
+export type TablesInsert<T extends keyof Tables> = Tables[T]["Insert"];
+
+/** The shape an UPDATE to a table accepts. */
+export type TablesUpdate<T extends keyof Tables> = Tables[T]["Update"];
+
+/**
+ * A row with some columns replaced by a narrower type.
+ *
+ * `O`'s keys are constrained to the row's keys, so if a migration renames or
+ * drops a column that is being narrowed here, THIS FILE fails to compile —
+ * which is the whole point of deriving rather than restating.
+ */
+type Narrow<R, O extends Partial<Record<keyof R, unknown>>> = Omit<R, keyof O> & O;
+
+/**
+ * A view's row with the nulls taken back out.
+ *
+ * Postgres cannot express NOT NULL through a view, so every generated view
+ * column is `T | null` even where the underlying column is non-null and the
+ * view's own aggregates (rank, counts) can never be null. Narrowing here keeps
+ * the column-name checking — a renamed view column still breaks the build —
+ * without pushing false nulls into every consumer.
+ */
+type NonNullRow<R> = { [K in keyof R]: NonNullable<R[K]> };
+
+/**
+ * Narrows rows the client typed from the generated schema into the app's own
+ * row types.
+ *
+ * A cast is genuinely needed here and cannot be designed away: `skill`, `role`,
+ * `tier`, `track` and `status` are `text` columns, not Postgres enums, so the
+ * generated type is `string`, while the app treats them as closed unions. The
+ * same goes for `jsonb` columns, which generate as `Json`.
+ *
+ * What this replaces is seven scattered `as unknown as T[]` expressions that
+ * asserted the same thing without saying so. Funnelling them through one named
+ * helper keeps the assertion greppable and gives it somewhere to be explained.
+ *
+ * It is still an assertion, so it is only sound where the DB constrains the
+ * values — a CHECK constraint, or the fact that only this app writes them.
+ * Data arriving from outside that guarantee wants runtime narrowing instead
+ * (`asAnswerKey` / `asAnswers` in lib/ielts/grade.ts).
+ */
+export function rows<T>(data: unknown[] | null | undefined): T[] {
+  return (data ?? []) as T[];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Value unions — `text` columns in the database, closed sets in the app.      */
+/* -------------------------------------------------------------------------- */
 
 export type Skill = "reading" | "listening" | "writing" | "speaking";
 export type Role = "student" | "admin";
 /** A student's learning track. Beginners get a tailored materials menu. */
 export type Level = "regular" | "pre_ielts" | "intro";
 
-export type Profile = {
-  id: string;
-  name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  role: Role;
-  level: Level; // learning track (migration 0021); 'regular' = full IELTS
-  is_owner: boolean;
-  premium_until: string | null; // ISO date; active premium while in the future
-  premium_announce: boolean; // show the one-time "you're premium" congrats
-  target_band: number | null; // the student's goal band (1.0–9.0), or null
-  streak: number;
-  longest_streak: number;
-  last_activity_date: string | null;
-  xp: number;
-  rating: number; // competitive Reading rating (Bronze … Legend)
-  peak_rating: number; // highest rating ever reached
-  rated_count: number; // # of first-attempt, rated reading tests
-  timezone: string; // IANA tz (e.g. 'Asia/Tashkent'); drives streak/report day boundaries
-  referral_code: string | null; // the user's own shareable invite code (migration 0019)
-  referred_by: string | null; // profile id of whoever invited this user, or null
-  hidden_from_leaderboard: boolean; // admin can temporarily hide from rating (migration 0020)
-  created_at: string;
+/* -------------------------------------------------------------------------- */
+/* Tables                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type Profile = Narrow<
+  Row<"profiles">,
+  {
+    role: Role;
+    /** Learning track (migration 0021); 'regular' = the full IELTS catalogue. */
+    level: Level;
+  }
+>;
+
+export type Referral = Narrow<Row<"referrals">, { status: "pending" | "qualified" }>;
+
+export type Test = Narrow<
+  Row<"tests">,
+  {
+    skill: "reading" | "listening";
+    /** A single passage/section, or a full test. */
+    kind: "single" | "full";
+    tier: "free" | "premium";
+    /** Audience: 'regular' (the normal pages) | 'pre_ielts' | 'intro' (0021). */
+    track: Level;
+    /**
+     * Answer key for server-side grading: `{ "1": ["terminal"], ... }`.
+     *
+     * Never sent to the browser: migration 0034 revokes column-level SELECT on
+     * it (with file_path / file_url) from the client roles, so it is readable
+     * only with the service-role client.
+     *
+     * NULL only on legacy rows uploaded before the key became mandatory. Those
+     * can no longer be submitted at all — saveResult refuses a test with no
+     * key, because a page-reported score is unverifiable — and must be
+     * backfilled with scripts/backfill-keys.mjs.
+     */
+    answer_key: Record<string, string[]> | null;
+  }
+>;
+
+export type Result = Narrow<
+  Row<"results">,
+  {
+    skill: Skill;
+    /**
+     * Submitted answers for review: `{ "1": "terminal", ... }`.
+     * NULL for legacy results saved before migration 0013.
+     */
+    answers: Record<string, string> | null;
+  }
+>;
+
+export type Achievement = Narrow<
+  Row<"achievements">,
+  { category: "rating" | "activity" | "accuracy" | "streak" }
+>;
+
+export type UserAchievement = Row<"user_achievements">;
+
+export type Notification = Narrow<
+  Row<"notifications">,
+  {
+    type: "weekly_report" | "info" | "referral" | (string & {});
+    data: Record<string, unknown> | null;
+  }
+>;
+
+export type WeeklyReport = Narrow<Row<"weekly_reports">, { generated_by: "auto" | "admin" }>;
+
+export type WritingSubmission = Narrow<
+  Row<"writing_submissions">,
+  { task_type: "task1" | "task2"; status: "draft" | "submitted" }
+>;
+
+/* -------------------------------------------------------------------------- */
+/* Speaking                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** Per-criterion band + a short comment, as returned by Gemini. */
+export type SpeakingCriterion = { band: number; comment: string };
+
+export type SpeakingFeedback = {
+  overallBand: number;
+  criteria: {
+    fluency: SpeakingCriterion; // Fluency & Coherence
+    lexical: SpeakingCriterion; // Lexical Resource
+    grammar: SpeakingCriterion; // Grammatical Range & Accuracy
+    pronunciation: SpeakingCriterion;
+  };
+  strengths: string[];
+  improvements: string[];
+  partFeedback: { part: number; comment: string }[];
+  transcript: string;
 };
 
-export type Referral = {
-  id: string;
-  referrer_id: string;
-  referred_id: string;
-  status: "pending" | "qualified";
-  reward_months: number;
-  created_at: string;
-  qualified_at: string | null;
+/**
+ * Hand-authored practice material for a speaking topic (shared). Sample answers
+ * mark key vocabulary/expressions/idioms with **double asterisks** for highlight.
+ */
+export type SpeakingStudy = {
+  ideas: string[];
+  samples: { prompt: string; versions: string[] }[]; // 3+ natural versions each
+  vocabulary: { term: string; meaning: string; example: string }[];
+  grammar: { point: string; example: string }[];
 };
 
-export type Test = {
-  id: string;
-  title: string;
-  skill: "reading" | "listening";
-  kind: "single" | "full"; // single passage/section, or a full test
-  tier: "free" | "premium";
-  question_types: string[];
-  times_done: number; // total completions across all users
-  difficulty: number; // self-tuning Elo difficulty (reading); 1500 = average
-  level: string | null; // free-text band label shown on the card, e.g. "Band 6–7"
-  track: Level; // audience: 'regular' (normal pages) | 'pre_ielts' | 'intro' (migration 0021)
-  passage: number | null; // reading single only: 1, 2 or 3
-  file_url: string;
-  file_path: string;
-  // Answer key for server-side grading: { "1": ["terminal"], ... }. Never sent
-  // to the browser — reads go through the `tests_public` view, and the raw
-  // column is only readable with the service-role client. NULL only on legacy
-  // rows uploaded before the key became mandatory; those still score in-page
-  // and must be backfilled (scripts/backfill-keys.mjs).
-  answer_key: Record<string, string[]> | null;
-  total: number | null; // number of gradeable questions
-  created_by: string | null;
-  created_at: string;
-};
+export type SpeakingSubmission = Narrow<
+  Row<"speaking_submissions">,
+  {
+    /** Overall band. */
+    score: number | null;
+    feedback: SpeakingFeedback | null;
+    audio_paths: string[] | null;
+  }
+>;
 
-export type Result = {
-  id: string;
-  user_id: string;
-  test_id: string | null;
-  skill: Skill;
-  raw: number | null;
-  total: number | null;
-  band: number | null;
-  // Submitted answers for review: { "1": "terminal", ... }. NULL for legacy
-  // results saved before migration 0013.
-  answers: Record<string, string> | null;
-  // Ranking bookkeeping (migration 0016). Only the first attempt of a
-  // server-graded reading test is `rated`; retakes/flagged runs are not.
-  duration_seconds: number | null;
-  rated: boolean;
-  points: number; // weekly/monthly points earned (>= 0)
-  rating_before: number | null;
-  rating_after: number | null;
-  rating_delta: number | null;
-  flagged: boolean;
-  flag_reason: string | null;
-  submitted_at: string;
-};
+/** A speaking question in the browsable bank, mirrored from the Telegram channel. */
+export type SpeakingQuestion = Narrow<
+  Row<"speaking_questions">,
+  {
+    part: 1 | 2 | 3;
+    /** Cached practice material; null until generated. */
+    study: SpeakingStudy | null;
+  }
+>;
 
-export type Achievement = {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: "rating" | "activity" | "accuracy" | "streak";
-  threshold: number | null;
-  sort: number;
-};
+/* -------------------------------------------------------------------------- */
+/* Views and RPC projections                                                   */
+/* -------------------------------------------------------------------------- */
 
-export type UserAchievement = {
-  user_id: string;
-  achievement_id: string;
-  earned_at: string;
-};
+/** Safe public projection from the leaderboard_global view (no email/auth). */
+export type LeaderboardGlobalRow = NonNullRow<Views["leaderboard_global"]["Row"]>;
 
-export type Notification = {
-  id: string;
-  user_id: string;
-  type: "weekly_report" | "info" | "referral" | string;
-  title: string;
-  body: string | null;
-  data: Record<string, unknown> | null;
-  read_at: string | null;
-  created_at: string;
-};
+/** leaderboard_weekly and leaderboard_monthly share a shape. */
+export type LeaderboardPeriodRow = NonNullRow<Views["leaderboard_weekly"]["Row"]>;
 
-export type WeeklyReport = {
-  id: string;
-  user_id: string;
-  period_start: string; // Monday (ISO date)
-  period_end: string; // Sunday (ISO date)
-  tests_completed: number;
-  avg_band: number | null;
-  best_band: number | null;
-  avg_accuracy: number | null; // percent
-  points: number;
-  rating_start: number | null;
-  rating_end: number | null;
-  rating_delta: number;
-  new_achievements: number;
-  streak: number;
-  generated_by: "auto" | "admin";
-  created_at: string;
-};
+export type ProfileStats = NonNullRow<Views["profile_stats"]["Row"]>;
 
-// Safe public projection exposed by the leaderboard_* views (no email/auth).
-export type LeaderboardGlobalRow = {
-  id: string;
-  name: string | null;
-  avatar_url: string | null;
-  rating: number;
-  peak_rating: number;
-  rated_count: number;
-  tests_completed: number;
-  rank: number;
-};
-
-export type LeaderboardPeriodRow = {
-  id: string;
-  name: string | null;
-  avatar_url: string | null;
-  rating: number;
-  points: number;
-  tests: number;
-  rank: number;
-};
-
-// Shape returned by the public_profile(uuid) RPC — safe, no PII.
+/**
+ * Shape returned by the `public_profile(uuid)` RPC — safe, no PII.
+ *
+ * Hand-written on purpose: the function returns `json`, so the generator can
+ * only say `Json`. This is the contract the SQL actually builds; if you change
+ * that function, change this with it.
+ */
 export type PublicProfile = {
   id: string;
   name: string | null;
@@ -178,134 +278,4 @@ export type PublicProfile = {
     category: string;
     earned_at: string;
   }[];
-};
-
-export type ProfileStats = {
-  id: string;
-  rating: number;
-  peak_rating: number;
-  rated_count: number;
-  reading_attempts: number;
-  total_attempts: number;
-  total_questions: number;
-  total_correct: number;
-  first_attempt_avg_band: number | null;
-  best_band: number | null;
-};
-
-export type WritingSubmission = {
-  id: string;
-  user_id: string;
-  task_type: "task1" | "task2";
-  prompt: string | null;
-  content: string | null;
-  score: number | null;
-  feedback: unknown | null;
-  status: "draft" | "submitted";
-  created_at: string;
-};
-
-// Per-criterion band + a short comment, as returned by Gemini.
-export type SpeakingCriterion = { band: number; comment: string };
-
-export type SpeakingFeedback = {
-  overallBand: number;
-  criteria: {
-    fluency: SpeakingCriterion; // Fluency & Coherence
-    lexical: SpeakingCriterion; // Lexical Resource
-    grammar: SpeakingCriterion; // Grammatical Range & Accuracy
-    pronunciation: SpeakingCriterion;
-  };
-  strengths: string[];
-  improvements: string[];
-  partFeedback: { part: number; comment: string }[];
-  transcript: string;
-};
-
-export type SpeakingSubmission = {
-  id: string;
-  user_id: string;
-  prompt: string | null;
-  topic: string | null;
-  audio_url: string | null;
-  audio_path: string | null;
-  audio_paths: string[] | null;
-  score: number | null; // overall band
-  feedback: SpeakingFeedback | null;
-  created_at: string;
-};
-
-/** Hand-authored practice material for a speaking topic (shared). Sample answers
- * mark key vocabulary/expressions/idioms with **double asterisks** for highlight. */
-export type SpeakingStudy = {
-  ideas: string[];
-  samples: { prompt: string; versions: string[] }[]; // 3+ natural versions each
-  vocabulary: { term: string; meaning: string; example: string }[];
-  grammar: { point: string; example: string }[];
-};
-
-/** A speaking question in the browsable bank, mirrored from the Telegram channel. */
-export type SpeakingQuestion = {
-  id: string;
-  part: 1 | 2 | 3;
-  title: string;
-  number: string | null; // e.g. "Question 4"
-  content: string; // the questions / cue card text (newline-separated)
-  channel_message_id: number | null;
-  channel_link: string | null;
-  study: SpeakingStudy | null; // cached practice material (null until generated)
-  created_at: string;
-};
-
-type Row<T> = T;
-type Insert<T> = Partial<T>;
-type Update<T> = Partial<T>;
-
-export type Database = {
-  public: {
-    Tables: {
-      profiles: { Row: Row<Profile>; Insert: Insert<Profile>; Update: Update<Profile> };
-      tests: { Row: Row<Test>; Insert: Insert<Test>; Update: Update<Test> };
-      results: { Row: Row<Result>; Insert: Insert<Result>; Update: Update<Result> };
-      writing_submissions: {
-        Row: Row<WritingSubmission>;
-        Insert: Insert<WritingSubmission>;
-        Update: Update<WritingSubmission>;
-      };
-      speaking_submissions: {
-        Row: Row<SpeakingSubmission>;
-        Insert: Insert<SpeakingSubmission>;
-        Update: Update<SpeakingSubmission>;
-      };
-      speaking_questions: {
-        Row: Row<SpeakingQuestion>;
-        Insert: Insert<SpeakingQuestion>;
-        Update: Update<SpeakingQuestion>;
-      };
-      achievements: { Row: Row<Achievement>; Insert: Insert<Achievement>; Update: Update<Achievement> };
-      user_achievements: {
-        Row: Row<UserAchievement>;
-        Insert: Insert<UserAchievement>;
-        Update: Update<UserAchievement>;
-      };
-    };
-    Functions: {
-      record_activity: {
-        Args: { p_xp?: number };
-        Returns: { streak: number; longest_streak: number; xp: number }[];
-      };
-      is_admin: { Args: { uid: string }; Returns: boolean };
-      apply_rating: {
-        Args: { p_result_id: string };
-        Returns: {
-          rated: boolean;
-          rating: number | null;
-          rating_delta: number;
-          points: number;
-          flagged: boolean;
-          reason: string | null;
-        }[];
-      };
-    };
-  };
 };

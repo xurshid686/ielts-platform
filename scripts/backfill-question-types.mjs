@@ -15,20 +15,10 @@
 // The classification rules live in src/lib/ielts/infer-question-types.ts and are
 // unit-tested, so this script stays a thin driver over them.
 
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { inferQuestionTypes } from "../src/lib/ielts/infer-question-types.ts";
+import { loadEnv } from "./env.mjs";
 
-function loadEnv() {
-  try {
-    for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
-    }
-  } catch {
-    /* rely on the ambient environment */
-  }
-}
 loadEnv();
 
 const args = process.argv.slice(2);

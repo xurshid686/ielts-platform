@@ -16,6 +16,9 @@ type Props = {
   // True when the test is graded server-side (has a stored answer key). The
   // manual "type your score" fallback is hidden for these — the score is
   // computed from the user's actual answers and can't be hand-entered.
+  // Every test in the library has a key, so this is true in practice and the
+  // fallback never renders; saveResult refuses a keyless test outright and
+  // says so, rather than saving a number nobody can check.
   graded?: boolean;
   // My-students may send their submitted answers to the teacher (Telegram).
   // No account: the attempt is graded but nothing is saved, and the result
@@ -57,8 +60,11 @@ type Submission = { raw?: number; total?: number; band?: number; answers?: Answe
  *  - "SUBMIT" — from a sanitized test (the normal case). Carries ONLY the
  *    student's answers; the key was stripped before the file was served, so the
  *    page has no score to report and the server does all the grading.
- *  - "RESULT" — from a keyless test that still scores itself in-page. Carries
- *    raw/total/band, used as a fallback until the key is backfilled.
+ *  - "RESULT" — from an older keyless test that still scores itself in-page.
+ *    Carries raw/total/band. The server no longer persists those numbers: a
+ *    test with no stored key is refused outright, because a page-reported
+ *    score is unverifiable. Parsed here so the guest result screen can still
+ *    show something, and so the shape stays documented.
  */
 function parseMessage(data: unknown): Submission | null {
   if (!data || typeof data !== "object") return null;

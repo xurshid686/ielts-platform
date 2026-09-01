@@ -9,16 +9,16 @@ import { rawToBand } from "@/lib/ielts/bandTable";
 import { gradeAnswers, asAnswerKey, asAnswers, type Answers } from "@/lib/ielts/grade";
 
 export type SaveResultInput = {
+  // Required. A submission with no test behind it used to be accepted and
+  // written verbatim — see the guard at the top of saveResult().
   testId: string | null;
-  // The skill the CLIENT believes this was. It is only trusted for keyless /
-  // test-less submissions; whenever there is a real test row, the skill is
-  // read from it instead. See the note in saveResult().
+  // The skill the CLIENT believes this was. Never trusted: the skill is always
+  // read from the test row. Kept in the payload because the bridge sends it
+  // and it is useful in the error path.
   skill: "reading" | "listening";
-  // Client-reported score — used ONLY as a fallback for tests that have no
-  // stored answer key (those still score themselves in-page; see
-  // /api/test-html). When a key exists the server grades `answers` and never
-  // reads these, so the score cannot be fabricated. Sanitized tests don't send
-  // them at all, which is why they are optional.
+  // Client-reported score. NO LONGER USED to persist anything — the server
+  // grades from the stored key or refuses the submission. Kept optional in the
+  // type so older embedded bridges can keep posting it harmlessly.
   raw?: number;
   total?: number;
   band?: number;
@@ -65,8 +65,22 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "You are not signed in." };
 
-  // --- Score: server grades from the stored key when there is one ---
-  // (the client-reported raw/total/band are only a fallback for keyless tests).
+  // A submission must name a test. Without this, the entitlement + grading
+  // block below was skipped entirely and the caller's own raw/total/band were
+  // written straight to `results` with the service-role client:
+  //
+  //   saveResult({ testId: null, skill: "reading", raw: 40, total: 40, band: 9 })
+  //
+  // — a fabricated perfect attempt in the student's history, feeding the
+  // dashboard averages, the weekly report and the badge thresholds. That is
+  // the outcome 0038 revoked the direct INSERT grant to prevent; it was
+  // reachable through this action instead. Every test in the library has a
+  // stored answer key, so nothing legitimate takes this path.
+  if (!input.testId) {
+    return { ok: false, error: "This attempt isn't linked to a test, so it can't be saved." };
+  }
+
+  // --- Score: the server grades from the stored key. Always. ---
   let raw = 0;
   let total = 1;
   let band = 0;
@@ -79,61 +93,50 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   // marking, a different band curve, and a way to dodge a rating loss.
   let skill: "reading" | "listening" = input.skill === "listening" ? "listening" : "reading";
 
-  let serverGraded = false;
-  if (input.testId) {
-    // Entitlement first. This action reads the answer key with the SERVICE-ROLE
-    // client, so without this check any signed-in account could post answers
-    // for a premium test it cannot open and read the authoritative `raw` back —
-    // an answer-key oracle, and a results row for content it never bought.
-    // `resolveTestAccess` is the one place that decides this (see CLAUDE.md);
-    // /api/test-html, /api/test-key and /api/test-video all defer to it.
-    const access = await resolveTestAccess(input.testId);
-    if (!access.ok) {
-      return {
-        ok: false,
-        error:
-          access.status === 403
-            ? "This test needs a Premium membership."
-            : "That test isn't available.",
-      };
-    }
-    if (access.row.skill === "reading" || access.row.skill === "listening") {
-      skill = access.row.skill;
-    }
-
-    // `answer_key` is revoked from the `authenticated` role (migration 0034),
-    // so it is read here with the service-role client and used only to compute
-    // the score. It is never returned to the caller.
-    const key = asAnswerKey(access.row.answer_key);
-    const answers = asAnswers(input.answers);
-    if (key) {
-      // A keyed test with no/blank answers means harvesting failed — grade what
-      // we have (a perfect-score fake is still impossible: raw comes from us).
-      const graded = gradeAnswers(key, answers ?? {}, skill);
-      raw = graded.raw;
-      total = graded.total;
-      band = rawToBand(skill, raw, total);
-      serverGraded = true;
-    }
+  // Entitlement first. This action reads the answer key with the SERVICE-ROLE
+  // client, so without this check any signed-in account could post answers
+  // for a premium test it cannot open and read the authoritative `raw` back —
+  // an answer-key oracle, and a results row for content it never bought.
+  // `resolveTestAccess` is the one place that decides this (see CLAUDE.md);
+  // /api/test-html, /api/test-key and /api/test-video all defer to it.
+  const access = await resolveTestAccess(input.testId);
+  if (!access.ok) {
+    return {
+      ok: false,
+      error:
+        access.status === 403
+          ? "This test needs a Premium membership."
+          : "That test isn't available.",
+    };
+  }
+  if (access.row.skill === "reading" || access.row.skill === "listening") {
+    skill = access.row.skill;
   }
 
-  if (!serverGraded) {
-    // Keyless test: the page scored itself and we have nothing to check it
-    // against. Refuse a submission that carries no numbers at all rather than
-    // writing a meaningless 0/1 row.
-    if (typeof input.raw !== "number" || typeof input.total !== "number") {
-      return {
-        ok: false,
-        error: "This test has no stored answer key yet, so it can't be scored. Please tell an admin.",
-      };
-    }
-    raw = Math.max(0, Math.round(input.raw));
-    total = Math.max(1, Math.round(input.total));
-    band =
-      typeof input.band === "number" && input.band > 0
-        ? input.band
-        : rawToBand(skill, raw, total);
+  // `answer_key` is revoked from the `authenticated` role (migration 0034),
+  // so it is read here with the service-role client and used only to compute
+  // the score. It is never returned to the caller.
+  //
+  // A test with no stored key cannot be scored by anyone but the page itself,
+  // and a page-reported score is unverifiable — that fallback is what let a
+  // caller name its own band. Every test in the library has a key
+  // (`scripts/audit-answer-keys.mjs` checks this), so refusing is correct
+  // rather than merely strict: a keyless test is a data bug to fix at upload,
+  // not a score to accept.
+  const key = asAnswerKey(access.row.answer_key);
+  if (!key) {
+    return {
+      ok: false,
+      error: "This test has no stored answer key yet, so it can't be scored. Please tell an admin.",
+    };
   }
+
+  // A keyed test with no/blank answers means harvesting failed — grade what
+  // we have (a perfect-score fake is still impossible: raw comes from us).
+  const graded = gradeAnswers(key, asAnswers(input.answers) ?? {}, skill);
+  raw = graded.raw;
+  total = graded.total;
+  band = rawToBand(skill, raw, total);
 
   // Idempotency guard: ignore an identical re-submit of the same test within 30s
   // (protects against any accidental double-fire inflating XP/streak).
@@ -143,17 +146,14 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   // falls back to the catalogue instead of /review/[id] — which is what a
   // legitimate retry after a dropped connection hits.
   const since = new Date(Date.now() - 30_000).toISOString();
-  let recentQuery = supabase
+  const { data: recent } = await supabase
     .from("results")
     .select("id")
     .eq("user_id", user.id)
+    .eq("test_id", input.testId)
     .gte("submitted_at", since)
     .order("submitted_at", { ascending: false })
     .limit(1);
-  recentQuery = input.testId
-    ? recentQuery.eq("test_id", input.testId)
-    : recentQuery.is("test_id", null);
-  const { data: recent } = await recentQuery;
   if (recent && recent.length > 0) {
     return {
       ok: true,
@@ -187,28 +187,26 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   const firstToday = profile?.last_activity_date !== today;
 
   // --- XP award: tie XP to genuine practice so it can't be farmed into free
-  // progress and the leaderboards. Full XP for the FIRST attempt of a real
-  // test; a small amount for an occasional retake (at most once per test per day); nothing
-  // for keyless / no-test submissions (those scores are unverifiable). The
-  // rating engine is unaffected — it independently gates on server-grading. ---
-  let xpAward = 0;
-  if (input.testId) {
-    const { data: priorRows } = await supabase
-      .from("results")
-      .select("submitted_at")
-      .eq("user_id", user.id)
-      .eq("test_id", input.testId);
-    const prior = (priorRows ?? []) as { submitted_at: string }[];
-    if (prior.length === 0) {
-      xpAward = serverGraded ? 20 : 10; // first time on this test
-    } else {
-      // Compare in the student's timezone too, for the same reason as above —
-      // slicing the raw ISO string compares UTC days against a local `today`.
-      const doneToday = prior.some(
-        (r) => localDay(profile?.timezone, new Date(r.submitted_at)) === today,
-      );
-      xpAward = doneToday ? 0 : 5; // a retake — capped to once per day
-    }
+  // progress and the leaderboards. Full XP for the FIRST attempt of a test, a
+  // small amount for an occasional retake (at most once per test per day).
+  // Every submission that reaches here is server-graded against a stored key,
+  // so there is no longer an unverifiable-score tier to withhold XP from. ---
+  let xpAward: number;
+  const { data: priorRows } = await supabase
+    .from("results")
+    .select("submitted_at")
+    .eq("user_id", user.id)
+    .eq("test_id", input.testId);
+  const prior = (priorRows ?? []) as { submitted_at: string }[];
+  if (prior.length === 0) {
+    xpAward = 20; // first time on this test
+  } else {
+    // Compare in the student's timezone too, for the same reason as above —
+    // slicing the raw ISO string compares UTC days against a local `today`.
+    const doneToday = prior.some(
+      (r) => localDay(profile?.timezone, new Date(r.submitted_at)) === today,
+    );
+    xpAward = doneToday ? 0 : 5; // a retake — capped to once per day
   }
 
   // Persist the student's answers so they can reopen the test for review.
@@ -239,27 +237,17 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   // INSERT grant. `user_id` is taken from the verified session, never the
   // input, because the service role bypasses RLS and cannot rely on it.
   const writer = createAdminClient();
-  let resultId: string | null = null;
-  let { data: inserted, error } = await writer
+  const { data: inserted, error } = await writer
     .from("results")
     .insert({ ...baseRow, answers: storedAnswers, duration_seconds: duration })
     .select("id")
     .single();
-  // Graceful fallback if migration 0013/0016 hasn't been applied yet
-  // (42703 = undefined_column): retry without the newer columns.
-  if (error && (error.code === "42703" || /answers|duration_seconds/i.test(error.message))) {
-    ({ data: inserted, error } = await writer
-      .from("results")
-      .insert(baseRow)
-      .select("id")
-      .single());
-  }
   if (error) return { ok: false, error: error.message };
-  resultId = (inserted as { id?: string } | null)?.id ?? null;
+  const resultId = (inserted as { id?: string } | null)?.id ?? null;
 
   // --- Rating: only the FIRST attempt of a server-graded reading test moves
   // the standing. apply_rating() is the single trusted place for that logic
-  // (it also runs every anti-cheat rule). Degrades gracefully pre-0016. ---
+  // (it also runs every anti-cheat rule). ---
   let rating: RatingOutcome | null = null;
   if (resultId) {
     const { data: rate, error: rateErr } = await supabase.rpc("apply_rating", {
@@ -287,7 +275,23 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     }
   }
 
-  const { data: act } = await supabase.rpc("record_activity", { p_xp: xpAward });
+  // Streak + XP. Awarded through the SERVICE-ROLE client on purpose: the
+  // session-scoped `record_activity` was granted to `authenticated`, so a
+  // student could POST it in a loop and mint XP without completing anything
+  // (30 per call, uncapped per day). Migration 0041 revokes that grant;
+  // `record_activity_for` (0040) is service-role only and takes the user id
+  // explicitly, because the service role has no `auth.uid()` to read.
+  const { data: act, error: actErr } = await writer.rpc("record_activity_for", {
+    p_user_id: user.id,
+    p_xp: xpAward,
+  });
+  // The score is already saved, so a failure here must not fail the submission
+  // — but it must not be silent either. The likeliest cause is a deploy that
+  // ran ahead of migration 0040, which would otherwise stop every streak and
+  // XP award site-wide with no signal at all.
+  if (actErr) {
+    console.error(`[saveResult] record_activity_for failed for ${user.id}: ${actErr.message}`);
+  }
   const a = act?.[0];
 
   revalidatePath("/dashboard");
