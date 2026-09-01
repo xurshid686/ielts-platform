@@ -6,7 +6,42 @@ Next.js 16 (App Router) + Supabase. An IELTS practice site: students take real
 computer-delivered-exam ("CDI") reading and listening tests, which are
 self-contained HTML files served into an iframe, graded on the server.
 
-Production: https://ielts-platform-pi.vercel.app
+## Where production actually is — READ THIS BEFORE DEPLOYING
+
+**mockonline.uz is served by DigitalOcean App Platform, behind Cloudflare. It is
+NOT the Vercel deployment.** Confirmed 2026-09-01 from its response headers
+(`x-do-app-origin`, `Server: cloudflare`), and by comparing the built chunk
+sets: after a `npm run go-live`, Vercel served the new build and mockonline.uz
+was still serving the previous one.
+
+| URL | Host | Updated by |
+| --- | --- | --- |
+| **https://mockonline.uz** — the site students use, and `SITE_HOST` | DigitalOcean | **NOT `npm run go-live`** |
+| https://ielts-platform-pi.vercel.app | Vercel | `npm run go-live` |
+| https://ielts-platform-dev.vercel.app | Vercel | `npm run save-dev` |
+
+**`npm run go-live` therefore does NOT ship to the real site.** It merges dev
+into main, pushes, and deploys Vercel. Something separate has to update the
+DigitalOcean app — check whether its GitHub integration auto-deploys from
+`main`, and how long it lags.
+
+This matters far beyond a stale page: **a deploy-order-sensitive migration
+(0034, 0041) keyed to "deploy the code first" is keyed to the WRONG deploy if
+you only ran go-live.** Applying 0041 while mockonline.uz still ran the old
+code would have broken speaking submissions and silently stopped XP for every
+student on the live site.
+
+Before running any not-backward-compatible migration, verify the CANONICAL host
+is on the new build:
+
+```
+curl -s https://mockonline.uz/ | grep -oE '/_next/static/chunks/[^"]+' | sort -u | md5sum
+curl -s https://ielts-platform-dev.vercel.app/ | grep -oE '/_next/static/chunks/[^"]+' | sort -u | md5sum
+```
+
+Identical hashes = same build. Different = mockonline.uz has not caught up.
+
+Vercel production: https://ielts-platform-pi.vercel.app
 Dev preview: https://ielts-platform-dev.vercel.app
 
 ---
@@ -139,8 +174,19 @@ Same class of hazard as 0034 — read that section first.
   depends on. Applying it before the deploy breaks speaking submissions and
   silently stops awarding XP.
 
-Order: **run 0040 → deploy the code → confirm it is live → run 0041.**
-Verification queries are in 0041's header.
+Order: **run 0040 → deploy the code → confirm it is live ON mockonline.uz →
+run 0041.** Verification queries are in 0041's header.
+
+"Confirm it is live" means the CANONICAL host, not the Vercel URL — see "Where
+production actually is" at the top of this file. `npm run go-live` does not
+update mockonline.uz.
+
+**Status (2026-09-01): 0040 is APPLIED. 0041 is NOT.**
+0040 was verified in production: `record_activity_for` exists and is granted to
+`service_role` only, and `record_activity` still works for the old code path
+(both tested inside rolled-back transactions). That is why the site is fine in
+this in-between state — 0040 is additive and the old wrapper still delegates
+correctly. 0041 is deliberately held until mockonline.uz serves the new build.
 
 ## Which database a script talks to
 
