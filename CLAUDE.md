@@ -14,11 +14,39 @@ NOT the Vercel deployment.** Confirmed 2026-09-01 from its response headers
 sets: after a `npm run go-live`, Vercel served the new build and mockonline.uz
 was still serving the previous one.
 
-| URL | Host | Updated by |
-| --- | --- | --- |
-| **https://mockonline.uz** — the site students use, and `SITE_HOST` | DigitalOcean | **NOT `npm run go-live`** |
-| https://ielts-platform-pi.vercel.app | Vercel | `npm run go-live` |
-| https://ielts-platform-dev.vercel.app | Vercel | `npm run save-dev` |
+| URL | Host | Updated by | Database |
+| --- | --- | --- | --- |
+| **https://mockonline.uz** — the site students use, and `SITE_HOST` | DigitalOcean | **NOT `npm run go-live`** | Frankfurt |
+| https://mockonline-2m8db.ondigitalocean.app | DigitalOcean | (same app) | Frankfurt |
+| https://ielts-platform-pi.vercel.app | Vercel | `npm run go-live` | Frankfurt (since 2026-09-02) |
+| https://ielts-platform-dev.vercel.app | Vercel | `npm run save-dev` | Frankfurt (since 2026-09-02) |
+
+## The two Vercel hosts used to read a DIFFERENT database
+
+Fixed 2026-09-02. Until then, both Vercel hosts pointed at project
+`cxgwxzkqccpyuhacwvum` — a snapshot of Frankfurt taken around 29-30 August —
+while the DigitalOcean hosts read Frankfurt. `.env.local` still points at that
+snapshot, which is what the "OLD, DEAD project" note below refers to; it was
+never dead, it was serving both Vercel URLs.
+
+**How it was found, and the trap in finding it:** a test that exists only in
+Frankfurt returned **HTTP 200 on every host**, because a missing test renders a
+friendly "Test not found" page rather than a 404. Status codes prove nothing
+here — compare the `<title>`, or use `/api/guest-grade` (service-role) which
+returns `{"error":"Not found"}` versus a real `total`.
+
+**What it cost:** one student (Xondamir) reached a Vercel URL from a bookmark —
+the hosts correctly serve `X-Robots-Tag: noindex`, so it was not search — and
+five of his attempts, including a band 9, were written to the snapshot. They
+were copied into Frankfurt on 2026-09-02 with their original ids, timestamps
+and rating fields; his rating chain was continuous (Frankfurt ended at 1389,
+the stranded rows ran 1389 -> 1439), so nothing had to be invented.
+`profiles.rating` was deliberately NOT recalculated.
+
+The fix was to point all three Supabase vars for Vercel Preview (dev) and
+Production at Frankfurt. **If you ever repoint a host's database, remember
+`NEXT_PUBLIC_*` is inlined at BUILD time — an env change needs a redeploy, not
+just a save.** `npx vercel redeploy <url>` rebuilds without merging `dev`.
 
 **`npm run go-live` therefore does NOT ship to the real site.** It merges dev
 into main, pushes, and deploys Vercel. Something separate has to update the
