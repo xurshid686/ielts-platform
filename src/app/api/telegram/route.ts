@@ -5,7 +5,12 @@ import { sendMessage, editMessageText, answerCallbackQuery } from "@/lib/telegra
 import { parseCommand } from "@/lib/telegram/router";
 import { decodeCb } from "@/lib/telegram/callback";
 import { claimUpdate, getSession, setSession, clearSession } from "@/lib/telegram/state";
-import { updateSender, updateChatId, type TelegramUpdate } from "@/lib/telegram/types";
+import {
+  updateSender,
+  updateChatId,
+  type TelegramUpdate,
+  type InlineKeyboard,
+} from "@/lib/telegram/types";
 import {
   buildOverview,
   buildStats,
@@ -23,6 +28,19 @@ import {
   setLevel,
   setHidden,
 } from "@/lib/telegram/commands/students";
+import {
+  listTests,
+  buildTestCard,
+  confirmDelete,
+  deleteTest,
+  renameTest,
+} from "@/lib/telegram/commands/tests";
+import {
+  UPLOAD_PROMPT,
+  receiveDocument,
+  advance,
+  publish,
+} from "@/lib/telegram/commands/upload";
 
 // nodejs: node:crypto (the timing-safe secret compare) and the service-role
 // Supabase client both need it. maxDuration mirrors the cron routes — the live
@@ -100,6 +118,15 @@ async function handle(update: TelegramUpdate): Promise<void> {
 
   if (update.callback_query) return handleCallback(chatId, update);
   if (update.message) return handleMessage(chatId, update);
+}
+
+/** listTests returns an object; editMessageText takes positional arguments. */
+async function listTestsArgs(
+  skill: "reading" | "listening",
+  page: number,
+): Promise<[string, InlineKeyboard]> {
+  const out = await listTests(skill, page);
+  return [out.text, out.keyboard];
 }
 
 async function handleCallback(chatId: number, update: TelegramUpdate): Promise<void> {
@@ -195,9 +222,68 @@ async function handleCallback(chatId: number, update: TelegramUpdate): Promise<v
     }
 
     case "tests":
-    case "upload":
-      await sendMessage(chatId, "🚧 Not built yet — coming in the next phase.");
+      await editMessageText(chatId, messageId, ...(await listTestsArgs("reading", 0)));
       return;
+
+    case "tp": {
+      const skill = args[0] === "listening" ? "listening" : "reading";
+      const page = Number(args[1] ?? 0) || 0;
+      await editMessageText(chatId, messageId, ...(await listTestsArgs(skill, page)));
+      return;
+    }
+
+    case "test": {
+      const card = await buildTestCard(args[0] ?? "");
+      if (!card) {
+        await editMessageText(chatId, messageId, "That test no longer exists.", mainMenu());
+        return;
+      }
+      await editMessageText(chatId, messageId, card.text, card.keyboard);
+      return;
+    }
+
+    case "tren":
+      await setSession(chatId, "await_rename", { testId: args[0] ?? "" }, messageId);
+      await editMessageText(
+        chatId,
+        messageId,
+        "✏️ Send the new title as a message.\n<i>/cancel to stop.</i>",
+      );
+      return;
+
+    case "tdel": {
+      const confirm = await confirmDelete(args[0] ?? "");
+      if (!confirm) {
+        await editMessageText(chatId, messageId, "That test no longer exists.", mainMenu());
+        return;
+      }
+      await editMessageText(chatId, messageId, confirm.text, confirm.keyboard);
+      return;
+    }
+
+    case "tdel2": {
+      const out = await deleteTest(args[0] ?? "");
+      await editMessageText(
+        chatId,
+        messageId,
+        out.ok ? `🗑 ${out.note}` : `⚠️ ${out.note}`,
+        mainMenu(),
+      );
+      return;
+    }
+
+    case "upload":
+      await clearSession(chatId);
+      await editMessageText(chatId, messageId, UPLOAD_PROMPT);
+      return;
+
+    case "up": {
+      // A step of the upload wizard.
+      const session = await getSession(chatId);
+      const step = await advance(chatId, session, args[0] ?? "", args[1] ?? "");
+      await editMessageText(chatId, messageId, step.text, step.keyboard);
+      return;
+    }
 
     default:
       return;
@@ -241,6 +327,17 @@ async function handleMessage(chatId: number, update: TelegramUpdate): Promise<vo
         return;
       }
 
+      case "tests": {
+        const out = await listTests("reading", 0);
+        await sendMessage(chatId, out.text, out.keyboard);
+        return;
+      }
+
+      case "upload":
+        await clearSession(chatId);
+        await sendMessage(chatId, UPLOAD_PROMPT);
+        return;
+
       case "help":
         await sendMessage(
           chatId,
@@ -249,6 +346,8 @@ async function handleMessage(chatId: number, update: TelegramUpdate): Promise<vo
             "/start — the admin menu",
             "/stats [today|week|month|all] — activity",
             "/students &lt;name or email&gt; — find a student",
+            "/tests — browse, rename or delete tests",
+            "/upload — publish a new CDI test",
             "/cancel — abandon whatever is in progress",
             "/help — this message",
           ].join("\n"),
@@ -261,12 +360,57 @@ async function handleMessage(chatId: number, update: TelegramUpdate): Promise<vo
     }
   }
 
-  // Not a command: it may be an answer the wizard is waiting for.
-  const session = await getSession(chatId);
-  if (session?.step === "await_student_query" && message.text) {
-    await clearSession(chatId);
-    const found = await searchStudents(message.text);
-    await sendMessage(chatId, found.text, found.keyboard);
+  // A document is always an upload attempt, whatever step we were on.
+  if (message.document) {
+    // Acknowledge immediately: downloading and parsing a paper takes a moment,
+    // and a silent bot looks broken. The placeholder is then edited with the
+    // outcome rather than replaced, so the chat stays tidy.
+    const ack = await sendMessage(chatId, "⏳ Downloading and reading the answer key…");
+    const out = await receiveDocument(chatId, message.document);
+    if (ack.ok) {
+      await editMessageText(chatId, ack.value.message_id, out.text, out.keyboard);
+    } else {
+      await sendMessage(chatId, out.text, out.keyboard);
+    }
     return;
+  }
+
+  // Not a command and not a file: it may be an answer a wizard is waiting for.
+  const session = await getSession(chatId);
+  if (!session || !message.text) return;
+
+  switch (session.step) {
+    case "await_student_query": {
+      await clearSession(chatId);
+      const found = await searchStudents(message.text);
+      await sendMessage(chatId, found.text, found.keyboard);
+      return;
+    }
+
+    case "await_rename": {
+      const testId = String(session.data.testId ?? "");
+      await clearSession(chatId);
+      const out = await renameTest(testId, message.text);
+      if (!out.ok) {
+        await sendMessage(chatId, `⚠️ ${out.note}`);
+        return;
+      }
+      const card = await buildTestCard(testId);
+      if (card) {
+        await sendMessage(chatId, `${card.text}\n\n<i>✅ ${out.note}</i>`, card.keyboard);
+      } else {
+        await sendMessage(chatId, `✅ ${out.note}`, mainMenu());
+      }
+      return;
+    }
+
+    case "await_title": {
+      const out = await publish(chatId, session, message.text);
+      await sendMessage(chatId, out.text, out.keyboard);
+      return;
+    }
+
+    default:
+      return;
   }
 }

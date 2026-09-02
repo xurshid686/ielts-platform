@@ -347,6 +347,32 @@ visible in the deploy logs.
 - Queries name their columns. `select("*")` on `results` drags every student's
   40-question answer map across the wire.
 
+## Uploading a test — one shared path
+
+`src/lib/tests/create.ts` -> `createTestFromHtml()` is now the only place a
+`tests` row and its storage object are created. Both `uploadTest()` in
+`app/actions/admin.ts` and the bot's upload wizard call it, so the answer-key
+refusal cannot drift between them.
+
+It is authorisation-free on purpose — a library, gated by its callers
+(`assertAdmin()` in the action, the webhook's owner check in the bot). Do not
+call it from anywhere that has not gated first.
+
+Two things changed when it was extracted:
+
+- **It writes with the service-role client**, where `uploadTest` used the
+  admin's session client. Strictly more permissive at the DB layer, still gated
+  above, and it removes a dependency on 0035's storage policies continuing to
+  grant admins write access.
+- **It refuses a duplicate `skill` + `title`.** `renameTest()` already enforced
+  this and creation did not, which left the hole open at the only moment a
+  duplicate can appear. It matters because `scripts/upload-listening.mjs` and
+  `upload-premium-batch.mjs` both run `delete().eq("title", ...)` before
+  inserting, so two tests sharing a title means the next re-upload silently
+  deletes the wrong row. **This is a behaviour change to the web upload form:**
+  re-uploading a corrected paper under an existing title is now refused. Rename
+  or delete the old one first.
+
 ## Secrets and setup
 
 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `TELEGRAM_WEBHOOK_SECRET` — in

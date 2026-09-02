@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { TablesInsert } from "@/types/database";
 import { rows } from "@/types/database";
-import { extractAnswerKey } from "@/lib/ielts/extract-key";
+import { createTestFromHtml, type Track } from "@/lib/tests/create";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 
 async function assertAdmin() {
@@ -33,7 +32,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 export async function uploadTest(formData: FormData): Promise<ActionResult> {
   const gate = await assertAdmin();
   if (!gate.ok) return { ok: false, error: gate.error };
-  const { supabase, user } = gate;
+  const { user } = gate;
 
   const title = String(formData.get("title") || "").trim();
   const skill = String(formData.get("skill") || "");
@@ -59,59 +58,25 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   if (!file.name.toLowerCase().endsWith(".html") && file.type !== "text/html")
     return { ok: false, error: "File must be a .html file." };
 
-  // Extract the answer key now so the platform can grade this test server-side.
-  // A test WITHOUT a key can't be served sanitized (see /api/test-html), which
-  // means its answers stay readable in the page — so refuse the upload rather
-  // than quietly publishing a test that gives itself away.
-  const extracted = extractAnswerKey(await file.text());
-  if (!extracted) {
-    return {
-      ok: false,
-      error:
-        "No answer key could be read from this file. The platform grades server-side, so a test without a key would ship its answers to the browser. Check the file's correctAnswers block.",
-    };
-  }
-
-  const path = `${skill}/${crypto.randomUUID()}.html`;
-
-  const { error: upErr } = await supabase.storage.from("tests").upload(path, file, {
-    contentType: "text/html",
-    upsert: false,
-  });
-  if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
-
-  // `file_url` used to hold getPublicUrl(path). The bucket is private as of
-  // migration 0035, so that link is dead — and while it worked it was a
-  // standing invitation to download the unsanitized file, answer key included.
-  // The column is `not null` and predates the gated routes, so it is kept and
-  // filled with the storage path. Nothing reads it: delivery is
-  // /api/test-html -> createAdminClient().storage.download(file_path).
-  // Typed against the generated schema (`Database["public"]["Tables"]["tests"]`)
-  // rather than Record<string, unknown>, so a column this insert gets wrong is
-  // a build error instead of a runtime PostgREST message. The 0021 `track`
-  // retry that used to wrap this is gone — the migration is long applied.
-  const row: TablesInsert<"tests"> = {
+  // Reading the key, uploading the object and inserting the row now live in
+  // createTestFromHtml() so the Telegram bot publishes a paper through exactly
+  // the same code — including the refusal when a file carries no answer key,
+  // which is the check that stops a test shipping its own answers to the
+  // browser. This action keeps what is genuinely its own: the admin gate, the
+  // form parsing above, and the cache revalidation below.
+  const created = await createTestFromHtml({
     title,
     skill,
     kind,
     tier,
-    question_types: questionTypes,
+    track: track as Track,
+    questionTypes,
     level,
-    track,
     passage,
-    file_url: path, // vestigial; see note above
-    file_path: path,
-    answer_key: extracted.key,
-    total: extracted.total,
-    created_by: user!.id,
-  };
-
-  const { error: insErr } = await supabase.from("tests").insert(row);
-  if (insErr) {
-    // best-effort cleanup of the orphaned file
-    await supabase.storage.from("tests").remove([path]);
-    return { ok: false, error: `Saving test failed: ${insErr.message}` };
-  }
+    html: await file.text(),
+    createdBy: user!.id,
+  });
+  if (!created.ok) return { ok: false, error: created.error };
 
   revalidatePath("/admin/tests");
   revalidatePath(`/${skill}`);
