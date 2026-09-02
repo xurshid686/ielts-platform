@@ -373,6 +373,33 @@ Two things changed when it was extracted:
   re-uploading a corrected paper under an existing title is now refused. Rename
   or delete the old one first.
 
+## Notifications
+
+Two different mechanisms, because signup and submission are different problems.
+
+- **A student finished a test** — `after()` in `saveResult()`
+  (`app/actions/results.ts`) calls `notifyNewAttempt()`. `after` runs the
+  callback once the response is finished, and the notifier swallows its own
+  errors, so an unreachable Telegram can neither delay nor fail a submission.
+  No infrastructure; it works as soon as the env vars are set.
+- **A student signed up** — a Postgres trigger, migration **0043** (written,
+  NOT applied). There is no application code in the signup path to hook:
+  `profiles` rows come from `handle_new_user()` on `auth.users`, and
+  registration goes straight through the Supabase client. Cron is not an
+  option either — vercel.json's schedules fire on the Vercel copy, not on the
+  live DigitalOcean host.
+
+0043 adds `pg_net` (available on the Frankfurt project, not yet installed), a
+`private.app_settings` table holding the endpoint and its bearer secret, and an
+AFTER INSERT trigger on `profiles`. It cannot break signup: the body is wrapped
+in `exception when others then null`, `net.http_post` is asynchronous, and the
+trigger is AFTER. The price is that a failed push is silent — look in
+`net._http_response`.
+
+`TELEGRAM_EVENT_SECRET` gates `/api/telegram/event` and is deliberately
+separate from `CRON_SECRET` so the two rotate independently. Read 0043's header
+before running it; it needs two settings rows filled in first.
+
 ## Secrets and setup
 
 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `TELEGRAM_WEBHOOK_SECRET` — in

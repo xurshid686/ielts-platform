@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyNewAttempt } from "@/lib/telegram/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTestAccess } from "@/lib/tests/access";
 import { localDay } from "@/lib/day";
@@ -293,6 +295,23 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     console.error(`[saveResult] record_activity_for failed for ${user.id}: ${actErr.message}`);
   }
   const a = act?.[0];
+
+  // Tell the owner, AFTER the student has their result.
+  //
+  // `after()` runs the callback once the response is finished, so a slow or
+  // unreachable Telegram cannot delay a submission — and notifyNewAttempt()
+  // swallows its own errors, so it cannot fail one either. Both properties
+  // matter: this is the scored-write path, and its job is to save the score.
+  after(() =>
+    notifyNewAttempt({
+      userId: user.id,
+      testId: input.testId!,
+      skill,
+      raw,
+      total,
+      band,
+    }),
+  );
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboard");
