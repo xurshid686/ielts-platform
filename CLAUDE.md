@@ -303,6 +303,75 @@ no profile — use `getProfile()` (nullable) on public pages, `requireProfile()`
 
 ---
 
+# The Telegram admin bot
+
+`/api/telegram` is a webhook the OWNER uses to run the site from a phone. It is
+deliberately single-user; there is no role check because there is no session.
+
+## The three gates, in order
+
+1. `X-Telegram-Bot-Api-Secret-Token` must equal `TELEGRAM_WEBHOOK_SECRET`
+   (timing-safe). A mismatch returns a bare **404**, not a 401 — an
+   authentication challenge tells a prober the endpoint exists.
+2. `from.id` must equal `TELEGRAM_OWNER_ID`. Checked on the **user** id, never
+   `chat.id`: those happen to be equal in a private chat, and stop being equal
+   the moment the bot joins a group.
+3. Missing config fails **closed**. An unconfigured deploy refuses everything.
+
+A stranger who passes gate 1 gets no reply at all — not a refusal. A refusal
+confirms an admin bot lives here. The attempt is `console.warn`ed so it is
+visible in the deploy logs.
+
+## Rules for anything added to it
+
+- **Never return a non-200 after gate 1.** Telegram redelivers on any non-200,
+  so a thrown error becomes the same action run twice. Errors are caught and
+  reported *into the chat*. `src/lib/telegram/api.ts` never throws for this
+  reason — every call returns a `TelegramResult`.
+- **The bot cannot call the admin RPCs.** `set_premium`, `gift_xp`,
+  `set_user_level`, `set_leaderboard_hidden` and `set_user_role` all start with
+  `is_admin(auth.uid())`, and `auth.uid()` is NULL under the service role, so
+  every one of them raises. This is the same trap as `record_activity` in 0040.
+  Write-capable commands need service-role `_for` / `_as` variants that take the
+  target id explicitly, with the session RPC delegating to them — one copy of
+  the logic, web UI unchanged. Do NOT instead UPDATE `profiles` directly: it
+  works (the 0023 guard only fires for `authenticated`/`anon`), but it forks the
+  premium/XP rules into a second implementation that will drift.
+- **Pure modules stay pure.** There is no vitest config and therefore no `@/`
+  alias, so `auth.ts`, `format.ts`, `callback.ts` and `router.ts` import
+  relatively and must never pull in `server-only` or a Supabase client. That is
+  what keeps them unit-testable.
+- `callback_data` is capped at **64 bytes**. `encodeCb()` throws rather than
+  emit an over-long payload, because Telegram's own failure mode is a button
+  that silently does nothing.
+- Queries name their columns. `select("*")` on `results` drags every student's
+  40-question answer map across the wire.
+
+## Secrets and setup
+
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `TELEGRAM_WEBHOOK_SECRET` — in
+`.env.local` for dev and in DigitalOcean's App-Level Environment Variables
+(encrypted) for production. **Together they grant full owner control of the
+site: treat them like `SUPABASE_SERVICE_ROLE_KEY`.** DigitalOcean does not
+hot-reload env — redeploy after adding them.
+
+Manage the webhook with `npm run tg -- info | set <https://host> | delete`
+(`scripts/telegram-webhook.mjs`; reads the token from the env files so it never
+enters shell history). `info` prints `last_error_message`, which is where a
+wrong secret or a Cloudflare challenge shows up — check it first when the bot
+goes quiet.
+
+**A bot has exactly ONE webhook.** Pointing it at production takes the dev
+preview offline. Use a second BotFather bot for dev. And do not reuse the
+premium-contact bot from `src/lib/site.ts` — this webhook would swallow every
+student message sent to that handle.
+
+`src/proxy.ts` excludes `api/telegram` from its matcher: the webhook has no
+session and every update would otherwise pay for an `updateSession()` round
+trip and come back with browser cookies attached.
+
+---
+
 # Verifying changes
 
 `npm run build`, `npx tsc --noEmit` and `npx vitest run` are the floor, not the

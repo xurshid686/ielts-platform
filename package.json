@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed:prepare": "node scripts/prepare-seed.mjs",
     "seed": "node scripts/seed-tests.mjs",
+    "tg": "node scripts/telegram-webhook.mjs",
     "backfill:keys": "node scripts/backfill-keys.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
