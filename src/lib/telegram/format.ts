@@ -118,3 +118,61 @@ export function fmtOverview(c: OverviewCounts): string {
     ].join("\n"),
   );
 }
+
+export type StudentCard = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  isOwner: boolean;
+  level: string;
+  xp: number;
+  streak: number;
+  rating: number | null;
+  premiumUntil: string | null;
+  hidden: boolean;
+  createdAt: string | null;
+  attempts: number;
+  avgBand: number | null;
+  lastAttempt: string | null;
+  recent: { skill: string | null; band: number | null; title: string | null }[];
+};
+
+export function fmtStudent(s: StudentCard): string {
+  const who = escapeHtml(s.name || s.email || "Unnamed account");
+  const badge = s.isOwner ? " 👑<i>owner</i>" : s.role === "admin" ? " 🛡<i>admin</i>" : "";
+
+  const premium =
+    s.premiumUntil && new Date(s.premiumUntil) > new Date()
+      ? `👑 Premium until <b>${date(s.premiumUntil)}</b>`
+      : "👑 No active membership";
+
+  const lines = [
+    `👤 <b>${who}</b>${badge}`,
+    escapeHtml(s.email || "—"),
+    `${escapeHtml(s.level)} · ${num(s.xp)} XP · 🔥 ${num(s.streak)}${
+      s.rating !== null ? ` · rating ${num(s.rating)}` : ""
+    }`,
+    premium,
+    s.hidden ? "🙈 Hidden from the leaderboard" : "",
+    "",
+    `📈 ${num(s.attempts)} attempts · avg band ${band(s.avgBand)}`,
+    `Last attempt ${date(s.lastAttempt)} · joined ${date(s.createdAt)}`,
+  ].filter(Boolean);
+
+  if (s.recent.length > 0) {
+    lines.push("", "<b>Recent</b>");
+    for (const r of s.recent) {
+      const skill = r.skill === "listening" ? "L" : "R";
+      lines.push(`${skill} ${band(r.band)} — ${escapeHtml(r.title || "deleted test")}`);
+    }
+  }
+
+  return clamp(lines.join("\n"));
+}
+
+/** One line per search hit, used above the result buttons. */
+export function fmtSearchResults(q: string, n: number): string {
+  if (n === 0) return `No account matches <b>${escapeHtml(q)}</b>.`;
+  return `${n} match${n === 1 ? "" : "es"} for <b>${escapeHtml(q)}</b>:`;
+}

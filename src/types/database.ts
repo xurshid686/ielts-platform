@@ -36,18 +36,72 @@ export type { Json } from "./supabase";
  *   - `record_activity_for` — migration 0040. The service-role replacement for
  *     `record_activity`, which reads auth.uid() and so awards nothing when
  *     called with the service role. See CLAUDE.md, "Applying 0040 and 0041".
+ *   - the four `*_as` variants — migration 0042. Applied to the live project,
+ *     but ./supabase.ts has not been regenerated since (that needs a Supabase
+ *     personal access token). Run `npm run types` and delete these.
  */
 type PendingFunctions = {
   record_activity_for: {
     Args: { p_user_id: string; p_xp?: number };
     Returns: { longest_streak: number; streak: number; xp: number }[];
   };
+  set_premium_as: {
+    Args: { p_actor: string; target_email: string; months: number };
+    Returns: { id: string; email: string; name: string | null; premium_until: string | null }[];
+  };
+  gift_xp_as: {
+    Args: { p_actor: string; target_email: string; amount: number };
+    Returns: { id: string; email: string; name: string | null; xp: number }[];
+  };
+  set_leaderboard_hidden_as: {
+    Args: { p_actor: string; target_email: string; hidden: boolean };
+    Returns: { id: string; email: string; name: string | null; hidden_from_leaderboard: boolean }[];
+  };
+  set_user_level_as: {
+    Args: { p_actor: string; target_email: string; new_level: string };
+    Returns: string;
+  };
+};
+
+/**
+ * Tables in the same position: applied to the database, absent from the
+ * generated types until the next `npm run types`.
+ *
+ * ⚠️ TEMPORARY, on exactly the same terms as PendingFunctions — delete each
+ * entry once ./supabase.ts has been regenerated. A stale override here is worse
+ * than one in PendingFunctions, because it would hide a column change rather
+ * than a signature change.
+ *
+ * Currently pending:
+ *   - `telegram_sessions`, `telegram_updates` — migration 0042. Service-role
+ *     only (RLS on, no policies, grants revoked from anon/authenticated).
+ */
+type PendingTable<Row> = {
+  Row: Row;
+  Insert: Partial<Row>;
+  Update: Partial<Row>;
+  Relationships: [];
+};
+
+type PendingTables = {
+  telegram_sessions: PendingTable<{
+    chat_id: number;
+    step: string;
+    data: import("./supabase").Json;
+    message_id: number | null;
+    updated_at: string;
+  }>;
+  telegram_updates: PendingTable<{
+    update_id: number;
+    received_at: string;
+  }>;
 };
 
 /** The generated schema, passed to every Supabase client. */
 export type Database = Omit<GeneratedDatabase, "public"> & {
-  public: Omit<GeneratedDatabase["public"], "Functions"> & {
+  public: Omit<GeneratedDatabase["public"], "Functions" | "Tables"> & {
     Functions: GeneratedDatabase["public"]["Functions"] & PendingFunctions;
+    Tables: GeneratedDatabase["public"]["Tables"] & PendingTables;
   };
 };
 
