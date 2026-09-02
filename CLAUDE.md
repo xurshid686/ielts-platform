@@ -48,10 +48,21 @@ Production at Frankfurt. **If you ever repoint a host's database, remember
 `NEXT_PUBLIC_*` is inlined at BUILD time — an env change needs a redeploy, not
 just a save.** `npx vercel redeploy <url>` rebuilds without merging `dev`.
 
-**`npm run go-live` therefore does NOT ship to the real site.** It merges dev
-into main, pushes, and deploys Vercel. Something separate has to update the
-DigitalOcean app — check whether its GitHub integration auto-deploys from
-`main`, and how long it lags.
+**`npm run go-live` DOES reach the real site — indirectly.** It merges dev into
+main, pushes, and deploys Vercel. The DigitalOcean app is configured with
+`deploy_on_push: true` on `main` of `xurshid686/ielts-platform`, so the push
+also triggers a DigitalOcean build. Confirmed 2026-09-02: the deployment's
+cause read "commit 68066e9 pushed to .../tree/main" and it went
+BUILDING -> DEPLOYING -> ACTIVE in about **2.5 minutes**.
+
+So the two hosts update from the same push, but NOT at the same moment — Vercel
+finishes first. For a deploy-order-sensitive migration, still wait for the
+CANONICAL host, and check with `doctl apps list-deployments <app-id>` rather
+than guessing.
+
+App id: `4f6bbb48-50e8-49f2-ba7b-63d9eb92a515` (name `mockonline`, region fra).
+There is no `.do/app.yaml` in the repo — the spec lives only in DigitalOcean.
+Read it with `doctl apps spec get <app-id>`.
 
 This matters far beyond a stale page: **a deploy-order-sensitive migration
 (0034, 0041) keyed to "deploy the code first" is keyed to the WRONG deploy if
@@ -71,6 +82,33 @@ Identical hashes = same build. Different = mockonline.uz has not caught up.
 
 Vercel production: https://ielts-platform-pi.vercel.app
 Dev preview: https://ielts-platform-dev.vercel.app
+
+## Production environment variables (DigitalOcean)
+
+`.env.digitalocean` in the repo is a REFERENCE LIST, not what is deployed. The
+live values are in the app spec. As of 2026-09-02:
+
+| Variable | Stored as |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY`, `NEW_DB_PASS`, `GEMINI_API_KEY`, all four `TELEGRAM_*`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | encrypted |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEW_PROJECT_REF` | plaintext — **deliberate**, these are public by design |
+
+Two things were wrong here until 2026-09-02 and are worth not reintroducing:
+
+- **`SUPABASE_SERVICE_ROLE_KEY` and `NEW_DB_PASS` were stored in plaintext**
+  while the Google client id — which ships to every browser anyway — was the
+  only encrypted one. Mark a new secret `type: SECRET` in the spec.
+- **`GEMINI_API_KEY` was missing entirely**, so AI speaking feedback and the
+  live conversation degraded to "isn't set up yet" on the real site while
+  working everywhere else. `CRON_SECRET` is still absent and that is fine — the
+  schedules live in `vercel.json` and run on Vercel, which has it.
+
+To change one: `doctl apps spec get <app-id> > spec.yaml`, edit, then
+`doctl apps update <app-id> --spec spec.yaml --wait`. Quote every value —
+an all-digit value is parsed as a number and rejected, and a value containing
+`:` is parsed as a mapping. `doctl apps spec validate` FALSE-FAILS on a
+round-tripped spec ("secret env value must not be encrypted before app is
+created") because it validates as if creating a new app; `update` accepts it.
 
 ---
 
