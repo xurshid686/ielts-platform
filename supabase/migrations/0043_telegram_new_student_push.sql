@@ -4,7 +4,7 @@
 -- Safe to re-run.
 -- ============================================================
 --
--- *** NOT YET APPLIED. Read the whole header before running it. ***
+-- *** APPLIED to Frankfurt 2026-09-02, and verified end to end. ***
 --
 -- Additive, but it adds a trigger to the SIGNUP PATH, which is why it is a
 -- separate migration from 0042 and why it is not applied automatically.

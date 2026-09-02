@@ -410,16 +410,27 @@ Two different mechanisms, because signup and submission are different problems.
   callback once the response is finished, and the notifier swallows its own
   errors, so an unreachable Telegram can neither delay nor fail a submission.
   No infrastructure; it works as soon as the env vars are set.
-- **A student signed up** — a Postgres trigger, migration **0043** (written,
-  NOT applied). There is no application code in the signup path to hook:
+- **A student signed up** — a Postgres trigger, migration **0043**, APPLIED to
+  Frankfurt on 2026-09-02 and verified end to end (a throwaway account produced
+  `status_code 200` in `net._http_response` and a delivered message; the account
+  was deleted). There is no application code in the signup path to hook:
   `profiles` rows come from `handle_new_user()` on `auth.users`, and
   registration goes straight through the Supabase client. Cron is not an
   option either — vercel.json's schedules fire on the Vercel copy, not on the
   live DigitalOcean host.
 
-0043 adds `pg_net` (available on the Frankfurt project, not yet installed), a
-`private.app_settings` table holding the endpoint and its bearer secret, and an
-AFTER INSERT trigger on `profiles`. It cannot break signup: the body is wrapped
+0043 adds `pg_net`, a `private.app_settings` table holding the endpoint and its
+bearer secret (the `private` schema is revoked from anon and authenticated, so
+neither can read it), and an AFTER INSERT trigger on `profiles`.
+
+**The endpoint it calls is `ielts-platform-dev.vercel.app/api/telegram/event`,
+not mockonline.uz** — that is the only host carrying `TELEGRAM_EVENT_SECRET`.
+It reads the same Frankfurt database, so this is correct rather than merely
+convenient, but move it once DigitalOcean has the Telegram vars:
+
+    update private.app_settings set value = 'https://mockonline.uz/api/telegram/event'
+     where key = 'telegram_event_url';
+ It cannot break signup: the body is wrapped
 in `exception when others then null`, `net.http_post` is asynchronous, and the
 trigger is AFTER. The price is that a failed push is silent — look in
 `net._http_response`.
