@@ -21,7 +21,6 @@ export default function robots(): MetadataRoute.Robots {
           "/dashboard",
           "/reports",
           "/review",
-          "/badges",
           "/refer",
           "/u/",
           "/auth/",

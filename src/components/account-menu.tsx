@@ -2,8 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, LayoutDashboard, Shield, LogOut, Crown, X, UserCircle, Gift } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutDashboard,
+  Shield,
+  LogOut,
+  Crown,
+  X,
+  UserCircle,
+  Gift,
+  Flame,
+  Zap,
+  Trophy,
+  GraduationCap,
+  Compass,
+} from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
+import { LEVELS, isContentLevel } from "@/lib/levels";
 import type { Profile } from "@/types/database";
 
 export function AccountMenu({ profile }: { profile: Profile }) {
@@ -30,6 +45,9 @@ export function AccountMenu({ profile }: { profile: Profile }) {
 
   const initial = (profile.name || profile.email || "U").charAt(0).toUpperCase();
   const premium = isPremiumActive(profile);
+  // The beginner-track link. It had its own sidebar group; a top bar has no
+  // room for a link only a handful of students can see, so it lives here.
+  const level = isContentLevel(profile.level) ? LEVELS[profile.level] : null;
 
   return (
     <div className="relative" ref={ref}>
@@ -92,14 +110,43 @@ export function AccountMenu({ profile }: { profile: Profile }) {
             </p>
           )}
 
+          {/* Progress. Was the streak card at the foot of the old sidebar; the
+              bar keeps only the flame count, so the rest is preserved here. */}
+          <div className="mt-3 flex items-center gap-3 border-t border-border px-4 py-2.5 text-xs text-muted tabular-nums">
+            <span className="inline-flex items-center gap-1">
+              <Flame className="h-3.5 w-3.5 text-warning" /> {profile.streak}-day streak
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Zap className="h-3.5 w-3.5 text-primary" /> {profile.xp} XP
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Trophy className="h-3.5 w-3.5 text-warning" /> best {profile.longest_streak}
+            </span>
+          </div>
+
           {/* Actions */}
-          <div className="mt-3 border-t border-border p-1.5">
+          <div className="border-t border-border p-1.5">
             <MenuItem href="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Dashboard
             </MenuItem>
             <MenuItem href={`/u/${profile.id}`} icon={<UserCircle className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Public profile
             </MenuItem>
+            {level && (
+              <MenuItem
+                href={level.href}
+                icon={
+                  level.slug === "pre_ielts" ? (
+                    <GraduationCap className="h-4 w-4" />
+                  ) : (
+                    <Compass className="h-4 w-4" />
+                  )
+                }
+                onClick={() => setOpen(false)}
+              >
+                {level.label}
+              </MenuItem>
+            )}
             <MenuItem href="/refer" icon={<Gift className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Invite friends
             </MenuItem>

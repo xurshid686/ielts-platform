@@ -15,7 +15,6 @@ import {
   Lightbulb,
   TrendingUp,
   TrendingDown,
-  Award,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
@@ -25,7 +24,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-trends";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
-import { computeBadges } from "@/lib/badges";
 import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
 import { RatingCard } from "@/components/rating/rating-card";
 import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
@@ -228,19 +226,6 @@ export default async function DashboardPage() {
   const weekDelta = thisWeek - lastWeek;
 
   const totalCompleted = all.length + speak.length;
-
-  // ---- Badges ---------------------------------------------------------------
-  const badges = computeBadges({
-    streak: profile.streak,
-    longestStreak: profile.longest_streak,
-    xp: profile.xp,
-    results: all,
-    speaking: speak,
-  });
-  const earnedBadges = badges.filter((b) => b.earned);
-  const showcaseBadges = [...earnedBadges]
-    .sort((a, b) => +new Date(b.earnedAt ?? 0) - +new Date(a.earnedAt ?? 0))
-    .slice(0, 8);
 
   // ---- Speaking criteria averages (from stored Gemini feedback) ------------
   const critKeys = [
@@ -499,45 +484,6 @@ export default async function DashboardPage() {
       <section>
         <h2 className="mb-3 text-lg font-semibold">What to practise next</h2>
         <FocusArea stats={typeStats} weakest={weakQType} recommended={recommended} />
-      </section>
-
-      {/* Badges showcase */}
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Badges</h2>
-          <Link
-            href="/badges"
-            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-          >
-            View all <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-        <Link href="/badges">
-          <Card interactive className="flex flex-wrap items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Award className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold tabular-nums">
-                {earnedBadges.length}
-                <span className="font-medium text-muted"> / {badges.length} earned</span>
-              </p>
-              {showcaseBadges.length > 0 ? (
-                <div className="mt-1 flex flex-wrap gap-1.5 text-2xl">
-                  {showcaseBadges.map((b) => (
-                    <span key={b.def.id} title={`${b.def.name} — ${b.def.description}`}>
-                      {b.def.emoji}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-0.5 text-sm text-muted">
-                  Complete your first test to earn a badge.
-                </p>
-              )}
-            </div>
-          </Card>
-        </Link>
       </section>
 
       {/* Band trend + rating history */}
