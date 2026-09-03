@@ -190,3 +190,177 @@ export async function recordDisciplineProgress(
 
   await db.from("discipline_members").update({ current_day: currentDay }).eq("user_id", userId);
 }
+
+// --------------------------------------------------------------- progress
+
+export type GridCellTest = {
+  testId: string;
+  title: string;
+  skill: "reading" | "listening";
+  raw: number | null;
+  total: number | null;
+  band: number | null;
+  at: string | null;
+};
+
+export type GridRow = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  currentDay: number;
+  strikes: number;
+  /** ISO date of their most recent Discipline submission, null if never. */
+  lastActivity: string | null;
+  inactive: boolean;
+  trailing: boolean;
+  /** day id -> one entry per test attached to that day, in display order. */
+  cells: Record<string, GridCellTest[]>;
+};
+
+export type ProgressGrid = {
+  days: { id: string; day_number: number; title: string | null }[];
+  rows: GridRow[];
+  /** The group's median current day — what "trailing" is measured against. */
+  medianDay: number;
+};
+
+/**
+ * The admin progress grid: every member a row, every day a column.
+ *
+ * Scores are the student's FIRST attempt at each test, matching how the rating
+ * ladder treats an attempt (`apply_rating` only rates a first attempt), so the
+ * grid and the leaderboard cannot tell two different stories about the same
+ * paper.
+ *
+ * Service-role, because it reads every member's results. Gate the caller.
+ */
+export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> {
+  const db = createAdminClient();
+
+  const [{ data: dayRows }, { data: memberRows }] = await Promise.all([
+    db.from("discipline_days").select("id, day_number, title").order("day_number"),
+    db.from("discipline_members").select("user_id, current_day, strikes"),
+  ]);
+
+  const days = rows<{ id: string; day_number: number; title: string | null }>(dayRows);
+  const members = rows<{ user_id: string; current_day: number; strikes: number }>(memberRows);
+  if (members.length === 0 || days.length === 0) {
+    return { days, rows: [], medianDay: 0 };
+  }
+
+  const [{ data: linkRows }, { data: profileRows }] = await Promise.all([
+    db
+      .from("discipline_day_tests")
+      .select("day_id, test_id, position")
+      .in(
+        "day_id",
+        days.map((d) => d.id),
+      ),
+    db
+      .from("profiles")
+      .select("id, name, email")
+      .in(
+        "id",
+        members.map((m) => m.user_id),
+      ),
+  ]);
+
+  const links = rows<{ day_id: string; test_id: string; position: number }>(linkRows).sort(
+    (a, b) => a.position - b.position,
+  );
+  const profiles = new Map(
+    rows<{ id: string; name: string | null; email: string | null }>(profileRows).map((p) => [
+      p.id,
+      p,
+    ]),
+  );
+
+  const testIds = [...new Set(links.map((l) => l.test_id))];
+  const testMeta = new Map<string, { title: string; skill: "reading" | "listening" }>();
+  if (testIds.length > 0) {
+    const { data: testRows } = await db
+      .from("tests")
+      .select("id, title, skill")
+      .in("id", testIds);
+    for (const t of rows<{ id: string; title: string; skill: "reading" | "listening" }>(testRows)) {
+      testMeta.set(t.id, { title: t.title, skill: t.skill });
+    }
+  }
+
+  // Ascending by date, so the FIRST row seen for a (user, test) pair is their
+  // first attempt — later retakes are ignored rather than overwriting it.
+  const first = new Map<string, { raw: number | null; total: number | null; band: number | null; at: string }>();
+  const lastActivity = new Map<string, string>();
+  if (testIds.length > 0) {
+    const { data: resultRows } = await db
+      .from("results")
+      .select("user_id, test_id, raw, total, band, submitted_at")
+      .in(
+        "user_id",
+        members.map((m) => m.user_id),
+      )
+      .in("test_id", testIds)
+      .order("submitted_at", { ascending: true });
+
+    for (const r of rows<{
+      user_id: string;
+      test_id: string;
+      raw: number | null;
+      total: number | null;
+      band: number | null;
+      submitted_at: string;
+    }>(resultRows)) {
+      const key = `${r.user_id}:${r.test_id}`;
+      if (!first.has(key)) {
+        first.set(key, { raw: r.raw, total: r.total, band: r.band, at: r.submitted_at });
+      }
+      lastActivity.set(r.user_id, r.submitted_at); // ascending, so the last wins
+    }
+  }
+
+  const sortedDays = [...members].map((m) => m.current_day).sort((a, b) => a - b);
+  const mid = Math.floor(sortedDays.length / 2);
+  const medianDay =
+    sortedDays.length % 2 === 0
+      ? Math.round((sortedDays[mid - 1] + sortedDays[mid]) / 2)
+      : sortedDays[mid];
+
+  const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
+
+  const gridRows: GridRow[] = members.map((m) => {
+    const cells: Record<string, GridCellTest[]> = {};
+    for (const d of days) {
+      cells[d.id] = links
+        .filter((l) => l.day_id === d.id)
+        .map((l) => {
+          const meta = testMeta.get(l.test_id);
+          const r = first.get(`${m.user_id}:${l.test_id}`);
+          return {
+            testId: l.test_id,
+            title: meta?.title ?? "(test removed)",
+            skill: meta?.skill ?? "reading",
+            raw: r?.raw ?? null,
+            total: r?.total ?? null,
+            band: r?.band ?? null,
+            at: r?.at ?? null,
+          };
+        });
+    }
+    const last = lastActivity.get(m.user_id) ?? null;
+    return {
+      userId: m.user_id,
+      name: profiles.get(m.user_id)?.name ?? null,
+      email: profiles.get(m.user_id)?.email ?? null,
+      currentDay: m.current_day,
+      strikes: m.strikes,
+      lastActivity: last,
+      // Never started counts as inactive too — that is exactly who needs chasing.
+      inactive: !last || new Date(last).getTime() < cutoff,
+      trailing: m.current_day < medianDay,
+      cells,
+    };
+  });
+
+  gridRows.sort((a, b) => (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""));
+  return { days, rows: gridRows, medianDay };
+}

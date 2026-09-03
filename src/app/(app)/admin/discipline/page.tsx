@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
-import { listDisciplineMembers } from "@/app/actions/discipline";
-import { loadProgramme } from "@/lib/discipline";
+import { listDisciplineMembers, searchStudents } from "@/app/actions/discipline";
+import { loadProgramme, loadProgressGrid } from "@/lib/discipline";
 import { AdminDiscipline } from "@/components/admin/admin-discipline";
 
 export const metadata = { title: "Discipline" };
@@ -10,8 +10,16 @@ export default async function AdminDisciplinePage() {
   // cannot be moved out of that group and silently lose its gate.
   await requireAdmin();
 
-  const [membersRes, programme] = await Promise.all([listDisciplineMembers(), loadProgramme()]);
+  // The roster loads with the page so the Members tab opens on a full list
+  // rather than an empty search box.
+  const [membersRes, programme, rosterRes, grid] = await Promise.all([
+    listDisciplineMembers(),
+    loadProgramme(),
+    searchStudents(""),
+    loadProgressGrid(),
+  ]);
   const members = membersRes.ok ? membersRes.members : [];
+  const roster = rosterRes.ok ? rosterRes.users : [];
 
   return (
     <div className="space-y-5">
@@ -30,6 +38,8 @@ export default async function AdminDisciplinePage() {
 
       <AdminDiscipline
         initialMembers={members}
+        roster={roster}
+        grid={grid}
         days={programme.map((d) => ({
           id: d.id,
           day_number: d.day_number,
