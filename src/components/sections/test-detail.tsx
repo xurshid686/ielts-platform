@@ -8,7 +8,10 @@ import { canAccessTrack } from "@/lib/levels";
 import { TestRunner } from "@/components/test-runner";
 import { PremiumContact } from "@/components/premium-contact";
 import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
-import { testJsonLd } from "@/lib/seo";
+import { testJsonLd, faqForTest, faqJsonLd, breadcrumbJsonLd } from "@/lib/seo";
+import { loadTestSeoData, questionOrder } from "@/lib/seo/test-seo-data";
+import { TestSeoContent } from "@/components/sections/test-seo-content";
+import { RelatedTests } from "@/components/sections/related-tests";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
@@ -107,7 +110,18 @@ export async function TestDetail({
  * The point is that a link shared in Telegram lands on something worth reading
  * rather than on a login form.
  */
-function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: Test }) {
+async function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: Test }) {
+  // The passage, the answer key and the explanations, rendered into the first
+  // HTML response. Before this the page carried 103 indexable words, so it
+  // could not match "<passage name> ielts reading answers" — the way students
+  // actually phrase the search — however well its <title> was written.
+  //
+  // Awaited here rather than streamed behind Suspense on purpose: a crawler
+  // must see this text in the initial document, which is the whole point.
+  const seo = await loadTestSeoData(test.id, skill);
+  const seoTest = { ...test, skill };
+  const faqs = faqForTest(seoTest, { hasAnswers: questionOrder(seo.answerKey).length > 0 });
+
   const format =
     test.kind === "full"
       ? "Full test"
@@ -120,13 +134,24 @@ function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: 
   const isFree = test.tier !== "premium";
 
   return (
-    <div className="mx-auto max-w-lg py-10">
+    <>
+    {/* max-w-3xl, matching TestSeoContent below. While this card WAS the whole
+        page, max-w-lg read as a focused prompt; with the passage under it, a
+        narrow card above a wide column just looked like two pages stacked. */}
+    <div className="mx-auto max-w-3xl py-10">
       {/* Structured data: what produces a rich result for practice-test
-          queries. Built from the same row the page renders, so it can never
-          describe something different from what the visitor sees. */}
+          queries. All three are built from the same row and the same FAQ text
+          the page renders, so they can never describe something different from
+          what the visitor sees — which is what gets a rich result revoked. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(testJsonLd({ ...test, skill })) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            testJsonLd(seoTest),
+            breadcrumbJsonLd(seoTest),
+            ...(faqs.length ? [faqJsonLd(faqs)] : []),
+          ]),
+        }}
       />
       <Link
         href={`/${skill}`}
@@ -208,5 +233,9 @@ function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; test: 
         </p>
       </div>
     </div>
+
+    <TestSeoContent test={seoTest} data={seo} />
+    <RelatedTests skill={skill} excludeId={test.id} />
+    </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTrack } from "@/lib/levels";
 import { testTitle, testDescription, testCanonical, type SeoTest } from "@/lib/seo";
+import { loadTestSeoData } from "@/lib/seo/test-seo-data";
 
 /**
  * Loads the row a test page needs for BOTH its <head> and its JSON-LD.
@@ -41,8 +42,17 @@ export async function testPageMetadata(
   const t = await loadSeoTest(id, skill);
   if (!t) return { title: "Test not found", robots: { index: false, follow: false } };
 
+  // A full test's real passage names live in the stored file, not on the row.
+  // They are the searchable half of the page — "Volume 7, Test 1" is a shelf
+  // label — so the description is built with them when they are available.
+  // Parsed content is memoised per file_path, so this costs the page nothing
+  // beyond the render it already does.
+  const names = (await loadTestSeoData(id, skill)).passages
+    .map((p) => p.title)
+    .filter((n): n is string => !!n);
+
   const title = testTitle(t);
-  const description = testDescription(t);
+  const description = testDescription(t, names);
   const url = testCanonical(t);
 
   return {
