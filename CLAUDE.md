@@ -247,8 +247,9 @@ run 0041.** Verification queries are in 0041's header.
 production actually is" at the top of this file. `npm run go-live` does not
 update mockonline.uz.
 
-**Status (2026-09-03): 0040, 0041, 0043, 0044 and 0045 are all APPLIED to
-Frankfurt.** 0044 (test slugs) and 0045 (the grant it needs) were applied
+**Status (2026-09-03): 0040, 0041, 0043, 0044, 0045 and 0046 are all APPLIED
+to Frankfurt.** 0046 (Discipline) is additive, so it carried no deploy-order
+hazard. 0044 (test slugs) and 0045 (the grant it needs) were applied
 together on 2026-09-03 and verified: 186/186 rows slugged, no duplicates, and
 `anon` can read `slug` while `answer_key` stays refused.
 
@@ -643,6 +644,86 @@ its own `permanentRedirect` as a backstop for when the middleware lookup fails.
 
 Check a redirect with `curl -o /dev/null -w '%{http_code} -> %{redirect_url}'`.
 A 200 with a populated body is the failure, and it is invisible in a browser.
+
+# The Discipline challenge
+
+A sequential, day-by-day programme for a hand-picked set of students. Migration
+**0046**, applied to Frankfurt on 2026-09-03.
+
+**Membership IS the grant.** A row in `discipline_members` means the student is
+in; no row means the section does not exist for them — no nav entry,
+`/discipline` redirects to `/dashboard`, and the programme's tests 404. There is
+no locked teaser page, on purpose: a non-member never learns it is there.
+
+This is deliberately NOT the shape of the `is_my_student` + `assignments` system
+that 0039 removed (see "Removed features"). That was a per-user flag plus a
+targeting join table for arbitrary content; this is one shared ladder of days,
+and the membership row carries the student's own state (`current_day`,
+`strikes`) rather than a bare boolean on `profiles` — which is also why the 0023
+privileged-field trigger did not have to grow another column.
+
+## Where the gates are
+
+- `requireDiscipline()` in `src/lib/auth.ts` — the page gate. Admins pass with a
+  null member row and get an "admin preview" with every day unlocked.
+- `resolveTestAccess()` in `src/lib/tests/access.ts` — the CONTENT gate, and the
+  only one that matters for answer keys. The `discipline` track cannot go
+  through `canAccessTrack()`, because that compares against `profiles.level` and
+  no level ever equals `discipline`; it gets its own membership lookup in the
+  same function, so `/api/test-html` and `/api/test-key` still cannot diverge.
+- `src/proxy.ts` — `/discipline` is in `PROTECTED`.
+- The catalogue needs no new filter: `skill-section.tsx` already keeps only
+  `track === "regular"`, so discipline papers are excluded by construction.
+
+## Uploading a Discipline paper
+
+Through the ordinary upload form (`/admin/tests`), setting **For** to
+"Discipline challenge only" — it is a fourth `tests.track` value, so it reuses
+`createTestFromHtml()` and the whole answer-key pipeline rather than forking a
+second uploader. Then attach it to a day on `/admin/discipline`.
+
+**The Telegram bot deliberately does not offer this track.** A discipline paper
+that is not attached to a day is invisible to everyone, including the owner who
+uploaded it, and the bot's wizard has no step for choosing a day.
+
+A day can also point at an ordinary public test — that is what "import from the
+overall tests" means. Attaching one does NOT make it private.
+
+## Progress and strikes
+
+`recordDisciplineProgress()` (`src/lib/discipline.ts`) is called by
+`saveResult()` after the result row exists. It ticks a day off once every test
+attached to that day has a result from that student, then recomputes
+`current_day` as **the lowest day they have not finished** — not an increment.
+That is what makes it self-healing after a reset, after a day is inserted in the
+middle of the programme, and if it ever runs twice for one submission. Its
+failure is caught and logged: the score is already saved, and the next
+submission puts the student in the right place.
+
+Discipline results are ordinary results — XP, streak, rating and leaderboard all
+apply, by design.
+
+**Strike enforcement is MANUAL and that is a decision, not a gap.** Nothing
+detects a missed day; the owner presses "Strike" on `/admin/discipline`, and at
+`STRIKE_LIMIT` (3, in `src/lib/discipline-shared.ts`) presses "Reset". A reset
+clears completions and strikes and returns them to Day 1 but KEEPS their
+membership — three strikes costs progress, not their place. Do not add a cron
+that resets students automatically without asking.
+
+`STRIKE_LIMIT` lives in `discipline-shared.ts` rather than `discipline.ts`
+because the latter is `server-only` (it holds the service-role writer) and the
+admin UI is a client component.
+
+## Writes
+
+Every discipline table revokes INSERT/UPDATE/DELETE from `anon` and
+`authenticated` (0046), on the same reasoning as `results` (0038) and the
+speaking/writing submissions (0041): a completion moves a student's standing, so
+it is written by the server from a verified session. Membership and strikes go
+through four SECURITY DEFINER RPCs (`grant_discipline`, `revoke_discipline`,
+`add_discipline_strike`, `reset_discipline`) that re-check
+`is_admin(auth.uid())` — which means, as ever, that **the Telegram bot cannot
+call them under the service role**; a bot command would need `_for` variants.
 
 # Patterns deliberately removed — do not reintroduce
 
