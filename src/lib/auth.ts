@@ -110,6 +110,55 @@ export async function requireOwner(): Promise<Profile> {
 }
 
 /**
+ * Gate a page to students in the Discipline challenge (migration 0046).
+ *
+ * Membership is a row in `discipline_members`, not a profile flag, so this is a
+ * query rather than a field test — cached per request like the helpers above.
+ * Admins always pass so they can review the programme.
+ *
+ * A non-member is REDIRECTED, not shown a locked page: the section is meant to
+ * be invisible to everyone who was not picked for it.
+ */
+export const requireDiscipline = cache(async function requireDiscipline(): Promise<{
+  profile: Profile;
+  member: DisciplineMember | null;
+}> {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("discipline_members")
+    .select("user_id, current_day, strikes, granted_at, reset_at")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+
+  const member = data as DisciplineMember | null;
+  if (!member && profile.role !== "admin") redirect("/dashboard");
+  return { profile, member };
+});
+
+export type DisciplineMember = {
+  user_id: string;
+  current_day: number;
+  strikes: number;
+  granted_at: string;
+  reset_at: string | null;
+};
+
+/** Is this user in the challenge? Used by the layout to decide the nav entry. */
+export const isDisciplineMember = cache(async function isDisciplineMember(
+  userId: string,
+): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("discipline_members")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return !!data;
+});
+
+/**
  * Gate a page to students of a given level. Admins always pass (so they can
  * preview the content). Everyone else is sent back to their dashboard.
  */

@@ -44,7 +44,9 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     .filter(Boolean);
   const level = String(formData.get("level") || "").trim() || null;
   const trackRaw = String(formData.get("track") || "regular");
-  const track = ["regular", "pre_ielts", "intro"].includes(trackRaw) ? trackRaw : "regular";
+  const track = ["regular", "pre_ielts", "intro", "discipline"].includes(trackRaw)
+    ? trackRaw
+    : "regular";
   const passageRaw = String(formData.get("passage") || "").trim();
   // A passage number only applies to a single reading passage.
   const passage =
@@ -80,7 +82,9 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/admin/tests");
   revalidatePath(`/${skill}`);
-  if (track !== "regular") revalidatePath(track === "pre_ielts" ? "/pre-ielts" : "/intro");
+  if (track === "pre_ielts") revalidatePath("/pre-ielts");
+  else if (track === "intro") revalidatePath("/intro");
+  else if (track === "discipline") revalidatePath("/discipline");
   return { ok: true };
 }
 

@@ -8,7 +8,7 @@ import { USE_SLUG_URLS } from "@/lib/tests/ref";
 // engine can see what exists before being asked to register. Access control for
 // the content itself lives in /api/test-html/[id], which independently checks
 // tier and membership on every request.
-const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin"];
+const PROTECTED = ["/dashboard", "/writing", "/speaking", "/admin", "/discipline"];
 // Exact match, and deliberately only these two. /reset-password must NOT be
 // added: a recovery link signs the user in before they land there, so bouncing
 // signed-in users away from it would make resetting a password impossible.

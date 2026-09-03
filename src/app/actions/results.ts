@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notifyNewAttempt } from "@/lib/telegram/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTestAccess } from "@/lib/tests/access";
+import { recordDisciplineProgress } from "@/lib/discipline";
 import { localDay } from "@/lib/day";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { gradeAnswers, asAnswerKey, asAnswers, type Answers } from "@/lib/ielts/grade";
@@ -296,6 +297,16 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   }
   const a = act?.[0];
 
+  // Discipline: tick the day off if this submission completed it. Runs after
+  // the result exists, and its own failure must not fail the submission — the
+  // score is already saved, and the recorder is idempotent, so the next
+  // submission (or a manual nudge) puts the student in the right place.
+  try {
+    await recordDisciplineProgress(user.id, input.testId, resultId);
+  } catch (e) {
+    console.error(`[saveResult] discipline progress failed for ${user.id}: ${String(e)}`);
+  }
+
   // Tell the owner, AFTER the student has their result.
   //
   // `after()` runs the callback once the response is finished, so a slow or
@@ -315,6 +326,7 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
 
   revalidatePath("/dashboard");
   revalidatePath("/leaderboard");
+  revalidatePath("/discipline");
   revalidatePath(`/${skill}`);
 
   return {

@@ -161,7 +161,11 @@ export async function advance(
       next.tier = value === "premium" ? "premium" : "free";
       break;
     case "track":
-      next.track = (["regular", "pre_ielts", "intro"] as const).includes(value as Track)
+      // The bot deliberately does NOT offer the 'discipline' track: that
+      // programme is built on /admin/discipline, where the day a test belongs
+      // to is chosen at the same time. An unattached discipline test would be
+      // invisible to everyone, including the owner who uploaded it.
+      next.track = (["regular", "pre_ielts", "intro"] as readonly string[]).includes(value)
         ? (value as Track)
         : "regular";
       break;

@@ -57,8 +57,9 @@ export function navItemsFor(
   ];
 
   // Invisible to everyone who has not been picked for the challenge — no menu
-  // entry, and the page itself redirects. Admins see it to review the program.
-  if (opts.discipline || profile.role === "admin") {
+  // entry, and the page itself redirects. The layout passes `discipline`, which
+  // is already true for admins so they can review the programme.
+  if (opts.discipline) {
     items.push({ href: "/discipline", label: "Discipline", icon: Target });
   }
 

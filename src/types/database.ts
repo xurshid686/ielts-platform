@@ -39,6 +39,9 @@ export type { Json } from "./supabase";
  *   - the four `*_as` variants — migration 0042. Applied to the live project,
  *     but ./supabase.ts has not been regenerated since (that needs a Supabase
  *     personal access token). Run `npm run types` and delete these.
+ *   - the four `*_discipline*` RPCs and `is_discipline_member` — migration 0046,
+ *     applied to the live project 2026-09-03. Same reason: no access token on
+ *     the machine that wrote them.
  */
 type PendingFunctions = {
   record_activity_for: {
@@ -61,6 +64,11 @@ type PendingFunctions = {
     Args: { p_actor: string; target_email: string; new_level: string };
     Returns: string;
   };
+  grant_discipline: { Args: { target_email: string }; Returns: string };
+  revoke_discipline: { Args: { target_email: string }; Returns: string };
+  add_discipline_strike: { Args: { target_email: string }; Returns: number };
+  reset_discipline: { Args: { target_email: string }; Returns: string };
+  is_discipline_member: { Args: { uid: string }; Returns: boolean };
 };
 
 /**
@@ -75,6 +83,9 @@ type PendingFunctions = {
  * Currently pending:
  *   - `telegram_sessions`, `telegram_updates` — migration 0042. Service-role
  *     only (RLS on, no policies, grants revoked from anon/authenticated).
+ *   - the four `discipline_*` tables — migration 0046. Readable by the student
+ *     they belong to (and by admins) under RLS; every write is service-role or
+ *     an admin RPC.
  */
 type PendingTable<Row> = {
   Row: Row;
@@ -94,6 +105,32 @@ type PendingTables = {
   telegram_updates: PendingTable<{
     update_id: number;
     received_at: string;
+  }>;
+  discipline_members: PendingTable<{
+    user_id: string;
+    current_day: number;
+    strikes: number;
+    granted_by: string | null;
+    granted_at: string;
+    reset_at: string | null;
+  }>;
+  discipline_days: PendingTable<{
+    id: string;
+    day_number: number;
+    title: string | null;
+    instructions: string | null;
+    created_at: string;
+  }>;
+  discipline_day_tests: PendingTable<{
+    day_id: string;
+    test_id: string;
+    position: number;
+  }>;
+  discipline_completions: PendingTable<{
+    user_id: string;
+    day_id: string;
+    result_id: string | null;
+    completed_at: string;
   }>;
 };
 

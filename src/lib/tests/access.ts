@@ -69,7 +69,22 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
     level?: string | null;
   } | null) ?? { role: "student", premium_until: null, level: "regular" };
 
-  if (!canAccessTrack({ role: profile.role ?? "student", level: profile.level }, row.track)) {
+  // The Discipline track is gated by MEMBERSHIP, not by profile.level, so it
+  // cannot go through canAccessTrack — which would (correctly) 404 it for
+  // everyone. Checked here, in the one place both /api/test-html and
+  // /api/test-key defer to, so the two can never disagree.
+  if ((row.track ?? "regular") === "discipline") {
+    if (profile.role !== "admin") {
+      const { data: member } = await supabase
+        .from("discipline_members")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!member) return { ok: false, status: 404, message: "Not found" };
+    }
+  } else if (
+    !canAccessTrack({ role: profile.role ?? "student", level: profile.level }, row.track)
+  ) {
     return { ok: false, status: 404, message: "Not found" };
   }
 

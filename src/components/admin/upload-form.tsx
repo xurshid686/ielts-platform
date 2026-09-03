@@ -88,6 +88,7 @@ export function UploadForm() {
             <option value="regular">Regular IELTS — normal pages</option>
             <option value="pre_ielts">Pre-IELTS students only</option>
             <option value="intro">Introduction students only</option>
+            <option value="discipline">Discipline challenge only</option>
           </select>
         </label>
         <label className="space-y-1.5">

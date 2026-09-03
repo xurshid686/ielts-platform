@@ -3,7 +3,7 @@ import { PublicShell } from "@/components/public-shell";
 import { PremiumWelcome } from "@/components/premium-welcome";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { ReferralRedeemer } from "@/components/referral-redeemer";
-import { getProfile } from "@/lib/auth";
+import { getProfile, isDisciplineMember } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
 import { createClient } from "@/lib/supabase/server";
 import type { Notification } from "@/types/database";
@@ -30,6 +30,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // report its own failure. `ensure_weekly_report` is left defined in the
   // database; nothing calls it from the app any more.
 
+  // Decides whether the nav shows the Discipline entry at all. Admins always
+  // see it (they build the programme); everyone else needs a membership row.
+  const discipline =
+    profile.role === "admin" ? true : await isDisciplineMember(profile.id);
+
   const { data: notifications } = await supabase
     .from("notifications")
     .select("*")
@@ -37,7 +42,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .limit(12);
 
   return (
-    <AppShell profile={profile} notifications={(notifications ?? []) as Notification[]}>
+    <AppShell
+      profile={profile}
+      notifications={(notifications ?? []) as Notification[]}
+      discipline={discipline}
+    >
       <TimezoneSync current={profile.timezone ?? "UTC"} />
       <ReferralRedeemer />
       <PremiumWelcome

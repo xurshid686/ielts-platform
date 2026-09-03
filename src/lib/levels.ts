@@ -51,6 +51,11 @@ export function isContentLevel(level: Level): level is ContentLevel {
  * Can this profile see/open a test of the given track?
  * Regular tests are open to everyone; level tests only to matching students
  * (admins always pass so they can review). A missing track defaults to regular.
+ *
+ * The 'discipline' track (0046) is deliberately NOT expressible here: no
+ * profile.level ever equals it, so this returns false for every non-admin and
+ * the test stays a 404. Discipline membership is a separate table, and it is
+ * resolveTestAccess() that consults it — see lib/tests/access.ts.
  */
 export function canAccessTrack(
   profile: { role: string; level?: Level | string | null },
