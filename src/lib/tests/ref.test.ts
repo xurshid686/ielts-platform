@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUuidRef, refColumn, testPath } from "./ref";
+import { isUuidRef, refColumn, testPath, USE_SLUG_URLS } from "./ref";
 
 describe("isUuidRef", () => {
   it("recognises a real test id in either case", () => {
@@ -30,9 +30,12 @@ describe("refColumn", () => {
 });
 
 describe("testPath", () => {
-  it("prefers the slug", () => {
+  // Pinned to whichever side of the switch the site is currently on, so that
+  // flipping USE_SLUG_URLS fails here loudly rather than silently changing
+  // every public url. See the comment on the flag.
+  it(`emits ${USE_SLUG_URLS ? "slug" : "uuid"} urls, matching USE_SLUG_URLS`, () => {
     expect(testPath("reading", { id: "abc", slug: "the-voynich-manuscript" })).toBe(
-      "/reading/the-voynich-manuscript",
+      USE_SLUG_URLS ? "/reading/the-voynich-manuscript" : "/reading/abc",
     );
   });
 
@@ -42,5 +45,14 @@ describe("testPath", () => {
     expect(testPath("listening", { id: "abc", slug: null })).toBe("/listening/abc");
     expect(testPath("listening", { id: "abc" })).toBe("/listening/abc");
     expect(testPath("listening", { id: "abc", slug: "" })).toBe("/listening/abc");
+  });
+});
+
+describe("both url forms resolve regardless of the flag", () => {
+  it("routes a uuid at id and a slug at slug", () => {
+    // This is what makes the switch safe to flip in either direction: a link
+    // already shared in the other form still finds its row.
+    expect(refColumn("3fa98a00-00b3-4255-8739-d8828c872d16")).toBe("id");
+    expect(refColumn("the-return-of-the-black-footed-ferret")).toBe("slug");
   });
 });

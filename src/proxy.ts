@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { SITE_HOST } from "@/lib/site";
+import { USE_SLUG_URLS } from "@/lib/tests/ref";
 
 // `/reading` and `/listening` are deliberately NOT here: the catalogue and each
 // test's detail page are public, so a visitor arriving from Telegram or a search
@@ -67,7 +68,10 @@ export async function proxy(request: NextRequest) {
   // both ways. Middleware runs before any of that, so it can still send a
   // status code. The page keeps its own redirect as a backstop for when this
   // lookup fails.
-  const legacy = LEGACY_TEST_URL.exec(pathname);
+  // Gated on USE_SLUG_URLS: while the site still LINKS by uuid, redirecting
+  // uuid -> slug would move every visitor off the url the sitemap, the canonical
+  // tag and Google all currently name.
+  const legacy = USE_SLUG_URLS ? LEGACY_TEST_URL.exec(pathname) : null;
   if (legacy) {
     const slug = await slugForTest(legacy[1].toLowerCase(), legacy[2].toLowerCase());
     if (slug) {

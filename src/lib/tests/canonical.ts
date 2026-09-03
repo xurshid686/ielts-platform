@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuidRef } from "./ref";
+import { isUuidRef, USE_SLUG_URLS } from "./ref";
 
 /**
  * The slug path a uuid URL should redirect to, or null if it should just render.
@@ -26,7 +26,7 @@ export async function canonicalRedirectFor(
   skill: "reading" | "listening",
   ref: string,
 ): Promise<string | null> {
-  if (!isUuidRef(ref)) return null;
+  if (!USE_SLUG_URLS || !isUuidRef(ref)) return null;
 
   try {
     const { data } = await createAdminClient()
