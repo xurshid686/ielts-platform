@@ -7,6 +7,22 @@ import { testPath } from "@/lib/tests/ref";
 export const revalidate = 3600;
 
 /**
+ * When a test PAGE last changed, as opposed to when its test was uploaded.
+ *
+ * `lastmod` is a crawler's main hint about what is worth re-fetching, and it was
+ * built from `created_at` alone. That is the date the paper was uploaded — so on
+ * 2026-09-03, after every test page gained its passage, answer key and
+ * explanations, the sitemap still told Google the pages had not been touched
+ * since 2026-08-24. It was actively arguing against the re-crawl the whole
+ * change depends on.
+ *
+ * BUMP THIS whenever the template gains or loses content that a crawler should
+ * come back for — not for a styling change, and never on a schedule. A sitemap
+ * that claims a fresh date every day teaches Google to stop believing the field.
+ */
+const PAGE_CONTENT_UPDATED_AT = new Date("2026-09-03T00:00:00Z");
+
+/**
  * Every public URL worth indexing.
  *
  * Only `regular` track tests are listed: pre_ielts / intro material is 404 to
@@ -49,7 +65,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         // that lists the uuid while the page names the slug asks Google to
         // index one URL and then tells it that URL is not the real one.
         url: `${SITE_URL}${testPath(r.skill, r)}`,
-        lastModified: new Date(r.created_at),
+        // The LATER of the two: a paper uploaded after the template change is
+        // described by its own upload date, and everything older is described
+        // by the day its page actually gained content. Both are true statements
+        // about when the page last changed.
+        lastModified: new Date(
+          Math.max(new Date(r.created_at).getTime(), PAGE_CONTENT_UPDATED_AT.getTime()),
+        ),
         changeFrequency: "monthly" as const,
         priority: 0.8,
       }));
