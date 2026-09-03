@@ -247,7 +247,12 @@ run 0041.** Verification queries are in 0041's header.
 production actually is" at the top of this file. `npm run go-live` does not
 update mockonline.uz.
 
-**Status (2026-09-01): 0040 is APPLIED. 0041 is NOT.**
+**Status (2026-09-03): 0040, 0041, 0043, 0044 and 0045 are all APPLIED to
+Frankfurt.** 0044 (test slugs) and 0045 (the grant it needs) were applied
+together on 2026-09-03 and verified: 186/186 rows slugged, no duplicates, and
+`anon` can read `slug` while `answer_key` stays refused.
+
+**Historical note (2026-09-01): 0040 was APPLIED, 0041 was NOT.**
 0040 was verified in production: `record_activity_for` exists and is granted to
 `service_role` only, and `record_activity` still works for the old code path
 (both tested inside rolled-back transactions). That is why the site is fine in
@@ -305,6 +310,34 @@ migration's header comment.
 Because of 0034, `answer_key` / `file_path` / `file_url` are readable **only**
 with the service-role client (`createAdminClient()`). Client-side queries must
 name their columns — `select("*")` on `tests` will fail.
+
+### Every NEW column on `tests` needs its own grant
+
+Revoking a **column** converts a role's table-wide SELECT into an enumerated
+per-column grant. So after 0034, `anon` and `authenticated` hold SELECT on
+exactly the columns that existed then, *by name* — and **any column added later
+is born unreadable to them**. PostgREST then fails the whole statement, not just
+the column:
+
+```
+select("id, slug, title, …")  ->  permission denied for table tests
+```
+
+0044 added `slug` and hit this immediately: `test-detail` got null, called
+`notFound()`, and every `/reading/<id>` rendered its not-found body. 0045 is the
+one-line fix, and the shape to copy:
+
+```sql
+grant select (slug) on public.tests to anon, authenticated;
+```
+
+**It is easy to miss in review.** `generateMetadata` reads with the service-role
+client, so the page kept its correct `<title>` while the body was a 404 — it
+looks right in exactly the check a person runs first. Verify a schema change by
+querying with the ANON key, not just by loading the page.
+
+(`is_public` is also missing from the client grants. Nothing reads it
+client-side today; grant it if anything ever does.)
 
 ## Data realities (checked against production, 2026-09-01)
 
@@ -570,6 +603,30 @@ Two things to know:
   `as unknown as T[]` casts. Do not reintroduce those; if a value comes from
   outside the app's own writes, narrow it at runtime instead (`asAnswerKey` /
   `asAnswers`).
+
+# Public URLs are slugs, and redirects belong in the middleware
+
+Since 0044 a test is addressed by `slug`: `/reading/the-voynich-manuscript`.
+`src/lib/tests/ref.ts` owns the mapping — `testPath()` for links, `refColumn()`
+for lookups — and **must stay client-safe**, because `test-browser.tsx` is a
+client component and imports it. The server-side slug lookup lives in
+`lib/tests/canonical.ts`.
+
+Uuid URLs still resolve, permanently, and 308 to the slug. Do not retire them:
+they are in students' bookmarks, in Telegram history, and in the `next=` of
+every sign-in link already sent.
+
+**The 308 is emitted by `src/proxy.ts`, not by the page, and it has to be.**
+`permanentRedirect()` returns a real status code only while the response is
+unstarted. Called from a page component — never mind a component below it —
+Next has already begun streaming the shell and silently downgrades the redirect
+to `<meta http-equiv="refresh">`. The browser still moves, so it *looks* fixed;
+what actually happens is the uuid URL answers **200 with a full duplicate of the
+page**, which is the exact thing the redirect exists to prevent. The page keeps
+its own `permanentRedirect` as a backstop for when the middleware lookup fails.
+
+Check a redirect with `curl -o /dev/null -w '%{http_code} -> %{redirect_url}'`.
+A 200 with a populated body is the failure, and it is invisible in a browser.
 
 # Patterns deliberately removed — do not reintroduce
 
