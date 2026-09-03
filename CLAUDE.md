@@ -604,17 +604,33 @@ Two things to know:
   outside the app's own writes, narrow it at runtime instead (`asAnswerKey` /
   `asAnswers`).
 
-# Public URLs are slugs, and redirects belong in the middleware
+# Slug URLs are BUILT but switched OFF — `USE_SLUG_URLS`
 
-Since 0044 a test is addressed by `slug`: `/reading/the-voynich-manuscript`.
+Migrations 0044/0045 are applied and every test has a slug, but
+`USE_SLUG_URLS` in `src/lib/tests/ref.ts` is **`false`**, so public URLs are
+still `/reading/<uuid>`. Both forms always RESOLVE; the flag only decides which
+one the site LINKS to, and whether the uuid 308s away.
+
+**Why it is off.** On 2026-09-03 the site was found already ranking for
+"the return of black footed ferret reading" — at a uuid URL, on a page with 106
+words, carried by its `<title>` alone. Renaming a URL Google already ranks
+forces a re-crawl and re-attribution, and shipping that in the same release as
+the content meant neither change could be told from the other if rankings moved.
+A URL's keywords are a weak signal; its content is a strong one. So the content
+shipped alone and the rename waits for Search Console to measure it.
+
+**To turn it on:** set the flag to `true`. Links, sitemap, canonical tags and
+the proxy's 308 all key off it, and `ref.test.ts` pins the current side so the
+flip fails loudly rather than silently changing every public URL. No database
+work is pending.
+
 `src/lib/tests/ref.ts` owns the mapping — `testPath()` for links, `refColumn()`
 for lookups — and **must stay client-safe**, because `test-browser.tsx` is a
 client component and imports it. The server-side slug lookup lives in
 `lib/tests/canonical.ts`.
 
-Uuid URLs still resolve, permanently, and 308 to the slug. Do not retire them:
-they are in students' bookmarks, in Telegram history, and in the `next=` of
-every sign-in link already sent.
+Never retire uuid URLs: they are in students' bookmarks, in Telegram history,
+and in the `next=` of every sign-in link already sent.
 
 **The 308 is emitted by `src/proxy.ts`, not by the page, and it has to be.**
 `permanentRedirect()` returns a real status code only while the response is
