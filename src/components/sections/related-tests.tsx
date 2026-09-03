@@ -2,9 +2,11 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTrack } from "@/lib/levels";
+import { testPath } from "@/lib/tests/ref";
 
 type RelatedRow = {
   id: string;
+  slug: string | null;
   title: string;
   total: number | null;
   question_types: string[] | null;
@@ -44,7 +46,7 @@ export async function RelatedTests({
         {rows.map((t) => (
           <li key={t.id}>
             <Link
-              href={`/${skill}/${t.id}`}
+              href={testPath(skill, t)}
               className="flex h-full flex-col rounded-xl border border-border bg-surface p-4 shadow-soft transition hover:border-primary/40 hover:bg-surface-2"
             >
               {/* The link TEXT is the passage name — that is the anchor text
@@ -87,7 +89,7 @@ async function loadRelated(
   try {
     const { data } = await createAdminClient()
       .from("tests")
-      .select("id, title, total, question_types, track")
+      .select("id, slug, title, total, question_types, track")
       .eq("skill", skill)
       .neq("id", excludeId)
       .order("created_at", { ascending: false })

@@ -27,7 +27,7 @@ export async function LevelSection({
     supabase
       .from("tests")
       .select(
-        "id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at, track",
+        "id, slug, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at, track",
       )
       .eq("track", level)
       .order("created_at", { ascending: false }),
@@ -43,6 +43,7 @@ export async function LevelSection({
     const bands = attempts.filter((a) => a.band != null).map((a) => Number(a.band));
     return {
       id: t.id,
+      slug: t.slug,
       title: t.title,
       kind: t.kind ?? "single",
       tier: t.tier ?? "free",

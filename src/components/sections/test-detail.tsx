@@ -12,13 +12,15 @@ import { testJsonLd, faqForTest, faqJsonLd, breadcrumbJsonLd } from "@/lib/seo";
 import { loadTestSeoData, questionOrder } from "@/lib/seo/test-seo-data";
 import { TestSeoContent } from "@/components/sections/test-seo-content";
 import { RelatedTests } from "@/components/sections/related-tests";
+import { refColumn, testPath } from "@/lib/tests/ref";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
   skill,
-  id,
+  id: ref,
 }: {
   skill: "reading" | "listening";
+  /** The URL segment: a slug (canonical) or a uuid (legacy). See lib/tests/ref. */
   id: string;
 }) {
   // Public page: null for a logged-out visitor. They get the test's detail and
@@ -32,9 +34,9 @@ export async function TestDetail({
   const { data: test } = await supabase
     .from("tests")
     .select(
-      "id, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
+      "id, slug, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
     )
-    .eq("id", id)
+    .eq(refColumn(ref), ref)
     .eq("skill", skill)
     .single();
 
@@ -130,7 +132,9 @@ async function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; 
           ? `Passage ${test.passage}`
           : "Single passage"
         : "Section";
-  const next = `/${skill}/${test.id}`;
+  // The canonical form, so a student who signs in lands on the slug URL
+  // rather than bouncing through the uuid redirect afterwards.
+  const next = testPath(skill, test);
   const isFree = test.tier !== "premium";
 
   return (

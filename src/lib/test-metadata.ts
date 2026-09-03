@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTrack } from "@/lib/levels";
 import { testTitle, testDescription, testCanonical, type SeoTest } from "@/lib/seo";
+import { refColumn } from "@/lib/tests/ref";
 import { loadTestSeoData } from "@/lib/seo/test-seo-data";
 
 /**
@@ -12,13 +13,13 @@ import { loadTestSeoData } from "@/lib/seo/test-seo-data";
  * rendered for a test the viewer cannot see (the page itself still gates).
  */
 export async function loadSeoTest(
-  id: string,
+  ref: string,
   skill: "reading" | "listening",
 ): Promise<SeoTest | null> {
   const { data } = await createAdminClient()
     .from("tests")
-    .select("id, title, skill, kind, tier, passage, total, question_types, track")
-    .eq("id", id)
+    .select("id, slug, title, skill, kind, tier, passage, total, question_types, track")
+    .eq(refColumn(ref), ref)
     .eq("skill", skill)
     .single();
 
@@ -36,10 +37,10 @@ export async function loadSeoTest(
 
 /** The <head> for a single test page. */
 export async function testPageMetadata(
-  id: string,
+  ref: string,
   skill: "reading" | "listening",
 ): Promise<Metadata> {
-  const t = await loadSeoTest(id, skill);
+  const t = await loadSeoTest(ref, skill);
   if (!t) return { title: "Test not found", robots: { index: false, follow: false } };
 
   // A full test's real passage names live in the stored file, not on the row.
@@ -47,7 +48,9 @@ export async function testPageMetadata(
   // label — so the description is built with them when they are available.
   // Parsed content is memoised per file_path, so this costs the page nothing
   // beyond the render it already does.
-  const names = (await loadTestSeoData(id, skill)).passages
+  // `t.id`, never `ref` — the URL may be the slug, and the content loader
+  // addresses a test by its primary key.
+  const names = (await loadTestSeoData(t.id, skill)).passages
     .map((p) => p.title)
     .filter((n): n is string => !!n);
 

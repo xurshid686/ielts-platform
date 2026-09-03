@@ -78,13 +78,14 @@ export async function buildTestCard(
 
   const { data } = await db
     .from("tests")
-    .select("id, title, skill, kind, tier, track, level, passage, total, times_done, question_types, created_at")
+    .select("id, slug, title, skill, kind, tier, track, level, passage, total, times_done, question_types, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!data) return null;
 
   const t = data as {
     id: string;
+    slug: string | null;
     title: string;
     skill: string;
     kind: string;
@@ -126,7 +127,7 @@ export async function buildTestCard(
       { text: "✏️ Rename", callback_data: encodeCb("tren", t.id) },
       { text: "🗑 Delete", callback_data: encodeCb("tdel", t.id) },
     ],
-    [{ text: "🔗 Open on the site", url: `${SITE_URL}/${t.skill}/${t.id}` }],
+    [{ text: "🔗 Open on the site", url: `${SITE_URL}/${t.skill}/${t.slug || t.id}` }],
     [
       { text: "‹ Back", callback_data: encodeCb("tp", t.skill, "0") },
       { text: "‹ Menu", callback_data: encodeCb("menu") },

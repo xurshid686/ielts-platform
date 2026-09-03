@@ -633,6 +633,45 @@ export type Database = {
           },
         ]
       }
+      telegram_sessions: {
+        Row: {
+          chat_id: number
+          data: Json
+          message_id: number | null
+          step: string
+          updated_at: string
+        }
+        Insert: {
+          chat_id: number
+          data?: Json
+          message_id?: number | null
+          step: string
+          updated_at?: string
+        }
+        Update: {
+          chat_id?: number
+          data?: Json
+          message_id?: number | null
+          step?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      telegram_updates: {
+        Row: {
+          received_at: string
+          update_id: number
+        }
+        Insert: {
+          received_at?: string
+          update_id: number
+        }
+        Update: {
+          received_at?: string
+          update_id?: number
+        }
+        Relationships: []
+      }
       tests: {
         Row: {
           answer_key: Json | null
@@ -648,6 +687,7 @@ export type Database = {
           passage: number | null
           question_types: string[]
           skill: string
+          slug: string | null
           tier: string
           times_done: number
           title: string
@@ -668,6 +708,7 @@ export type Database = {
           passage?: number | null
           question_types?: string[]
           skill: string
+          slug?: string | null
           tier?: string
           times_done?: number
           title: string
@@ -688,6 +729,7 @@ export type Database = {
           passage?: number | null
           question_types?: string[]
           skill?: string
+          slug?: string | null
           tier?: string
           times_done?: number
           title?: string
@@ -1094,6 +1136,15 @@ export type Database = {
           xp: number
         }[]
       }
+      gift_xp_as: {
+        Args: { amount: number; p_actor: string; target_email: string }
+        Returns: {
+          email: string
+          id: string
+          name: string
+          xp: number
+        }[]
+      }
       grant_achievement: {
         Args: { p_achievement: string; p_user: string }
         Returns: undefined
@@ -1123,11 +1174,28 @@ export type Database = {
           xp: number
         }[]
       }
+      record_activity_for: {
+        Args: { p_user_id: string; p_xp?: number }
+        Returns: {
+          longest_streak: number
+          streak: number
+          xp: number
+        }[]
+      }
       redeem_referral: { Args: { p_code: string }; Returns: boolean }
       referral_reward_months: { Args: never; Returns: number }
       referral_welcome_xp: { Args: never; Returns: number }
       set_leaderboard_hidden: {
         Args: { hidden: boolean; target_email: string }
+        Returns: {
+          email: string
+          hidden_from_leaderboard: boolean
+          id: string
+          name: string
+        }[]
+      }
+      set_leaderboard_hidden_as: {
+        Args: { hidden: boolean; p_actor: string; target_email: string }
         Returns: {
           email: string
           hidden_from_leaderboard: boolean
@@ -1144,8 +1212,21 @@ export type Database = {
           premium_until: string
         }[]
       }
+      set_premium_as: {
+        Args: { months: number; p_actor: string; target_email: string }
+        Returns: {
+          email: string
+          id: string
+          name: string
+          premium_until: string
+        }[]
+      }
       set_user_level: {
         Args: { new_level: string; target_email: string }
+        Returns: string
+      }
+      set_user_level_as: {
+        Args: { new_level: string; p_actor: string; target_email: string }
         Returns: string
       }
       set_user_role: {
@@ -1156,6 +1237,11 @@ export type Database = {
           name: string
           role: string
         }[]
+      }
+      slugify: { Args: { p_text: string }; Returns: string }
+      unique_test_slug: {
+        Args: { p_id: string; p_skill: string; p_title: string }
+        Returns: string
       }
       use_ai_quota: { Args: { p_kind: string }; Returns: boolean }
     }
@@ -1176,12 +1262,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1205,11 +1291,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1230,11 +1316,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1255,11 +1341,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1272,11 +1358,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

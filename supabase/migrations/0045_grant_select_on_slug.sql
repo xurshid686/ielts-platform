@@ -1,0 +1,51 @@
+-- 0045 — let the client roles read tests.slug.
+--
+-- THE BUG THIS FIXES, which 0044 created and which is invisible until it isn't
+-- ---------------------------------------------------------------------------
+-- Migration 0034 revoked column-level SELECT on `answer_key`, `file_path` and
+-- `file_url`. Revoking a COLUMN converts the role's table-wide SELECT into an
+-- enumerated per-column grant — so after 0034, `anon` and `authenticated` hold
+-- SELECT on exactly the fourteen columns that existed then, by name.
+--
+-- A column added later is therefore born UNREADABLE to them. 0044 added `slug`,
+-- and the moment `test-detail.tsx` asked for it with the user-scoped client the
+-- whole query failed:
+--
+--     select("id, slug, title, …")  ->  permission denied for table tests
+--
+-- PostgREST fails the entire statement, not just the column, so `test` came
+-- back null, `notFound()` fired, and EVERY /reading/<id> and /listening/<id>
+-- rendered the not-found body. This is the same failure mode 0034 caused on the
+-- day it shipped, arriving by the opposite route: not old code meeting a new
+-- revoke, but new code meeting an old one.
+--
+-- Caught locally before deploy — the page still returned its correct <title>,
+-- because `generateMetadata` reads with the SERVICE-ROLE client and was
+-- unaffected. A page whose head is right and whose body is a 404 looks fine in
+-- exactly the checks a person runs first.
+--
+-- WHY A GRANT IS THE RIGHT ANSWER, not a service-role read: `slug` is a URL
+-- segment. It is printed in every catalogue link, in the sitemap and in the
+-- address bar. There is nothing to protect.
+--
+-- SAFE IN EITHER ORDER. Purely additive — it widens a grant, so old code that
+-- never mentions `slug` is unaffected. Run it before the deploy all the same;
+-- the routing that reads the column has no fallback.
+--
+-- ROLLBACK
+--     revoke select (slug) on public.tests from anon, authenticated;
+--
+-- ---------------------------------------------------------------------------
+-- ANY FUTURE COLUMN ON public.tests NEEDS A LINE LIKE THIS ONE.
+-- The table-wide grant is gone for good; per-column is now the only mode.
+-- ---------------------------------------------------------------------------
+
+grant select (slug) on public.tests to anon, authenticated;
+
+-- Verify — expect `slug` present in both lists:
+--
+--   select grantee, string_agg(column_name, ', ' order by column_name)
+--     from information_schema.column_privileges
+--    where table_schema = 'public' and table_name = 'tests'
+--      and privilege_type = 'SELECT' and grantee in ('anon', 'authenticated')
+--    group by grantee;

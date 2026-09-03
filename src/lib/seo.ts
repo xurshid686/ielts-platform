@@ -1,4 +1,5 @@
 import { SITE_NAME, SITE_URL } from "./site";
+import { testPath } from "./tests/ref";
 
 /**
  * Search-facing text for a single test.
@@ -19,6 +20,8 @@ import { SITE_NAME, SITE_URL } from "./site";
 
 export type SeoTest = {
   id: string;
+  /** URL segment (migration 0044). Nullable — a row without one falls back to `id`. */
+  slug?: string | null;
   title: string;
   skill: "reading" | "listening";
   kind?: "single" | "full" | null;
@@ -98,9 +101,18 @@ function clampDescription(head: string, tail: string): string {
   return `${head.slice(0, 157).replace(/\s+\S*$/, "")}…`;
 }
 
-/** Absolute canonical URL for a test, always on the canonical host. */
-export function testCanonical(t: Pick<SeoTest, "id" | "skill">): string {
-  return `${SITE_URL}/${t.skill}/${t.id}`;
+/**
+ * Absolute canonical URL for a test, always on the canonical host and always
+ * the SLUG form.
+ *
+ * This is the tag that tells Google which of a page's addresses is the real
+ * one. A test reachable at both `/reading/<uuid>` and `/reading/<slug>` must
+ * name the same winner from both, or the two split the ranking signal they are
+ * supposed to share — the same failure `SITE_URL` exists to prevent across the
+ * four hosts.
+ */
+export function testCanonical(t: Pick<SeoTest, "id" | "slug" | "skill">): string {
+  return `${SITE_URL}${testPath(t.skill, t)}`;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SITE_URL } from "@/lib/site";
+import { testPath } from "@/lib/tests/ref";
 
 // Regenerate hourly; the catalogue changes when tests are uploaded, not often.
 export const revalidate = 3600;
@@ -29,12 +30,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const { data } = await createAdminClient()
       .from("tests")
-      .select("id, skill, created_at, track")
+      .select("id, slug, skill, created_at, track")
       .in("skill", ["reading", "listening"])
       .order("created_at", { ascending: false });
 
     const rows = (data ?? []) as {
       id: string;
+      slug: string | null;
       skill: "reading" | "listening";
       created_at: string;
       track: string | null;
@@ -43,7 +45,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const tests: MetadataRoute.Sitemap = rows
       .filter((r) => (r.track ?? "regular") === "regular")
       .map((r) => ({
-        url: `${SITE_URL}/${r.skill}/${r.id}`,
+        // The SLUG form, matching each page's own canonical tag. A sitemap
+        // that lists the uuid while the page names the slug asks Google to
+        // index one URL and then tells it that URL is not the real one.
+        url: `${SITE_URL}${testPath(r.skill, r)}`,
         lastModified: new Date(r.created_at),
         changeFrequency: "monthly" as const,
         priority: 0.8,

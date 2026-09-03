@@ -15,6 +15,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { testPath } from "@/lib/tests/ref";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
@@ -32,6 +33,8 @@ const PAGE_SIZE = 24;
 
 export type BrowserItem = {
   id: string;
+  /** URL segment (migration 0044); falls back to `id` when absent. */
+  slug: string | null;
   title: string;
   kind: "single" | "full";
   tier: "free" | "premium";
@@ -339,7 +342,7 @@ export function TestBrowser({
                     }
                   />
                 )}
-              <Link href={`/${skill}/${t.id}`} className="group">
+              <Link href={testPath(skill, t)} className="group">
                 <div className="flex h-full flex-col rounded-2xl border border-border bg-surface p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
                   <div className="flex items-start justify-between">
                     <span

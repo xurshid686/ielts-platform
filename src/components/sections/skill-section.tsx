@@ -26,7 +26,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   // Note: file_url/file_path are intentionally NOT selected — premium content
   // is fetched only via /api/test-html (which gates access).
   const baseCols =
-    "id, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at, track";
+    "id, slug, title, skill, kind, tier, question_types, times_done, total, level, passage, created_at, track";
 
   // Only the three columns this page actually reads. `select("*")` also pulled
   // `results.answers` — the whole 40-question response map for every attempt —
@@ -80,6 +80,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       const attempts = byTest.get(t.id);
       return {
         id: t.id,
+        slug: t.slug,
         title: t.title,
         kind: t.kind ?? "single",
         tier: t.tier ?? "free",
