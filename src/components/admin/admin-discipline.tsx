@@ -426,7 +426,9 @@ function DayCard({
   }
 
   return (
-    <Card className="space-y-3">
+    // data-day survives the switch into edit mode, when the heading text that
+    // would otherwise identify this card is replaced by the form.
+    <Card className="space-y-3" data-day={day.day_number}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {editing ? (
