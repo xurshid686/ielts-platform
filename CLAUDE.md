@@ -677,10 +677,14 @@ privileged-field trigger did not have to grow another column.
 
 ## Uploading a Discipline paper
 
-Through the ordinary upload form (`/admin/tests`), setting **For** to
-"Discipline challenge only" — it is a fourth `tests.track` value, so it reuses
-`createTestFromHtml()` and the whole answer-key pipeline rather than forking a
-second uploader. Then attach it to a day on `/admin/discipline`.
+Two doors, one pipeline. The ordinary upload form (`/admin/tests`) has a fourth
+**For** option, "Discipline challenge only"; and each day card on
+`/admin/discipline` has its own "Upload a new paper" form, which uploads and
+attaches in one step. Both call `createTestFromHtml()` — the ONE place a `tests`
+row and its storage object are created — so the answer-key extraction and the
+duplicate-title rule cannot drift between them. The in-day form forces
+`track: 'discipline'` and `tier: 'free'`: a premium gate on top of the
+membership gate would be a second lock on the same door.
 
 **The Telegram bot deliberately does not offer this track.** A discipline paper
 that is not attached to a day is invisible to everyone, including the owner who
@@ -713,6 +717,22 @@ that resets students automatically without asking.
 `STRIKE_LIMIT` lives in `discipline-shared.ts` rather than `discipline.ts`
 because the latter is `server-only` (it holds the service-role writer) and the
 admin UI is a client component.
+
+## The progress grid
+
+`loadProgressGrid()` builds it: members down, days across, each cell holding one
+entry per test on that day. Scores are the student's **first** attempt, matching
+`apply_rating` (which only rates a first attempt), so the grid and the
+leaderboard cannot tell different stories about the same paper. Two flags, and
+they mean different things: **Inactive** = nothing submitted in 3 days (never
+having started counts), **Trailing** = current day below the group median.
+
+`moveDay()` swaps two days by parking the mover on a NEGATIVE day_number first.
+`day_number` is unique, so a straight two-step swap collides at step one.
+
+Day cards carry `data-day={day_number}`. It is the only stable handle on a card
+once it switches into edit mode and its heading text disappears — a browser test
+that located cards by heading text edited the wrong day without it.
 
 ## Writes
 
