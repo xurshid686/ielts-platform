@@ -7,6 +7,7 @@ import { rows } from "@/types/database";
 // Re-exported so server code has one import for the feature; the constant lives
 // in a client-safe module because the admin UI is a client component.
 export { STRIKE_LIMIT } from "@/lib/discipline-shared";
+import { countsAfterReset, deriveDayStatus } from "@/lib/discipline-shared";
 
 export type DisciplineTest = {
   id: string;
@@ -197,8 +198,7 @@ async function loadFirstAttempts(
     band: number | null;
     submitted_at: string;
   }>(data)) {
-    const resetAt = resetAtByUser.get(r.user_id) ?? null;
-    if (resetAt && new Date(r.submitted_at).getTime() < new Date(resetAt).getTime()) continue;
+    if (!countsAfterReset(r.submitted_at, resetAtByUser.get(r.user_id) ?? null)) continue;
 
     const key = `${r.user_id}:${r.test_id}`;
     if (!first.has(key)) {
@@ -216,25 +216,19 @@ async function loadFirstAttempts(
 }
 
 /**
- * Applies the rule to one student's programme.
- *
- * `currentIndex` is the first incomplete day; every day after it is locked. Once
- * the programme is finished it points at the LAST day, so the header reads
- * "Day N of N" rather than counting past the end — which is exactly what the
- * old stored counter did.
+ * Adapter over the tested rule in discipline-shared.ts: turns the first-attempt
+ * map into the set of test ids this student has done, then applies it.
  */
 function deriveDays(
   days: { tests: { id: string }[] }[],
   userId: string,
   first: Map<string, Attempt>,
 ): { complete: boolean[]; currentIndex: number } {
-  const complete = days.map(
-    (d) => d.tests.length > 0 && d.tests.every((t) => first.has(`${userId}:${t.id}`)),
-  );
-  const firstIncomplete = complete.indexOf(false);
-  const currentIndex =
-    days.length === 0 ? -1 : firstIncomplete === -1 ? days.length - 1 : firstIncomplete;
-  return { complete, currentIndex };
+  const done = new Set<string>();
+  for (const d of days) {
+    for (const t of d.tests) if (first.has(`${userId}:${t.id}`)) done.add(t.id);
+  }
+  return deriveDayStatus(days, done);
 }
 
 // ------------------------------------------------------------- student view
