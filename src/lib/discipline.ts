@@ -27,6 +27,40 @@ export type DisciplineDay = {
   tests: DisciplineTest[];
 };
 
+/** A student's first counting attempt at one test. */
+export type Attempt = {
+  resultId: string | null;
+  raw: number | null;
+  total: number | null;
+  band: number | null;
+  at: string;
+};
+
+// ---------------------------------------------------------------------------
+// PROGRESS IS DERIVED, NOT STORED.
+//
+// It used to live in `discipline_members.current_day` and the
+// `discipline_completions` table, both written only when a test was submitted.
+// Any programme edit then left them lying: deleting a day cascaded its
+// completion rows away but left the counter past the end of the programme, so a
+// student with one Day 1 in front of them was told they were on "Day 2".
+//
+// So the rule below is computed fresh on every read, and it is the ONLY
+// definition of "done" in the codebase — the student's page, the admin grid and
+// the post-submission recorder all go through it:
+//
+//   * a TEST is done when the student has a `results` row for it dated at or
+//     after their `reset_at` (any row, when they have never been reset);
+//   * the score shown is their FIRST such attempt, matching `apply_rating`,
+//     which only rates a first attempt — so a re-do never rewrites history;
+//   * a DAY is complete when it has at least one test and every one is done;
+//   * the CURRENT DAY is the lowest incomplete day, or the last day once the
+//     programme is finished. It is never a day that does not exist.
+//
+// Because a reset is a cutoff DATE rather than a deletion, resetting a student
+// costs them their progress without touching their results, XP or rating.
+// ---------------------------------------------------------------------------
+
 /**
  * The whole programme, days in order, each with its tests.
  *
@@ -45,6 +79,52 @@ export async function loadProgramme(): Promise<DisciplineDay[]> {
     .select("id, day_number, title, instructions")
     .order("day_number", { ascending: true });
 
+  return assembleDays(dayRows, async (ids) => {
+    const { data } = await supabase
+      .from("discipline_day_tests")
+      .select("day_id, test_id, position")
+      .in("day_id", ids);
+    return data;
+  }, async (ids) => {
+    const { data } = await supabase
+      .from("tests")
+      .select("id, slug, title, skill, total, track")
+      .in("id", ids);
+    return data;
+  });
+}
+
+/**
+ * `loadProgramme()` with the service-role client.
+ *
+ * The grid and the recorder run over every member, so they cannot use the
+ * caller's RLS-scoped client for a student-facing read.
+ */
+async function loadProgrammeAsAdmin(): Promise<DisciplineDay[]> {
+  const db = createAdminClient();
+  const { data: dayRows } = await db
+    .from("discipline_days")
+    .select("id, day_number, title, instructions")
+    .order("day_number", { ascending: true });
+
+  return assembleDays(dayRows, async (ids) => {
+    const { data } = await db
+      .from("discipline_day_tests")
+      .select("day_id, test_id, position")
+      .in("day_id", ids);
+    return data;
+  }, async (ids) => {
+    const { data } = await db.from("tests").select("id, slug, title, skill, total, track").in("id", ids);
+    return data;
+  });
+}
+
+/** Shared shape-building for the two loaders above, so they cannot drift. */
+async function assembleDays(
+  dayRows: unknown[] | null,
+  fetchLinks: (dayIds: string[]) => Promise<unknown[] | null>,
+  fetchTests: (testIds: string[]) => Promise<unknown[] | null>,
+): Promise<DisciplineDay[]> {
   const days = rows<{
     id: string;
     day_number: number;
@@ -53,35 +133,21 @@ export async function loadProgramme(): Promise<DisciplineDay[]> {
   }>(dayRows);
   if (days.length === 0) return [];
 
-  const { data: linkRows } = await supabase
-    .from("discipline_day_tests")
-    .select("day_id, test_id, position")
-    .in(
-      "day_id",
-      days.map((d) => d.id),
-    );
-  const links = rows<{ day_id: string; test_id: string; position: number }>(linkRows);
+  const links = rows<{ day_id: string; test_id: string; position: number }>(
+    await fetchLinks(days.map((d) => d.id)),
+  );
+  if (links.length === 0) return days.map((d) => ({ ...d, tests: [] }));
 
-  let testsById = new Map<string, Omit<DisciplineTest, "position">>();
-  if (links.length > 0) {
-    const { data: testRows } = await supabase
-      .from("tests")
-      .select("id, slug, title, skill, total, track")
-      .in(
-        "id",
-        links.map((l) => l.test_id),
-      );
-    testsById = new Map(
-      rows<{
-        id: string;
-        slug: string | null;
-        title: string;
-        skill: "reading" | "listening";
-        total: number | null;
-        track: string;
-      }>(testRows).map((t) => [t.id, t]),
-    );
-  }
+  const testsById = new Map(
+    rows<{
+      id: string;
+      slug: string | null;
+      title: string;
+      skill: "reading" | "listening";
+      total: number | null;
+      track: string;
+    }>(await fetchTests(links.map((l) => l.test_id))).map((t) => [t.id, t]),
+  );
 
   return days.map((d) => ({
     ...d,
@@ -96,102 +162,124 @@ export async function loadProgramme(): Promise<DisciplineDay[]> {
   }));
 }
 
-/** The day_ids this student has finished. */
-export async function loadCompletions(userId: string): Promise<Set<string>> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("discipline_completions")
-    .select("day_id")
-    .eq("user_id", userId);
-  return new Set(rows<{ day_id: string }>(data).map((r) => r.day_id));
+/**
+ * First counting attempt per (user, test), keyed `${userId}:${testId}`.
+ *
+ * Rows come back ascending, so the first one seen for a pair is the earliest —
+ * later retakes are ignored rather than overwriting it. A row dated before the
+ * student's `reset_at` is skipped entirely: it belongs to a previous run at the
+ * challenge, which is what lets Reset take their progress without deleting a
+ * single scored record.
+ */
+async function loadFirstAttempts(
+  userIds: string[],
+  testIds: string[],
+  resetAtByUser: Map<string, string | null>,
+): Promise<{ first: Map<string, Attempt>; lastActivity: Map<string, string> }> {
+  const first = new Map<string, Attempt>();
+  const lastActivity = new Map<string, string>();
+  if (userIds.length === 0 || testIds.length === 0) return { first, lastActivity };
+
+  const db = createAdminClient();
+  const { data } = await db
+    .from("results")
+    .select("id, user_id, test_id, raw, total, band, submitted_at")
+    .in("user_id", userIds)
+    .in("test_id", testIds)
+    .order("submitted_at", { ascending: true });
+
+  for (const r of rows<{
+    id: string;
+    user_id: string;
+    test_id: string;
+    raw: number | null;
+    total: number | null;
+    band: number | null;
+    submitted_at: string;
+  }>(data)) {
+    const resetAt = resetAtByUser.get(r.user_id) ?? null;
+    if (resetAt && new Date(r.submitted_at).getTime() < new Date(resetAt).getTime()) continue;
+
+    const key = `${r.user_id}:${r.test_id}`;
+    if (!first.has(key)) {
+      first.set(key, {
+        resultId: r.id,
+        raw: r.raw,
+        total: r.total,
+        band: r.band,
+        at: r.submitted_at,
+      });
+    }
+    lastActivity.set(r.user_id, r.submitted_at); // ascending, so the last wins
+  }
+  return { first, lastActivity };
 }
 
 /**
- * Called after a result is saved: if that test belongs to a Discipline day and
- * every test of that day is now done, tick the day off and move the student on.
+ * Applies the rule to one student's programme.
  *
- * Written with the SERVICE-ROLE client because the completions table grants no
- * writes to any client role (0046) — a completion advances a student through
- * the programme, so it follows the same rule as `results`: written by the
- * server, from a verified session, never by the browser. `userId` therefore
- * comes from the caller's verified session, never from request input.
- *
- * `current_day` is recomputed as the LOWEST day the student has not finished,
- * rather than incremented. That is self-healing: it lands in the right place
- * after a reset, after the owner inserts a day in the middle of the programme,
- * and if this ever runs twice for the same submission.
+ * `currentIndex` is the first incomplete day; every day after it is locked. Once
+ * the programme is finished it points at the LAST day, so the header reads
+ * "Day N of N" rather than counting past the end — which is exactly what the
+ * old stored counter did.
  */
-export async function recordDisciplineProgress(
+function deriveDays(
+  days: { tests: { id: string }[] }[],
   userId: string,
-  testId: string,
-  resultId: string | null,
-): Promise<void> {
-  const db = createAdminClient();
-
-  const { data: memberRow } = await db
-    .from("discipline_members")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (!memberRow) return; // not in the challenge — nothing to record
-
-  const { data: linkRows } = await db
-    .from("discipline_day_tests")
-    .select("day_id")
-    .eq("test_id", testId);
-  const dayIds = [...new Set(rows<{ day_id: string }>(linkRows).map((l) => l.day_id))];
-  if (dayIds.length === 0) return; // an ordinary test, not part of the programme
-
-  // Every test belonging to the affected days, and everything this student has
-  // ever submitted for them — two queries rather than one per day.
-  const { data: allLinks } = await db
-    .from("discipline_day_tests")
-    .select("day_id, test_id")
-    .in("day_id", dayIds);
-  const links = rows<{ day_id: string; test_id: string }>(allLinks);
-
-  const { data: resultRows } = await db
-    .from("results")
-    .select("test_id")
-    .eq("user_id", userId)
-    .in(
-      "test_id",
-      links.map((l) => l.test_id),
-    );
-  const attempted = new Set(rows<{ test_id: string }>(resultRows).map((r) => r.test_id));
-
-  const finished = dayIds.filter((dayId) => {
-    const dayTests = links.filter((l) => l.day_id === dayId);
-    return dayTests.length > 0 && dayTests.every((l) => attempted.has(l.test_id));
-  });
-  if (finished.length === 0) return;
-
-  await db.from("discipline_completions").upsert(
-    finished.map((dayId) => ({ user_id: userId, day_id: dayId, result_id: resultId })),
-    { onConflict: "user_id,day_id", ignoreDuplicates: true },
+  first: Map<string, Attempt>,
+): { complete: boolean[]; currentIndex: number } {
+  const complete = days.map(
+    (d) => d.tests.length > 0 && d.tests.every((t) => first.has(`${userId}:${t.id}`)),
   );
-
-  // Recompute the student's place from the programme + their completions.
-  const { data: dayRows } = await db
-    .from("discipline_days")
-    .select("id, day_number")
-    .order("day_number", { ascending: true });
-  const days = rows<{ id: string; day_number: number }>(dayRows);
-
-  const { data: doneRows } = await db
-    .from("discipline_completions")
-    .select("day_id")
-    .eq("user_id", userId);
-  const doneIds = new Set(rows<{ day_id: string }>(doneRows).map((r) => r.day_id));
-
-  const next = days.find((d) => !doneIds.has(d.id));
-  // Programme finished: park them one past the last day so nothing re-locks.
-  const currentDay = next?.day_number ?? (days.at(-1)?.day_number ?? 0) + 1;
-
-  await db.from("discipline_members").update({ current_day: currentDay }).eq("user_id", userId);
+  const firstIncomplete = complete.indexOf(false);
+  const currentIndex =
+    days.length === 0 ? -1 : firstIncomplete === -1 ? days.length - 1 : firstIncomplete;
+  return { complete, currentIndex };
 }
 
-// --------------------------------------------------------------- progress
+// ------------------------------------------------------------- student view
+
+export type StudentTest = DisciplineTest & { attempt: Attempt | null };
+
+export type StudentDay = Omit<DisciplineDay, "tests"> & {
+  tests: StudentTest[];
+  complete: boolean;
+  locked: boolean;
+};
+
+export type StudentProgress = {
+  days: StudentDay[];
+  /** The day to show in the header — never one that does not exist. */
+  currentDay: number;
+  totalDays: number;
+  finished: boolean;
+};
+
+export async function loadStudentProgress(
+  userId: string,
+  resetAt: string | null,
+  /** Admins previewing the programme see every day unlocked. */
+  preview = false,
+): Promise<StudentProgress> {
+  const days = await loadProgramme();
+  const testIds = [...new Set(days.flatMap((d) => d.tests.map((t) => t.id)))];
+  const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, resetAt]]));
+  const { complete, currentIndex } = deriveDays(days, userId, first);
+
+  return {
+    days: days.map((d, i) => ({
+      ...d,
+      tests: d.tests.map((t) => ({ ...t, attempt: first.get(`${userId}:${t.id}`) ?? null })),
+      complete: complete[i],
+      locked: preview ? false : i > currentIndex,
+    })),
+    currentDay: currentIndex === -1 ? 0 : days[currentIndex].day_number,
+    totalDays: days.length,
+    finished: days.length > 0 && complete.every(Boolean),
+  };
+}
+
+// --------------------------------------------------------------- admin view
 
 export type GridCellTest = {
   testId: string;
@@ -207,9 +295,12 @@ export type GridRow = {
   userId: string;
   name: string | null;
   email: string | null;
+  /** Derived, like everything else here — not `discipline_members.current_day`. */
   currentDay: number;
+  totalDays: number;
+  completedDays: number;
   strikes: number;
-  /** ISO date of their most recent Discipline submission, null if never. */
+  /** ISO date of their most recent counting submission, null if never. */
   lastActivity: string | null;
   inactive: boolean;
   trailing: boolean;
@@ -227,47 +318,30 @@ export type ProgressGrid = {
 /**
  * The admin progress grid: every member a row, every day a column.
  *
- * Scores are the student's FIRST attempt at each test, matching how the rating
- * ladder treats an attempt (`apply_rating` only rates a first attempt), so the
- * grid and the leaderboard cannot tell two different stories about the same
- * paper.
+ * Also the source for the Members tab, so it must return member rows even when
+ * the programme is still empty — the list must not vanish before day one exists.
  *
  * Service-role, because it reads every member's results. Gate the caller.
  */
 export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> {
   const db = createAdminClient();
 
-  const [{ data: dayRows }, { data: memberRows }] = await Promise.all([
-    db.from("discipline_days").select("id, day_number, title").order("day_number"),
-    db.from("discipline_members").select("user_id, current_day, strikes"),
+  const [programme, { data: memberRows }] = await Promise.all([
+    loadProgrammeAsAdmin(),
+    db.from("discipline_members").select("user_id, strikes, reset_at"),
   ]);
 
-  const days = rows<{ id: string; day_number: number; title: string | null }>(dayRows);
-  const members = rows<{ user_id: string; current_day: number; strikes: number }>(memberRows);
-  if (members.length === 0 || days.length === 0) {
-    return { days, rows: [], medianDay: 0 };
-  }
+  const members = rows<{ user_id: string; strikes: number; reset_at: string | null }>(memberRows);
+  const days = programme.map((d) => ({ id: d.id, day_number: d.day_number, title: d.title }));
+  if (members.length === 0) return { days, rows: [], medianDay: 0 };
 
-  const [{ data: linkRows }, { data: profileRows }] = await Promise.all([
-    db
-      .from("discipline_day_tests")
-      .select("day_id, test_id, position")
-      .in(
-        "day_id",
-        days.map((d) => d.id),
-      ),
-    db
-      .from("profiles")
-      .select("id, name, email")
-      .in(
-        "id",
-        members.map((m) => m.user_id),
-      ),
-  ]);
-
-  const links = rows<{ day_id: string; test_id: string; position: number }>(linkRows).sort(
-    (a, b) => a.position - b.position,
-  );
+  const { data: profileRows } = await db
+    .from("profiles")
+    .select("id, name, email")
+    .in(
+      "id",
+      members.map((m) => m.user_id),
+    );
   const profiles = new Map(
     rows<{ id: string; name: string | null; email: string | null }>(profileRows).map((p) => [
       p.id,
@@ -275,92 +349,153 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
     ]),
   );
 
-  const testIds = [...new Set(links.map((l) => l.test_id))];
-  const testMeta = new Map<string, { title: string; skill: "reading" | "listening" }>();
-  if (testIds.length > 0) {
-    const { data: testRows } = await db
-      .from("tests")
-      .select("id, title, skill")
-      .in("id", testIds);
-    for (const t of rows<{ id: string; title: string; skill: "reading" | "listening" }>(testRows)) {
-      testMeta.set(t.id, { title: t.title, skill: t.skill });
-    }
-  }
+  const testIds = [...new Set(programme.flatMap((d) => d.tests.map((t) => t.id)))];
+  const { first, lastActivity } = await loadFirstAttempts(
+    members.map((m) => m.user_id),
+    testIds,
+    new Map(members.map((m) => [m.user_id, m.reset_at])),
+  );
 
-  // Ascending by date, so the FIRST row seen for a (user, test) pair is their
-  // first attempt — later retakes are ignored rather than overwriting it.
-  const first = new Map<string, { raw: number | null; total: number | null; band: number | null; at: string }>();
-  const lastActivity = new Map<string, string>();
-  if (testIds.length > 0) {
-    const { data: resultRows } = await db
-      .from("results")
-      .select("user_id, test_id, raw, total, band, submitted_at")
-      .in(
-        "user_id",
-        members.map((m) => m.user_id),
-      )
-      .in("test_id", testIds)
-      .order("submitted_at", { ascending: true });
+  const derived = members.map((m) => ({ member: m, ...deriveDays(programme, m.user_id, first) }));
 
-    for (const r of rows<{
-      user_id: string;
-      test_id: string;
-      raw: number | null;
-      total: number | null;
-      band: number | null;
-      submitted_at: string;
-    }>(resultRows)) {
-      const key = `${r.user_id}:${r.test_id}`;
-      if (!first.has(key)) {
-        first.set(key, { raw: r.raw, total: r.total, band: r.band, at: r.submitted_at });
-      }
-      lastActivity.set(r.user_id, r.submitted_at); // ascending, so the last wins
-    }
-  }
-
-  const sortedDays = [...members].map((m) => m.current_day).sort((a, b) => a - b);
-  const mid = Math.floor(sortedDays.length / 2);
+  const sorted = derived
+    .map((d) => (d.currentIndex === -1 ? 0 : programme[d.currentIndex].day_number))
+    .sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
   const medianDay =
-    sortedDays.length % 2 === 0
-      ? Math.round((sortedDays[mid - 1] + sortedDays[mid]) / 2)
-      : sortedDays[mid];
+    sorted.length === 0
+      ? 0
+      : sorted.length % 2 === 0
+        ? Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+        : sorted[mid];
 
   const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
 
-  const gridRows: GridRow[] = members.map((m) => {
+  const gridRows: GridRow[] = derived.map(({ member: m, complete, currentIndex }) => {
     const cells: Record<string, GridCellTest[]> = {};
-    for (const d of days) {
-      cells[d.id] = links
-        .filter((l) => l.day_id === d.id)
-        .map((l) => {
-          const meta = testMeta.get(l.test_id);
-          const r = first.get(`${m.user_id}:${l.test_id}`);
-          return {
-            testId: l.test_id,
-            title: meta?.title ?? "(test removed)",
-            skill: meta?.skill ?? "reading",
-            raw: r?.raw ?? null,
-            total: r?.total ?? null,
-            band: r?.band ?? null,
-            at: r?.at ?? null,
-          };
-        });
+    for (const d of programme) {
+      cells[d.id] = d.tests.map((t) => {
+        const a = first.get(`${m.user_id}:${t.id}`);
+        return {
+          testId: t.id,
+          title: t.title,
+          skill: t.skill,
+          raw: a?.raw ?? null,
+          total: a?.total ?? null,
+          band: a?.band ?? null,
+          at: a?.at ?? null,
+        };
+      });
     }
     const last = lastActivity.get(m.user_id) ?? null;
+    const currentDay = currentIndex === -1 ? 0 : programme[currentIndex].day_number;
     return {
       userId: m.user_id,
       name: profiles.get(m.user_id)?.name ?? null,
       email: profiles.get(m.user_id)?.email ?? null,
-      currentDay: m.current_day,
+      currentDay,
+      totalDays: programme.length,
+      completedDays: complete.filter(Boolean).length,
       strikes: m.strikes,
       lastActivity: last,
       // Never started counts as inactive too — that is exactly who needs chasing.
       inactive: !last || new Date(last).getTime() < cutoff,
-      trailing: m.current_day < medianDay,
+      trailing: currentDay < medianDay,
       cells,
     };
   });
 
   gridRows.sort((a, b) => (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""));
   return { days, rows: gridRows, medianDay };
+}
+
+// -------------------------------------------------------------- the recorder
+
+/**
+ * Called after a result is saved, to keep the audit trail current.
+ *
+ * NOTHING READS WHAT THIS WRITES any more. `discipline_completions` is history
+ * (it carries a real `completed_at` and the result that finished the day) and
+ * `discipline_members.current_day` is a convenience cache for anyone querying
+ * the database directly. Display and gating are derived — see the note at the
+ * top of this file. That is also why a failure here is logged and swallowed by
+ * the caller: it can no longer strand a student.
+ *
+ * Written with the SERVICE-ROLE client because these tables grant no writes to
+ * any client role (0046), and `userId` comes from the caller's verified session.
+ */
+export async function recordDisciplineProgress(
+  userId: string,
+  testId: string,
+  resultId: string | null,
+): Promise<void> {
+  const db = createAdminClient();
+
+  const { data: memberRow } = await db
+    .from("discipline_members")
+    .select("user_id, reset_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const member = memberRow as { user_id: string; reset_at: string | null } | null;
+  if (!member) return; // not in the challenge — nothing to record
+
+  const { data: linkRows } = await db
+    .from("discipline_day_tests")
+    .select("day_id")
+    .eq("test_id", testId);
+  if (rows<{ day_id: string }>(linkRows).length === 0) return; // not part of the programme
+
+  const programme = await loadProgrammeAsAdmin();
+  const testIds = [...new Set(programme.flatMap((d) => d.tests.map((t) => t.id)))];
+  const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, member.reset_at]]));
+  const { complete, currentIndex } = deriveDays(programme, userId, first);
+
+  const finished = programme.filter((_, i) => complete[i]);
+  if (finished.length > 0) {
+    await db.from("discipline_completions").upsert(
+      finished.map((d) => ({ user_id: userId, day_id: d.id, result_id: resultId })),
+      { onConflict: "user_id,day_id", ignoreDuplicates: true },
+    );
+  }
+
+  await db
+    .from("discipline_members")
+    .update({ current_day: currentIndex === -1 ? 1 : programme[currentIndex].day_number })
+    .eq("user_id", userId);
+}
+
+// ------------------------------------------------------- the Members tab
+
+export type DisciplineMemberRow = {
+  user_id: string;
+  email: string | null;
+  name: string | null;
+  /** Derived from their results, not read from discipline_members.current_day. */
+  current_day: number;
+  total_days: number;
+  completed: number;
+  strikes: number;
+  last_activity: string | null;
+};
+
+/**
+ * The Members tab, projected from the SAME grid the Progress tab renders.
+ *
+ * Not a query of its own: the grid already applies the one definition of "done"
+ * (see the note at the top of lib/discipline.ts), and the two tabs must never
+ * disagree about which day a student is on. That disagreement is the bug this
+ * replaced — a stored counter saying Day 2 while the programme held a single
+ * Day 1. Pure, so the page computes the grid once.
+ */
+export function membersFromGrid(grid: ProgressGrid): DisciplineMemberRow[] {
+  return grid.rows.map((r) => ({
+    user_id: r.userId,
+    email: r.email,
+    name: r.name,
+    current_day: r.currentDay,
+    total_days: r.totalDays,
+    completed: r.completedDays,
+    strikes: r.strikes,
+    last_activity: r.lastActivity,
+  }));
 }

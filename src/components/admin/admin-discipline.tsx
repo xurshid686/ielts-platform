@@ -32,7 +32,6 @@ import {
   moveTest,
   uploadDisciplineTest,
   searchAttachableTests,
-  type DisciplineMemberRow,
   type PickableTest,
   type StudentRow,
 } from "@/app/actions/discipline";
@@ -40,7 +39,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { STRIKE_LIMIT } from "@/lib/discipline-shared";
 import { cn } from "@/lib/utils";
-import type { ProgressGrid, GridCellTest } from "@/lib/discipline";
+import type { ProgressGrid, GridCellTest, DisciplineMemberRow } from "@/lib/discipline";
 
 type Day = {
   id: string;
@@ -254,10 +253,12 @@ function Members({
                     <span>
                       <span className="text-muted">Day </span>
                       <b>{m.current_day}</b>
+                      <span className="text-muted"> of {m.total_days}</span>
                     </span>
                     <span>
                       <span className="text-muted">Done </span>
                       <b>{m.completed}</b>
+                      <span className="text-muted">/{m.total_days}</span>
                     </span>
                     <span className={cn(m.strikes >= STRIKE_LIMIT && "text-danger")}>
                       <span className="text-muted">Strikes </span>
@@ -856,7 +857,10 @@ function Progress({ grid }: { grid: ProgressGrid }) {
                     )}
                   </span>
                 </td>
-                <td className="px-3 py-2 tabular-nums">{r.currentDay}</td>
+                <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                  {r.currentDay}
+                  <span className="text-muted"> of {r.totalDays}</span>
+                </td>
                 <td
                   className={cn(
                     "px-3 py-2 tabular-nums",

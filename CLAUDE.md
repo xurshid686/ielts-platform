@@ -693,26 +693,57 @@ uploaded it, and the bot's wizard has no step for choosing a day.
 A day can also point at an ordinary public test — that is what "import from the
 overall tests" means. Attaching one does NOT make it private.
 
-## Progress and strikes
+## Progress is DERIVED, not stored
 
-`recordDisciplineProgress()` (`src/lib/discipline.ts`) is called by
-`saveResult()` after the result row exists. It ticks a day off once every test
-attached to that day has a result from that student, then recomputes
-`current_day` as **the lowest day they have not finished** — not an increment.
-That is what makes it self-healing after a reset, after a day is inserted in the
-middle of the programme, and if it ever runs twice for one submission. Its
-failure is caught and logged: the score is already saved, and the next
-submission puts the student in the right place.
+This is the important thing about the feature, and it was learned the hard way.
 
-Discipline results are ordinary results — XP, streak, rating and leaderboard all
-apply, by design.
+Progress used to live in `discipline_members.current_day` and the
+`discipline_completions` table, both written only by `recordDisciplineProgress()`
+when a test was submitted. Any programme edit then left them lying. On
+2026-09-04 the owner deleted a finished Day 1 and built a new one: the completion
+row cascaded away with the deleted day, the counter stayed at 2, and a student
+with a single Day 1 in front of them was told they were on **Day 2**.
+
+So `src/lib/discipline.ts` now computes everything on read, and the rule lives
+in exactly one place — the student page, the admin grid and the recorder all go
+through `deriveDays()` / `loadFirstAttempts()`:
+
+- a **test** is done when the student has a `results` row for it dated at or
+  after their `reset_at` (any row, if never reset);
+- the score shown is their **first** such attempt, matching `apply_rating`,
+  which only rates a first attempt — a re-do never rewrites history;
+- a **day** is complete when it has at least one test and every one is done;
+- the **current day** is the lowest incomplete day, or the last day once the
+  programme is finished. It is never a day that does not exist, and the header
+  reads "Day N of M".
+
+Consequences worth knowing: attaching a test to a day a student had finished
+REOPENS that day and re-locks the next one (correct — there is new work); and
+deleting and rebuilding a day no longer loses anyone's progress, because the
+results it is derived from are still there.
+
+`discipline_completions` and `current_day` are still WRITTEN — the first as
+history (it carries a real `completed_at`), the second as a convenience cache
+for anyone querying the database directly. **Neither is read for gating or
+display.** Do not reintroduce a read of them; that is the bug. Retiring the
+column is a deploy-order-sensitive migration nobody has needed yet.
+
+The Members tab is projected from the same grid the Progress tab renders
+(`membersFromGrid()`), so the two tabs cannot disagree about a student's day.
+
+## Strikes and Reset
 
 **Strike enforcement is MANUAL and that is a decision, not a gap.** Nothing
 detects a missed day; the owner presses "Strike" on `/admin/discipline`, and at
-`STRIKE_LIMIT` (3, in `src/lib/discipline-shared.ts`) presses "Reset". A reset
-clears completions and strikes and returns them to Day 1 but KEEPS their
-membership — three strikes costs progress, not their place. Do not add a cron
-that resets students automatically without asking.
+`STRIKE_LIMIT` (3, in `src/lib/discipline-shared.ts`) presses "Reset". Do not
+add a cron that resets students automatically without asking.
+
+**Reset stamps a date; it does not delete anything.** `reset_discipline` (0046)
+sets `discipline_members.reset_at = now()`, and the derivation above ignores
+every result older than it. So a reset costs the student their place in the
+challenge while their `results` rows, XP, streak and rating survive untouched —
+which matters, because those are scored records the platform grades and ranks
+on. A reset that deleted results would claw back rating from a real ladder.
 
 `STRIKE_LIMIT` lives in `discipline-shared.ts` rather than `discipline.ts`
 because the latter is `server-only` (it holds the service-role writer) and the
@@ -725,7 +756,9 @@ entry per test on that day. Scores are the student's **first** attempt, matching
 `apply_rating` (which only rates a first attempt), so the grid and the
 leaderboard cannot tell different stories about the same paper. Two flags, and
 they mean different things: **Inactive** = nothing submitted in 3 days (never
-having started counts), **Trailing** = current day below the group median.
+having started counts), **Trailing** = current day below the group median. It
+honours `reset_at` like everything else, so after a reset the grid shows the
+student's NEW run rather than the one they lost.
 
 `moveDay()` swaps two days by parking the mover on a NEGATIVE day_number first.
 `day_number` is unique, so a straight two-step swap collides at step one.

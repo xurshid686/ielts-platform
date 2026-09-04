@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
-import { listDisciplineMembers, searchStudents } from "@/app/actions/discipline";
-import { loadProgramme, loadProgressGrid } from "@/lib/discipline";
+import { searchStudents } from "@/app/actions/discipline";
+import { loadProgramme, loadProgressGrid, membersFromGrid } from "@/lib/discipline";
 import { AdminDiscipline } from "@/components/admin/admin-discipline";
 
 export const metadata = { title: "Discipline" };
@@ -12,13 +12,16 @@ export default async function AdminDisciplinePage() {
 
   // The roster loads with the page so the Members tab opens on a full list
   // rather than an empty search box.
-  const [membersRes, programme, rosterRes, grid] = await Promise.all([
-    listDisciplineMembers(),
+  //
+  // The Members tab is derived from the SAME grid the Progress tab renders, so
+  // the two can never disagree about which day a student is on — the exact
+  // disagreement the stored day counter used to produce.
+  const [programme, rosterRes, grid] = await Promise.all([
     loadProgramme(),
     searchStudents(""),
     loadProgressGrid(),
   ]);
-  const members = membersRes.ok ? membersRes.members : [];
+  const members = membersFromGrid(grid);
   const roster = rosterRes.ok ? rosterRes.users : [];
 
   return (
@@ -29,12 +32,6 @@ export default async function AdminDisciplinePage() {
           Pick the students, build the day-by-day programme, and watch who is keeping up.
         </p>
       </div>
-
-      {!membersRes.ok && (
-        <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-          {membersRes.error}
-        </p>
-      )}
 
       <AdminDiscipline
         initialMembers={members}
