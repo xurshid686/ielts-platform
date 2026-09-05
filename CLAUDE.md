@@ -593,11 +593,17 @@ which has never existed.
 
 Two things to know:
 
-- **`PendingFunctions` in `database.ts`.** A function that exists in a migration
-  but is not yet applied cannot be in the generated types, so it is declared
-  there temporarily. `record_activity_for` (0040) is listed now. **Delete each
-  entry once its migration is applied and the types are regenerated** — a stale
-  override would hide a signature change.
+- **There are NO pending overrides any more, and `database.ts` says so.**
+  `PendingFunctions` / `PendingTables` — hand-written stand-ins for objects a
+  migration had created but the generator had never seen, because nobody had a
+  Supabase access token — were deleted on **2026-09-05**, when `npm run types`
+  was finally run against the live schema. `Database` is now just the generated
+  type. Everything they declared (the `*_as` RPCs from 0042, the `discipline_*`
+  tables and RPCs from 0046, `discipline_days.published` from 0047) is generated.
+  If you add a migration and need the app to compile before you can regenerate,
+  bring the pattern back for that migration's objects only and delete it again
+  the moment the types are regenerated — **an override that outlives its
+  migration hides the real signature**, which is worse than having none.
 - **`rows<T>()`, exported from `database.ts`,** is the one sanctioned place to
   assert a query result into an app row type, because text-column unions and
   `jsonb` shapes cannot be proven by the compiler. It replaced seven scattered
@@ -674,6 +680,57 @@ privileged-field trigger did not have to grow another column.
 - `src/proxy.ts` — `/discipline` is in `PROTECTED`.
 - The catalogue needs no new filter: `skill-section.tsx` already keeps only
   `track === "regular"`, so discipline papers are excluded by construction.
+
+## A day is a DRAFT until it is published
+
+Migration **0047**, applied to Frankfurt on 2026-09-05. `discipline_days.published`
+decides whether students can see a day at all, so the owner can load next week's
+papers in advance and release them deliberately.
+
+- **Existing days were backfilled to `true`.** The column is added `default true`
+  and the default is THEN lowered to `false`, so the backfill happens inside the
+  ADD COLUMN: days that were already live stay live, days created afterwards are
+  drafts, and re-running the migration cannot re-publish something since
+  unpublished.
+- **The database hides drafts, not just the UI.** The RLS policies on
+  `discipline_days` and `discipline_day_tests` require `published` for a member
+  (admins see everything), and `resolveTestAccess()` refuses a paper that is not
+  on a published day — so a member who is handed the URL of a draft paper gets a
+  404. This is why the old production build was safe during the rollout: it knew
+  nothing about the column, but it reads days with the student's own RLS-scoped
+  client, so the policy hid drafts from it anyway.
+- **Publishing an EMPTY day is refused** (`setDayPublished`). `deriveDayStatus`
+  only calls a day complete when it has at least one test, so a live empty day
+  would be permanently unfinishable and would lock every day behind it.
+- **Unpublishing costs nobody their progress** — completion is derived from
+  `results` rows, which are untouched. The day just disappears until it returns.
+- Drafts are excluded from the progress rule entirely: `loadProgramme()` and
+  `loadProgrammeAsAdmin()` filter on `published` unless explicitly asked for
+  drafts, and only `/admin/discipline` and the admin preview of `/discipline`
+  ask. Building next week's days therefore cannot move anyone's current day.
+
+## The admin page refreshes; it must never reload
+
+`admin-discipline.tsx` used to end every successful action with
+`window.location.reload()`. That threw the owner back to the top of the Members
+tab after each publish, upload, edit or reorder, and wiped the confirmation
+message the action had just set before it could be read. It was the only
+`window.location.reload()` in the codebase.
+
+`useRunner` now runs the action inside a React 19 transition and calls
+`router.refresh()` — the pattern the rest of the admin UI already used. Two
+things follow, and both bit during the change:
+
+- **Anything seeded from props at mount must be reset by hand**, because nothing
+  remounts any more. The "Add a day" number box is the trap: it is seeded from
+  `days.at(-1).day_number + 1` once, so after adding Day 5 it would still read 5
+  and the next click would fail with "Day 5 already exists". It advances itself
+  in `run`'s `onSuccess`, which is also where the edit form, the library picker
+  and the upload form close.
+- **Do not clear the busy flag from a `useEffect`.** The lint rules reject
+  setState-in-an-effect as a cascading render, and correctly: derive it from the
+  transition's `pending` instead, so buttons un-busy themselves when the
+  refreshed payload lands rather than when the action merely resolves.
 
 ## Uploading a Discipline paper
 
