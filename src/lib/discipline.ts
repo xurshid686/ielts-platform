@@ -7,7 +7,13 @@ import { rows } from "@/types/database";
 // Re-exported so server code has one import for the feature; the constant lives
 // in a client-safe module because the admin UI is a client component.
 export { STRIKE_LIMIT } from "@/lib/discipline-shared";
-import { countsAfterReset, deriveDayStatus } from "@/lib/discipline-shared";
+import {
+  countsAfterReset,
+  deadlineLabel,
+  deadlineState,
+  deriveDayStatus,
+  isOverdueFor,
+} from "@/lib/discipline-shared";
 
 export type DisciplineTest = {
   id: string;
@@ -27,6 +33,8 @@ export type DisciplineDay = {
   instructions: string | null;
   /** false = a draft the owner is still building. Students never see it. */
   published: boolean;
+  /** An absolute instant, or null for a day with no deadline (0048). */
+  due_at: string | null;
   tests: DisciplineTest[];
 };
 
@@ -82,7 +90,7 @@ export async function loadProgramme(includeDrafts = false): Promise<DisciplineDa
 
   let req = supabase
     .from("discipline_days")
-    .select("id, day_number, title, instructions, published");
+    .select("id, day_number, title, instructions, published, due_at");
   if (!includeDrafts) req = req.eq("published", true);
   const { data: dayRows } = await req.order("day_number", { ascending: true });
 
@@ -111,7 +119,7 @@ async function loadProgrammeAsAdmin(includeDrafts = false): Promise<DisciplineDa
   const db = createAdminClient();
   let req = db
     .from("discipline_days")
-    .select("id, day_number, title, instructions, published");
+    .select("id, day_number, title, instructions, published, due_at");
   if (!includeDrafts) req = req.eq("published", true);
   const { data: dayRows } = await req.order("day_number", { ascending: true });
 
@@ -139,6 +147,7 @@ async function assembleDays(
     title: string | null;
     instructions: string | null;
     published: boolean;
+    due_at: string | null;
   }>(dayRows);
   if (days.length === 0) return [];
 
@@ -247,6 +256,10 @@ export type StudentDay = Omit<DisciplineDay, "tests"> & {
   tests: StudentTest[];
   complete: boolean;
   locked: boolean;
+  /** "3 days left" / "2 days late", or null when the day has no deadline. */
+  deadline: string | null;
+  /** Past its deadline and not finished. Derived, never stored. */
+  overdue: boolean;
 };
 
 export type StudentProgress = {
@@ -270,12 +283,18 @@ export async function loadStudentProgress(
   const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, resetAt]]));
   const { complete, currentIndex } = deriveDays(days, userId, first);
 
+  const now = new Date();
+
   return {
     days: days.map((d, i) => ({
       ...d,
       tests: d.tests.map((t) => ({ ...t, attempt: first.get(`${userId}:${t.id}`) ?? null })),
       complete: complete[i],
       locked: preview ? false : i > currentIndex,
+      // Shown on locked days too: a student should be able to see what is
+      // coming and plan for it, not discover the deadline on the day.
+      deadline: deadlineLabel(deadlineState(d.due_at, now)),
+      overdue: isOverdueFor(d, complete[i], now),
     })),
     currentDay: currentIndex === -1 ? 0 : days[currentIndex].day_number,
     totalDays: days.length,
@@ -308,12 +327,18 @@ export type GridRow = {
   lastActivity: string | null;
   inactive: boolean;
   trailing: boolean;
+  /**
+   * Has at least one day past its deadline that they have not finished.
+   * A FACT, where `inactive` is only a proxy — that one says "has been quiet",
+   * this one says "has missed something you set".
+   */
+  overdue: boolean;
   /** day id -> one entry per test attached to that day, in display order. */
   cells: Record<string, GridCellTest[]>;
 };
 
 export type ProgressGrid = {
-  days: { id: string; day_number: number; title: string | null }[];
+  days: { id: string; day_number: number; title: string | null; due_at: string | null }[];
   rows: GridRow[];
   /** The group's median current day — what "trailing" is measured against. */
   medianDay: number;
@@ -339,7 +364,12 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
   ]);
 
   const members = rows<{ user_id: string; strikes: number; reset_at: string | null }>(memberRows);
-  const days = programme.map((d) => ({ id: d.id, day_number: d.day_number, title: d.title }));
+  const days = programme.map((d) => ({
+    id: d.id,
+    day_number: d.day_number,
+    title: d.title,
+    due_at: d.due_at,
+  }));
   if (members.length === 0) return { days, rows: [], medianDay: 0 };
 
   const { data: profileRows } = await db
@@ -377,6 +407,8 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
         : sorted[mid];
 
   const cutoff = Date.now() - inactiveDays * 24 * 60 * 60 * 1000;
+  // One clock for the whole grid, so no two rows are judged microseconds apart.
+  const now = new Date();
 
   const gridRows: GridRow[] = derived.map(({ member: m, complete, currentIndex }) => {
     const cells: Record<string, GridCellTest[]> = {};
@@ -408,6 +440,7 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
       // Never started counts as inactive too — that is exactly who needs chasing.
       inactive: !last || new Date(last).getTime() < cutoff,
       trailing: currentDay < medianDay,
+      overdue: programme.some((d, i) => isOverdueFor(d, complete[i], now)),
       cells,
     };
   });

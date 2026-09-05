@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { countsAfterReset, deriveDayStatus, STRIKE_LIMIT } from "./discipline-shared";
+import {
+  countsAfterReset,
+  deadlineLabel,
+  deadlineState,
+  deriveDayStatus,
+  isOverdueFor,
+  STRIKE_LIMIT,
+} from "./discipline-shared";
 
 // A programme is a list of days, each holding test ids.
 const day = (...ids: string[]) => ({ tests: ids.map((id) => ({ id })) });
@@ -111,5 +118,81 @@ describe("countsAfterReset", () => {
 describe("STRIKE_LIMIT", () => {
   it("is the three strikes the owner asked for", () => {
     expect(STRIKE_LIMIT).toBe(3);
+  });
+});
+
+// --------------------------------------------------------------- deadlines
+
+const NOW = new Date("2026-09-05T12:00:00Z");
+const inMs = (ms: number) => new Date(NOW.getTime() + ms).toISOString();
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
+describe("deadlineState", () => {
+  it("is 'none' for a day with no deadline", () => {
+    expect(deadlineState(null, NOW)).toEqual({ kind: "none" });
+    expect(deadlineState(undefined, NOW)).toEqual({ kind: "none" });
+  });
+
+  it("does not throw on a malformed date", () => {
+    expect(deadlineState("not a date", NOW)).toEqual({ kind: "none" });
+  });
+
+  it("counts the exact moment of the deadline as overdue", () => {
+    // The deadline has arrived; treating it as still-upcoming would give a
+    // student a free extra tick.
+    expect(deadlineState(NOW.toISOString(), NOW)).toEqual({ kind: "overdue", ms: 0 });
+  });
+
+  it("is timezone-free, because it compares instants", () => {
+    // Same moment written two ways: UTC, and +05:00 (Tashkent, where the
+    // students are). Both must give the same answer.
+    const utc = deadlineState("2026-09-06T12:00:00Z", NOW);
+    const tashkent = deadlineState("2026-09-06T17:00:00+05:00", NOW);
+    expect(utc).toEqual(tashkent);
+    expect(utc).toEqual({ kind: "upcoming", ms: DAY });
+  });
+});
+
+describe("deadlineLabel", () => {
+  it("rounds time REMAINING down, never flattering the student", () => {
+    // 47 hours is not "2 days left" — only one full day remains.
+    expect(deadlineLabel(deadlineState(inMs(47 * HOUR), NOW))).toBe("1 day left");
+    expect(deadlineLabel(deadlineState(inMs(3 * DAY), NOW))).toBe("3 days left");
+    expect(deadlineLabel(deadlineState(inMs(4 * HOUR), NOW))).toBe("4 hours left");
+    expect(deadlineLabel(deadlineState(inMs(12 * 60_000), NOW))).toBe("12 minutes left");
+  });
+
+  it("rounds time LATE up, so a miss never looks fresher than it is", () => {
+    expect(deadlineLabel(deadlineState(inMs(-25 * HOUR), NOW))).toBe("2 days late");
+    expect(deadlineLabel(deadlineState(inMs(-90 * 60_000), NOW))).toBe("2 hours late");
+  });
+
+  it("says something sensible in the last seconds", () => {
+    expect(deadlineLabel(deadlineState(inMs(30_000), NOW))).toBe("less than a minute left");
+  });
+
+  it("is null when there is no deadline, so nothing renders", () => {
+    expect(deadlineLabel(deadlineState(null, NOW))).toBeNull();
+  });
+});
+
+describe("isOverdueFor", () => {
+  it("chases an unfinished day whose deadline has passed", () => {
+    expect(isOverdueFor({ due_at: inMs(-DAY) }, false, NOW)).toBe(true);
+  });
+
+  it("NEVER chases a day the student finished, however late they were", () => {
+    // Done is done: an overdue flag on completed work would send the owner
+    // after a student who has nothing outstanding.
+    expect(isOverdueFor({ due_at: inMs(-5 * DAY) }, true, NOW)).toBe(false);
+  });
+
+  it("leaves a day with no deadline alone", () => {
+    expect(isOverdueFor({ due_at: null }, false, NOW)).toBe(false);
+  });
+
+  it("does not flag work that is merely unfinished", () => {
+    expect(isOverdueFor({ due_at: inMs(DAY) }, false, NOW)).toBe(false);
   });
 });

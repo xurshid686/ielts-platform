@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { searchStudents } from "@/app/actions/discipline";
 import { loadProgramme, loadProgressGrid, membersFromGrid } from "@/lib/discipline";
+import { deadlineState } from "@/lib/discipline-shared";
 import { AdminDiscipline } from "@/components/admin/admin-discipline";
 
 export const metadata = { title: "Discipline" };
@@ -24,6 +25,8 @@ export default async function AdminDisciplinePage() {
     loadProgressGrid(),
   ]);
   const members = membersFromGrid(grid);
+  // One clock for the whole page, read here rather than in a render.
+  const now = new Date();
   const roster = rosterRes.ok ? rosterRes.users : [];
 
   return (
@@ -45,6 +48,8 @@ export default async function AdminDisciplinePage() {
           title: d.title,
           instructions: d.instructions,
           published: d.published,
+          due_at: d.due_at,
+          duePast: deadlineState(d.due_at, now).kind === "overdue",
           tests: d.tests.map((t) => ({
             id: t.id,
             title: t.title,

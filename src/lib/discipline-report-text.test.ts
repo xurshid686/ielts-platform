@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   cellLines,
+  dueHeaderText,
   dateText,
   filterSummary,
   flagSuffix,
@@ -45,6 +46,13 @@ describe("studentLabel / flagSuffix", () => {
     expect(flagSuffix({ inactive: true, trailing: false })).toBe(" (Inactive)");
     expect(flagSuffix({ inactive: true, trailing: true })).toBe(" (Inactive, Trailing)");
   });
+
+  it("puts Overdue first — it is the only flag naming something the owner set", () => {
+    expect(flagSuffix({ inactive: true, trailing: true, overdue: true })).toBe(
+      " (Overdue, Inactive, Trailing)",
+    );
+    expect(flagSuffix({ inactive: false, trailing: false, overdue: true })).toBe(" (Overdue)");
+  });
 });
 
 describe("dateText", () => {
@@ -66,6 +74,7 @@ describe("filterSummary", () => {
     onlyInactive: false,
     onlyTrailing: false,
     onlyStrikes: false,
+    onlyOverdue: false,
     dayNumber: null,
   };
 
@@ -79,6 +88,10 @@ describe("filterSummary", () => {
     ).toBe("Filtered: trailing only · with strikes · not finished Day 3.");
   });
 
+  it("names the overdue filter too", () => {
+    expect(filterSummary({ ...none, onlyOverdue: true })).toBe("Filtered: overdue only.");
+  });
+
   it("quotes the search text and ignores whitespace-only input", () => {
     expect(filterSummary({ ...none, query: "  ali " })).toBe("Filtered: matching “ali”.");
     expect(filterSummary({ ...none, query: "   " })).toBe("All students.");
@@ -90,5 +103,15 @@ describe("reportFilename", () => {
     expect(reportFilename(new Date("2026-09-05T23:00:00.000Z"))).toBe(
       "discipline-progress-2026-09-05.docx",
     );
+  });
+});
+
+describe("dueHeaderText", () => {
+  it("labels a day that has a deadline", () => {
+    expect(dueHeaderText("2026-09-11T18:59:00.000Z")).toBe("due 2026-09-11");
+  });
+
+  it("renders nothing for a day without one", () => {
+    expect(dueHeaderText(null)).toBeNull();
   });
 });

@@ -60,3 +60,85 @@ export function deriveDayStatus(
     days.length === 0 ? -1 : firstIncomplete === -1 ? days.length - 1 : firstIncomplete;
   return { complete, currentIndex };
 }
+
+// ------------------------------------------------------------- deadlines
+
+/** What a day's deadline means right now. `ms` is always non-negative. */
+export type DeadlineState =
+  | { kind: "none" }
+  | { kind: "upcoming"; ms: number }
+  | { kind: "overdue"; ms: number };
+
+/**
+ * How a day's `due_at` stands against the clock.
+ *
+ * A deadline is an ABSOLUTE INSTANT, so this is a plain subtraction and the
+ * answer is the same in every timezone — which is the whole reason the column
+ * is `timestamptz` and the headline shown to a student is a duration rather
+ * than a date. Exactly at the deadline counts as overdue: the moment has come.
+ */
+export function deadlineState(dueAt: string | null | undefined, now: Date): DeadlineState {
+  if (!dueAt) return { kind: "none" };
+  const due = new Date(dueAt).getTime();
+  if (Number.isNaN(due)) return { kind: "none" };
+
+  // Math.abs, not `-ms`: negating a zero difference yields -0, which compares
+  // equal to 0 but prints as "-0" and would eventually surface somewhere odd.
+  const ms = due - now.getTime();
+  return ms > 0 ? { kind: "upcoming", ms } : { kind: "overdue", ms: Math.abs(ms) };
+}
+
+/**
+ * Is this day late FOR THIS STUDENT?
+ *
+ * Only if the deadline has passed AND they have not finished it. Someone who
+ * completed the work is never chased for it, whenever they did it — and a day
+ * finished after its deadline is done, not outstanding.
+ *
+ * Derived on every read, like every other fact about progress here. Storing it
+ * is what produced the "Day 2" bug this feature already had once.
+ */
+export function isOverdueFor(
+  day: { due_at?: string | null },
+  complete: boolean,
+  now: Date,
+): boolean {
+  if (complete) return false;
+  return deadlineState(day.due_at, now).kind === "overdue";
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** "3 days", "4 hours", "12 minutes", "less than a minute". */
+function duration(ms: number, round: (n: number) => number): string {
+  if (ms >= DAY) {
+    const d = round(ms / DAY);
+    return `${d} ${d === 1 ? "day" : "days"}`;
+  }
+  if (ms >= HOUR) {
+    const h = round(ms / HOUR);
+    return `${h} ${h === 1 ? "hour" : "hours"}`;
+  }
+  if (ms >= MINUTE) {
+    const m = round(ms / MINUTE);
+    return `${m} ${m === 1 ? "minute" : "minutes"}`;
+  }
+  return "less than a minute";
+}
+
+/**
+ * What the student reads: "3 days left", "2 days late", or null when the day
+ * carries no deadline.
+ *
+ * TIME REMAINING ROUNDS DOWN and TIME LATE ROUNDS UP, both against the student:
+ * never tell someone they have longer than they really do, and never make a
+ * missed deadline look fresher than it is. With rounding to nearest, 47 hours
+ * would read "2 days left" when only one full day remains.
+ */
+export function deadlineLabel(state: DeadlineState): string | null {
+  if (state.kind === "none") return null;
+  if (state.kind === "upcoming") return `${duration(state.ms, Math.floor)} left`;
+  return `${duration(state.ms, Math.ceil)} late`;
+}

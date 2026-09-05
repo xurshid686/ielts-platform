@@ -12,6 +12,7 @@ export type ReportFilters = {
   onlyInactive: boolean;
   onlyTrailing: boolean;
   onlyStrikes: boolean;
+  onlyOverdue: boolean;
   /** The day the filter is keyed to ("not finished Day N"), or null for any. */
   dayNumber: number | null;
 };
@@ -41,11 +42,24 @@ export function studentLabel(name: string | null): string {
  * The screen shows Inactive / Trailing as coloured pills. A Word table has no
  * pills, so they become a suffix on the name.
  */
-export function flagSuffix(row: { inactive: boolean; trailing: boolean }): string {
+export function flagSuffix(row: {
+  inactive: boolean;
+  trailing: boolean;
+  overdue?: boolean;
+}): string {
   const flags: string[] = [];
+  // Overdue leads: it is the only one of the three that names something the
+  // owner actually set, so it is the one worth acting on first.
+  if (row.overdue) flags.push("Overdue");
   if (row.inactive) flags.push("Inactive");
   if (row.trailing) flags.push("Trailing");
   return flags.length === 0 ? "" : ` (${flags.join(", ")})`;
+}
+
+/** The second line of a day's column header: "due 2026-09-11", or nothing. */
+export function dueHeaderText(dueAt: string | null): string | null {
+  const d = dateText(dueAt);
+  return d === "never" ? null : `due ${d}`;
 }
 
 /**
@@ -69,6 +83,7 @@ export function filterSummary(f: ReportFilters): string {
   if (f.onlyInactive) parts.push("inactive only");
   if (f.onlyTrailing) parts.push("trailing only");
   if (f.onlyStrikes) parts.push("with strikes");
+  if (f.onlyOverdue) parts.push("overdue only");
   if (f.dayNumber !== null) parts.push(`not finished Day ${f.dayNumber}`);
   const q = f.query.trim();
   if (q) parts.push(`matching “${q}”`);

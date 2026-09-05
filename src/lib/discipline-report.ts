@@ -19,6 +19,7 @@ import type { ProgressGrid } from "@/lib/discipline";
 import {
   cellLines,
   dateText,
+  dueHeaderText,
   filterSummary,
   flagSuffix,
   studentLabel,
@@ -74,7 +75,15 @@ export async function buildProgressReport(
       textCell(["Day"], { bold: true, center: true }),
       textCell(["Strikes"], { bold: true, center: true }),
       textCell(["Last seen"], { bold: true, center: true }),
-      ...grid.days.map((d) => textCell([`D${d.day_number}`], { bold: true, center: true })),
+      // A day's deadline sits under its number, so the grid reads as a
+      // schedule rather than a bare list of columns.
+      ...grid.days.map((d) => {
+        const due = dueHeaderText(d.due_at);
+        return textCell(due ? [`D${d.day_number}`, due] : [`D${d.day_number}`], {
+          bold: true,
+          center: true,
+        });
+      }),
     ],
   });
 
@@ -139,6 +148,7 @@ export async function buildProgressReport(
                 text:
                   "Scores are each student's first attempt — the one the rating ladder counts. " +
                   "A dot means the paper has not been done; an em dash means the day has no papers. " +
+                  "Overdue = a day past its deadline that is still unfinished. " +
                   "Inactive = nothing submitted in 3 days. Trailing = behind the group median.",
                 size: 16,
                 color: "666666",

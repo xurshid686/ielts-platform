@@ -21,6 +21,7 @@ import {
   EyeOff,
   FileDown,
   AtSign,
+  CalendarClock,
 } from "lucide-react";
 import {
   grantDiscipline,
@@ -55,6 +56,17 @@ type Day = {
   instructions: string | null;
   /** false = draft. Built here, invisible to students until Publish (0047). */
   published: boolean;
+  /** ISO instant, or null for a day with no deadline (0048). */
+  due_at: string | null;
+  /**
+   * Whether that deadline has passed, decided on the SERVER.
+   *
+   * Not `Date.now()` in render: the lint rules reject reading a clock during
+   * render (it makes the output non-idempotent), and rightly — the server that
+   * loaded this page already knows, and one answer for the whole page beats a
+   * value that can change between two renders of the same card.
+   */
+  duePast: boolean;
   tests: { id: string; title: string; skill: "reading" | "listening"; track: string }[];
 };
 
@@ -378,6 +390,45 @@ function Members({
 
 // -------------------------------------------------------------- programme
 
+/**
+ * An ISO instant as a `datetime-local` input wants it: the OWNER's local wall
+ * clock, `YYYY-MM-DDTHH:mm`, with no zone suffix.
+ *
+ * Built by hand rather than by slicing `toISOString()`, which would hand the
+ * input UTC and show a Tashkent owner a time five hours off their own — the
+ * same class of mistake `lib/day.ts` exists to prevent.
+ */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * The input's value as an absolute instant for the server.
+ *
+ * `new Date("2026-09-11T23:59")` is parsed in the BROWSER's timezone, which is
+ * the owner's — so "Friday 23:59" means their Friday night, which is what they
+ * meant. Empty stays empty: that clears the deadline.
+ */
+function fromLocalInput(value: string): string {
+  if (!value.trim()) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
+/** How a deadline reads on an admin card: "Due 11 Sep 2026, 23:59". */
+function dueLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
 function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
   // Seeded from the props ONCE, at mount. Without the old page reload nothing
   // re-derives it, so the Add button below has to advance it itself — otherwise
@@ -387,6 +438,7 @@ function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
   const [dayNumber, setDayNumber] = useState(String(nextDay));
   const [title, setTitle] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [dueAt, setDueAt] = useState("");
   const { busy, run } = useRunner(onMsg);
 
   return (
@@ -425,17 +477,31 @@ function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
             className="admin-input w-full"
           />
         </label>
+        <label className="space-y-1.5">
+          <span className="text-sm font-medium">Deadline (optional)</span>
+          <input
+            type="datetime-local"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+            className="admin-input w-full sm:w-auto"
+          />
+          <span className="block text-xs text-muted">
+            Your local time. Students see how long they have left, and a missed deadline is
+            flagged — it never locks the day or adds a strike by itself.
+          </span>
+        </label>
         <Button
           disabled={busy === "add"}
           onClick={() =>
             run(
               "add",
-              () => addDisciplineDay(Number(dayNumber), title, instructions),
+              () => addDisciplineDay(Number(dayNumber), title, instructions, fromLocalInput(dueAt)),
               `Day ${dayNumber} added as a draft.`,
               () => {
                 setDayNumber(String(Number(dayNumber) + 1));
                 setTitle("");
                 setInstructions("");
+                setDueAt("");
               },
             )
           }
@@ -482,6 +548,7 @@ function DayCard({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(day.title ?? "");
   const [instructions, setInstructions] = useState(day.instructions ?? "");
+  const [dueAt, setDueAt] = useState(toLocalInput(day.due_at));
   const [mode, setMode] = useState<"none" | "pick" | "upload">("none");
   const [testQuery, setTestQuery] = useState("");
   const [tests, setTests] = useState<PickableTest[] | null>(null);
@@ -522,13 +589,24 @@ function DayCard({
                 placeholder="Instructions"
                 className="admin-input w-full"
               />
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted">
+                  Deadline (your local time — leave empty for none)
+                </span>
+                <input
+                  type="datetime-local"
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                  className="admin-input w-full sm:w-auto"
+                />
+              </label>
               <div className="flex gap-2">
                 <Button
                   disabled={busy === "save"}
                   onClick={() =>
                     run(
                       "save",
-                      () => updateDisciplineDay(day.id, title, instructions),
+                      () => updateDisciplineDay(day.id, title, instructions, fromLocalInput(dueAt)),
                       `Day ${day.day_number} updated.`,
                       () => setEditing(false),
                     )
@@ -558,6 +636,17 @@ function DayCard({
                 >
                   {day.published ? "Published" : "Draft"}
                 </span>
+                {dueLabel(day.due_at) && (
+                  <span
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                      day.duePast ? "bg-danger/10 text-danger" : "bg-surface-2 text-muted",
+                    )}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Due {dueLabel(day.due_at)}
+                  </span>
+                )}
               </p>
               {day.instructions && (
                 <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{day.instructions}</p>
@@ -904,6 +993,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
   const [onlyInactive, setOnlyInactive] = useState(false);
   const [onlyTrailing, setOnlyTrailing] = useState(false);
   const [onlyStrikes, setOnlyStrikes] = useState(false);
+  const [onlyOverdue, setOnlyOverdue] = useState(false);
   const [dayFilter, setDayFilter] = useState<string>("all");
   // Off by default: the owner turns it on to take a screenshot, and a hidden
   // email would otherwise be a surprise on a page whose job is identifying
@@ -918,6 +1008,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
       if (onlyInactive && !r.inactive) return false;
       if (onlyTrailing && !r.trailing) return false;
       if (onlyStrikes && r.strikes === 0) return false;
+      if (onlyOverdue && !r.overdue) return false;
       if (dayFilter !== "all") {
         // "Day N" means: this student has not finished day N yet.
         const cells = r.cells[dayFilter] ?? [];
@@ -926,7 +1017,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
       }
       return true;
     });
-  }, [grid.rows, q, onlyInactive, onlyTrailing, onlyStrikes, dayFilter]);
+  }, [grid.rows, q, onlyInactive, onlyTrailing, onlyStrikes, onlyOverdue, dayFilter]);
 
   async function saveAsWord() {
     setSaving(true);
@@ -940,6 +1031,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         onlyInactive,
         onlyTrailing,
         onlyStrikes,
+        onlyOverdue,
         dayNumber: grid.days.find((d) => d.id === dayFilter)?.day_number ?? null,
       },
     );
@@ -984,6 +1076,9 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         </button>
         <button className={chip(onlyStrikes)} onClick={() => setOnlyStrikes((v) => !v)}>
           Has strikes
+        </button>
+        <button className={chip(onlyOverdue)} onClick={() => setOnlyOverdue((v) => !v)}>
+          Overdue
         </button>
         <select
           value={dayFilter}
@@ -1030,6 +1125,8 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         <span className="mx-1.5">·</span>
         <b>Trailing</b> = behind the group median (Day {grid.medianDay}).
         <span className="mx-1.5">·</span>
+        <b>Overdue</b> = a day past its deadline they have not finished.
+        <span className="mx-1.5">·</span>
         {visible.length} of {grid.rows.length} students shown.
       </p>
 
@@ -1045,7 +1142,15 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
               <th className="px-3 py-2 font-medium">Last seen</th>
               {grid.days.map((d) => (
                 <th key={d.id} className="px-3 py-2 text-center font-medium" title={d.title ?? ""}>
-                  D{d.day_number}
+                  <span className="block">D{d.day_number}</span>
+                  {d.due_at && (
+                    <span className="block text-[11px] font-normal text-muted">
+                      {new Date(d.due_at).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -1065,6 +1170,11 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                     {r.trailing && (
                       <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning">
                         Trailing
+                      </span>
+                    )}
+                    {r.overdue && (
+                      <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-medium text-danger">
+                        Overdue
                       </span>
                     )}
                   </span>

@@ -6,6 +6,7 @@ import {
   Check,
   Target,
   AlertTriangle,
+  CalendarClock,
   RotateCcw,
   PartyPopper,
 } from "lucide-react";
@@ -135,6 +136,11 @@ export default async function DisciplinePage() {
                           Done
                         </span>
                       )}
+                      {day.overdue && (
+                        <span className="ml-2 rounded-full bg-danger/15 px-2 py-0.5 text-xs font-medium text-danger">
+                          Late
+                        </span>
+                      )}
                       {/* Only ever reachable in admin preview: a student's
                           programme never contains a draft (0047). */}
                       {!day.published && (
@@ -143,6 +149,24 @@ export default async function DisciplinePage() {
                         </span>
                       )}
                     </p>
+                    {/* Shown on locked days too — a student should be able to
+                        plan for a deadline, not meet it on the day. */}
+                    {day.deadline && (
+                      <p
+                        className={cn(
+                          "mt-1 flex items-center gap-1.5 text-sm font-medium",
+                          day.overdue ? "text-danger" : "text-muted",
+                        )}
+                      >
+                        <CalendarClock className="h-4 w-4 shrink-0" />
+                        {day.deadline}
+                        {day.due_at && (
+                          <span className="font-normal text-muted">
+                            · due {formatDue(day.due_at, profile.timezone)}
+                          </span>
+                        )}
+                      </p>
+                    )}
                     {day.instructions && !day.locked && (
                       <p className="mt-0.5 whitespace-pre-line text-sm text-muted">
                         {day.instructions}
@@ -174,6 +198,31 @@ export default async function DisciplinePage() {
       )}
     </div>
   );
+}
+
+/**
+ * The deadline as a wall clock the student recognises.
+ *
+ * Rendered on the SERVER, so it must be told which timezone to use — the
+ * server's own would show a Tashkent student a time five hours out. That is the
+ * mistake `lib/day.ts` exists to document, and `profiles.timezone` (detected by
+ * TimezoneSync) is the answer the rest of the platform already uses.
+ *
+ * The headline next to this is a DURATION ("3 days left"), which needs no
+ * timezone at all; this line only says which moment that duration ends at.
+ */
+function formatDue(iso: string, timezone: string | null | undefined): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone || "UTC",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return new Date(iso).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  }
 }
 
 /**

@@ -99,16 +99,37 @@ export async function resetDiscipline(email: string) {
 
 // -------------------------------------------------------------- programme
 
+/**
+ * The Deadline field's value, as the database should store it.
+ *
+ * The admin form sends an ISO instant the browser built from a
+ * `datetime-local` input, so the moment is already anchored to the OWNER's
+ * timezone — exactly what we want, since they are the one saying "Friday
+ * night". An empty string clears the deadline; anything unparseable is
+ * refused rather than silently stored as null, which would look like a
+ * successful save that quietly dropped the date.
+ */
+function parseDueAt(raw: string): { ok: true; value: string | null } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: null };
+  const t = new Date(trimmed);
+  if (Number.isNaN(t.getTime())) return { ok: false, error: "That deadline is not a valid date." };
+  return { ok: true, value: t.toISOString() };
+}
+
 export async function addDisciplineDay(
   dayNumber: number,
   title: string,
   instructions: string,
+  dueAt = "",
 ): Promise<DisciplineActionResult> {
   const gate = await assertAdmin();
   if (!gate.ok) return { ok: false, error: gate.error };
   if (!Number.isInteger(dayNumber) || dayNumber < 1) {
     return { ok: false, error: "Day number must be a whole number, 1 or more." };
   }
+  const due = parseDueAt(dueAt);
+  if (!due.ok) return { ok: false, error: due.error };
 
   const { error } = await createAdminClient()
     .from("discipline_days")
@@ -119,6 +140,7 @@ export async function addDisciplineDay(
       // Explicit, though 0047 also defaults it: a new day is a DRAFT. Building
       // it in front of the students was the whole problem this fixes.
       published: false,
+      due_at: due.value,
     });
   if (error) {
     return {
@@ -264,13 +286,21 @@ export async function updateDisciplineDay(
   dayId: string,
   title: string,
   instructions: string,
+  /** ISO instant, or "" to clear the deadline. */
+  dueAt = "",
 ): Promise<DisciplineActionResult> {
   const gate = await assertAdmin();
   if (!gate.ok) return { ok: false, error: gate.error };
+  const due = parseDueAt(dueAt);
+  if (!due.ok) return { ok: false, error: due.error };
 
   const { error } = await createAdminClient()
     .from("discipline_days")
-    .update({ title: title.trim() || null, instructions: instructions.trim() || null })
+    .update({
+      title: title.trim() || null,
+      instructions: instructions.trim() || null,
+      due_at: due.value,
+    })
     .eq("id", dayId);
   if (error) return { ok: false, error: error.message };
   refresh();

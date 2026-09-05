@@ -1,0 +1,43 @@
+-- ============================================================
+-- IELTS Platform — 0048: a deadline per Discipline day
+-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run
+-- Safe to re-run.
+-- ============================================================
+-- WHAT THIS ADDS
+--
+-- `discipline_days.due_at` — when that day's work is expected, or NULL for a
+-- day with no deadline (the normal case, and what every existing day keeps).
+--
+-- TIMESTAMPTZ, NOT A DATE. The column stores an absolute instant. The owner
+-- picks a moment in their own timezone and the browser converts it; the student
+-- is shown how much time is LEFT (a duration, so timezone-free) plus that
+-- instant rendered in their own `profiles.timezone`. Storing a bare date would
+-- reintroduce exactly the bug that `src/lib/day.ts` exists to prevent, where a
+-- UTC-sliced date told a UTC+5 student their 01:00 test belonged to yesterday.
+--
+-- NOTHING IS ENFORCED HERE. A passed deadline marks the day late; it does not
+-- lock it, and it does not add a strike. Strike enforcement stays manual, which
+-- is a decision recorded in CLAUDE.md, and a locked late day could never be
+-- completed — it would block every day behind it forever.
+--
+-- Overdue is DERIVED, never stored: a day is overdue for a student when
+-- due_at has passed and they have not completed it. Completion itself is
+-- derived from `results` (see deriveDayStatus), so there is no second copy of
+-- the truth to go stale — the mistake this feature already made once.
+--
+-- ADDITIVE. No RLS change: the column rides on the existing discipline_days
+-- policies, which already hide draft days from students. The current code
+-- ignores it, so this is safe to run BEFORE the deploy.
+-- ============================================================
+
+alter table public.discipline_days
+  add column if not exists due_at timestamptz;
+
+-- ============================================================
+-- VERIFY (optional):
+--   select day_number, published, due_at from public.discipline_days
+--    order by day_number;   -- due_at is NULL everywhere after this migration
+--
+-- ROLLBACK:
+--   alter table public.discipline_days drop column if exists due_at;
+-- ============================================================
