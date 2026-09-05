@@ -23,124 +23,25 @@ import type { Database as GeneratedDatabase } from "./supabase";
 
 export type { Json } from "./supabase";
 
-/**
- * Functions that exist in a migration but not yet in the live schema, so the
- * generator has not seen them.
- *
- * ⚠️ TEMPORARY. Each entry here is a promise the database has not made yet.
- * Delete an entry the moment its migration is applied and ./supabase.ts is
- * regenerated — the generated type is then the real one, and leaving a stale
- * override would hide a signature change.
- *
- * Currently pending:
- *   - `record_activity_for` — migration 0040. The service-role replacement for
- *     `record_activity`, which reads auth.uid() and so awards nothing when
- *     called with the service role. See CLAUDE.md, "Applying 0040 and 0041".
- *   - the four `*_as` variants — migration 0042. Applied to the live project,
- *     but ./supabase.ts has not been regenerated since (that needs a Supabase
- *     personal access token). Run `npm run types` and delete these.
- *   - the four `*_discipline*` RPCs and `is_discipline_member` — migration 0046,
- *     applied to the live project 2026-09-03. Same reason: no access token on
- *     the machine that wrote them.
- */
-type PendingFunctions = {
-  record_activity_for: {
-    Args: { p_user_id: string; p_xp?: number };
-    Returns: { longest_streak: number; streak: number; xp: number }[];
-  };
-  set_premium_as: {
-    Args: { p_actor: string; target_email: string; months: number };
-    Returns: { id: string; email: string; name: string | null; premium_until: string | null }[];
-  };
-  gift_xp_as: {
-    Args: { p_actor: string; target_email: string; amount: number };
-    Returns: { id: string; email: string; name: string | null; xp: number }[];
-  };
-  set_leaderboard_hidden_as: {
-    Args: { p_actor: string; target_email: string; hidden: boolean };
-    Returns: { id: string; email: string; name: string | null; hidden_from_leaderboard: boolean }[];
-  };
-  set_user_level_as: {
-    Args: { p_actor: string; target_email: string; new_level: string };
-    Returns: string;
-  };
-  grant_discipline: { Args: { target_email: string }; Returns: string };
-  revoke_discipline: { Args: { target_email: string }; Returns: string };
-  add_discipline_strike: { Args: { target_email: string }; Returns: number };
-  reset_discipline: { Args: { target_email: string }; Returns: string };
-  is_discipline_member: { Args: { uid: string }; Returns: boolean };
-};
-
-/**
- * Tables in the same position: applied to the database, absent from the
- * generated types until the next `npm run types`.
- *
- * ⚠️ TEMPORARY, on exactly the same terms as PendingFunctions — delete each
- * entry once ./supabase.ts has been regenerated. A stale override here is worse
- * than one in PendingFunctions, because it would hide a column change rather
- * than a signature change.
- *
- * Currently pending:
- *   - `telegram_sessions`, `telegram_updates` — migration 0042. Service-role
- *     only (RLS on, no policies, grants revoked from anon/authenticated).
- *   - the four `discipline_*` tables — migration 0046. Readable by the student
- *     they belong to (and by admins) under RLS; every write is service-role or
- *     an admin RPC.
- */
-type PendingTable<Row> = {
-  Row: Row;
-  Insert: Partial<Row>;
-  Update: Partial<Row>;
-  Relationships: [];
-};
-
-type PendingTables = {
-  telegram_sessions: PendingTable<{
-    chat_id: number;
-    step: string;
-    data: import("./supabase").Json;
-    message_id: number | null;
-    updated_at: string;
-  }>;
-  telegram_updates: PendingTable<{
-    update_id: number;
-    received_at: string;
-  }>;
-  discipline_members: PendingTable<{
-    user_id: string;
-    current_day: number;
-    strikes: number;
-    granted_by: string | null;
-    granted_at: string;
-    reset_at: string | null;
-  }>;
-  discipline_days: PendingTable<{
-    id: string;
-    day_number: number;
-    title: string | null;
-    instructions: string | null;
-    created_at: string;
-  }>;
-  discipline_day_tests: PendingTable<{
-    day_id: string;
-    test_id: string;
-    position: number;
-  }>;
-  discipline_completions: PendingTable<{
-    user_id: string;
-    day_id: string;
-    result_id: string | null;
-    completed_at: string;
-  }>;
-};
+// NO PENDING SCHEMA OVERRIDES.
+//
+// There used to be `PendingFunctions` and `PendingTables` here: hand-written
+// stand-ins for objects that a migration had created in the live database but
+// that ./supabase.ts had not yet seen, because regenerating it needs a Supabase
+// personal access token and the machine writing the migrations did not have one.
+//
+// They were deleted on 2026-09-05, when `npm run types` was finally run against
+// the live Frankfurt project. Everything they declared — the `*_as` RPCs (0042),
+// the `discipline_*` tables and RPCs (0046) and `discipline_days.published`
+// (0047) — is now in the GENERATED types, which are the real ones.
+//
+// If you add a migration and need the app to compile before you can regenerate:
+// bring the pattern back, keep it to the objects that migration adds, and delete
+// it again the moment `npm run types` has run. An override that outlives its
+// migration is worse than no override, because it hides the real signature.
 
 /** The generated schema, passed to every Supabase client. */
-export type Database = Omit<GeneratedDatabase, "public"> & {
-  public: Omit<GeneratedDatabase["public"], "Functions" | "Tables"> & {
-    Functions: GeneratedDatabase["public"]["Functions"] & PendingFunctions;
-    Tables: GeneratedDatabase["public"]["Tables"] & PendingTables;
-  };
-};
+export type Database = GeneratedDatabase;
 
 type Tables = GeneratedDatabase["public"]["Tables"];
 type Views = GeneratedDatabase["public"]["Views"];

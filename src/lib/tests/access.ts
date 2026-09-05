@@ -81,6 +81,19 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
         .eq("user_id", user.id)
         .maybeSingle();
       if (!member) return { ok: false, status: 404, message: "Not found" };
+
+      // Membership is not enough: the paper must also sit on a day that has
+      // been PUBLISHED (0047). Read with the CALLER'S client, so the RLS policy
+      // on discipline_day_tests — which already hides links to draft days — is
+      // what decides, and a draft paper cannot be opened from a guessed URL by
+      // a member who was shown it in a screenshot.
+      const { data: link } = await supabase
+        .from("discipline_day_tests")
+        .select("day_id")
+        .eq("test_id", id)
+        .limit(1)
+        .maybeSingle();
+      if (!link) return { ok: false, status: 404, message: "Not found" };
     }
   } else if (
     !canAccessTrack({ role: profile.role ?? "student", level: profile.level }, row.track)

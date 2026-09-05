@@ -25,6 +25,8 @@ export type DisciplineDay = {
   day_number: number;
   title: string | null;
   instructions: string | null;
+  /** false = a draft the owner is still building. Students never see it. */
+  published: boolean;
   tests: DisciplineTest[];
 };
 
@@ -54,6 +56,9 @@ export type Attempt = {
 //     after their `reset_at` (any row, when they have never been reset);
 //   * the score shown is their FIRST such attempt, matching `apply_rating`,
 //     which only rates a first attempt — so a re-do never rewrites history;
+//   * a DRAFT day (0047) is not part of the programme at all — not for the
+//     student, and not for the admin grid or the recorder. It is invisible to
+//     the rule, so building next week's days changes nobody's current day;
 //   * a DAY is complete when it has at least one test and every one is done;
 //   * the CURRENT DAY is the lowest incomplete day, or the last day once the
 //     programme is finished. It is never a day that does not exist.
@@ -72,13 +77,14 @@ export type Attempt = {
  * Columns are named explicitly. `select("*")` on `tests` fails outright since
  * 0034 revoked column-level SELECT (see CLAUDE.md).
  */
-export async function loadProgramme(): Promise<DisciplineDay[]> {
+export async function loadProgramme(includeDrafts = false): Promise<DisciplineDay[]> {
   const supabase = await createClient();
 
-  const { data: dayRows } = await supabase
+  let req = supabase
     .from("discipline_days")
-    .select("id, day_number, title, instructions")
-    .order("day_number", { ascending: true });
+    .select("id, day_number, title, instructions, published");
+  if (!includeDrafts) req = req.eq("published", true);
+  const { data: dayRows } = await req.order("day_number", { ascending: true });
 
   return assembleDays(dayRows, async (ids) => {
     const { data } = await supabase
@@ -101,12 +107,13 @@ export async function loadProgramme(): Promise<DisciplineDay[]> {
  * The grid and the recorder run over every member, so they cannot use the
  * caller's RLS-scoped client for a student-facing read.
  */
-async function loadProgrammeAsAdmin(): Promise<DisciplineDay[]> {
+async function loadProgrammeAsAdmin(includeDrafts = false): Promise<DisciplineDay[]> {
   const db = createAdminClient();
-  const { data: dayRows } = await db
+  let req = db
     .from("discipline_days")
-    .select("id, day_number, title, instructions")
-    .order("day_number", { ascending: true });
+    .select("id, day_number, title, instructions, published");
+  if (!includeDrafts) req = req.eq("published", true);
+  const { data: dayRows } = await req.order("day_number", { ascending: true });
 
   return assembleDays(dayRows, async (ids) => {
     const { data } = await db
@@ -131,6 +138,7 @@ async function assembleDays(
     day_number: number;
     title: string | null;
     instructions: string | null;
+    published: boolean;
   }>(dayRows);
   if (days.length === 0) return [];
 
@@ -255,7 +263,9 @@ export async function loadStudentProgress(
   /** Admins previewing the programme see every day unlocked. */
   preview = false,
 ): Promise<StudentProgress> {
-  const days = await loadProgramme();
+  // An admin previewing sees drafts too, flagged as drafts, so they can check a
+  // day before publishing it. A member's RLS policy would refuse them anyway.
+  const days = await loadProgramme(preview);
   const testIds = [...new Set(days.flatMap((d) => d.tests.map((t) => t.id)))];
   const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, resetAt]]));
   const { complete, currentIndex } = deriveDays(days, userId, first);
@@ -316,6 +326,9 @@ export type ProgressGrid = {
  * the programme is still empty — the list must not vanish before day one exists.
  *
  * Service-role, because it reads every member's results. Gate the caller.
+ *
+ * PUBLISHED DAYS ONLY. The grid measures the same ladder the students walk, so
+ * a draft column here would report everyone as stuck on a day they cannot see.
  */
 export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> {
   const db = createAdminClient();
@@ -439,6 +452,8 @@ export async function recordDisciplineProgress(
     .eq("test_id", testId);
   if (rows<{ day_id: string }>(linkRows).length === 0) return; // not part of the programme
 
+  // Published only, for the same reason the grid is: progress is measured over
+  // the ladder the student can actually walk.
   const programme = await loadProgrammeAsAdmin();
   const testIds = [...new Set(programme.flatMap((d) => d.tests.map((t) => t.id)))];
   const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, member.reset_at]]));

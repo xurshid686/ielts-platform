@@ -112,6 +112,238 @@ export type Database = {
           },
         ]
       }
+      discipline_completions: {
+        Row: {
+          completed_at: string
+          day_id: string
+          result_id: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          day_id: string
+          result_id?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          day_id?: string
+          result_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discipline_completions_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "discipline_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discipline_day_tests: {
+        Row: {
+          day_id: string
+          position: number
+          test_id: string
+        }
+        Insert: {
+          day_id: string
+          position?: number
+          test_id: string
+        }
+        Update: {
+          day_id?: string
+          position?: number
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discipline_day_tests_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "discipline_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_day_tests_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discipline_days: {
+        Row: {
+          created_at: string
+          day_number: number
+          id: string
+          instructions: string | null
+          published: boolean
+          published_at: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_number: number
+          id?: string
+          instructions?: string | null
+          published?: boolean
+          published_at?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_number?: number
+          id?: string
+          instructions?: string | null
+          published?: boolean
+          published_at?: string | null
+          title?: string | null
+        }
+        Relationships: []
+      }
+      discipline_members: {
+        Row: {
+          current_day: number
+          granted_at: string
+          granted_by: string | null
+          reset_at: string | null
+          strikes: number
+          user_id: string
+        }
+        Insert: {
+          current_day?: number
+          granted_at?: string
+          granted_by?: string | null
+          reset_at?: string | null
+          strikes?: number
+          user_id: string
+        }
+        Update: {
+          current_day?: number
+          granted_at?: string
+          granted_by?: string | null
+          reset_at?: string | null
+          strikes?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discipline_members_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discipline_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1080,6 +1312,7 @@ export type Database = {
       }
     }
     Functions: {
+      add_discipline_strike: { Args: { target_email: string }; Returns: number }
       admin_send_weekly_report: {
         Args: { p_period_start?: string; p_user: string }
         Returns: string
@@ -1149,9 +1382,15 @@ export type Database = {
         Args: { p_achievement: string; p_user: string }
         Returns: undefined
       }
+      grant_discipline: { Args: { target_email: string }; Returns: string }
       is_admin: { Args: { uid: string }; Returns: boolean }
+      is_discipline_member: { Args: { uid: string }; Returns: boolean }
       is_owner: { Args: { uid: string }; Returns: boolean }
       is_premium: { Args: { uid: string }; Returns: boolean }
+      is_published_discipline_day: {
+        Args: { p_day_id: string }
+        Returns: boolean
+      }
       public_profile: { Args: { p_id: string }; Returns: Json }
       rating_expected: {
         Args: { p_difficulty: number; p_rating: number }
@@ -1185,6 +1424,8 @@ export type Database = {
       redeem_referral: { Args: { p_code: string }; Returns: boolean }
       referral_reward_months: { Args: never; Returns: number }
       referral_welcome_xp: { Args: never; Returns: number }
+      reset_discipline: { Args: { target_email: string }; Returns: string }
+      revoke_discipline: { Args: { target_email: string }; Returns: string }
       set_leaderboard_hidden: {
         Args: { hidden: boolean; target_email: string }
         Returns: {

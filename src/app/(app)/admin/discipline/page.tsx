@@ -17,7 +17,9 @@ export default async function AdminDisciplinePage() {
   // the two can never disagree about which day a student is on — the exact
   // disagreement the stored day counter used to produce.
   const [programme, rosterRes, grid] = await Promise.all([
-    loadProgramme(),
+    // `true` = drafts included. This is the one place they are visible; every
+    // student-facing loader filters them out (0047).
+    loadProgramme(true),
     searchStudents(""),
     loadProgressGrid(),
   ]);
@@ -42,6 +44,7 @@ export default async function AdminDisciplinePage() {
           day_number: d.day_number,
           title: d.title,
           instructions: d.instructions,
+          published: d.published,
           tests: d.tests.map((t) => ({
             id: t.id,
             title: t.title,

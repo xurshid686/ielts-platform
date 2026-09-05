@@ -40,7 +40,7 @@ export default async function DisciplinePage() {
             <h1 className="text-2xl font-bold">Discipline</h1>
             <p className="text-sm text-muted">
               {preview
-                ? "Admin preview — every day is unlocked for you."
+                ? "Admin preview — every day is unlocked for you, drafts included."
                 : "One day at a time. Finish today's tests to unlock tomorrow."}
             </p>
           </div>
@@ -133,6 +133,13 @@ export default async function DisciplinePage() {
                       {day.complete && (
                         <span className="ml-2 rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
                           Done
+                        </span>
+                      )}
+                      {/* Only ever reachable in admin preview: a student's
+                          programme never contains a draft (0047). */}
+                      {!day.published && (
+                        <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">
+                          Draft — students can&rsquo;t see this
                         </span>
                       )}
                     </p>

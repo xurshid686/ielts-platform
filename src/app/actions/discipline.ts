@@ -113,6 +113,9 @@ export async function addDisciplineDay(
       day_number: dayNumber,
       title: title.trim() || null,
       instructions: instructions.trim() || null,
+      // Explicit, though 0047 also defaults it: a new day is a DRAFT. Building
+      // it in front of the students was the whole problem this fixes.
+      published: false,
     });
   if (error) {
     return {
@@ -120,6 +123,55 @@ export async function addDisciplineDay(
       error: error.code === "23505" ? `Day ${dayNumber} already exists.` : error.message,
     };
   }
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Publish a day, or pull it back to draft (migration 0047).
+ *
+ * A day is created as a DRAFT, so the owner can load a week of papers in
+ * advance and release them when they choose. Nothing about a draft reaches a
+ * student: the RLS policies from 0047 hide the day and its test links, the
+ * loaders filter on `published`, and `assertTestAccess` refuses the paper
+ * itself even to a member who guesses its URL.
+ *
+ * PUBLISHING AN EMPTY DAY IS REFUSED. `deriveDayStatus` only ever calls a day
+ * complete when it has at least one test, so a live day with none would be
+ * permanently unfinishable and would lock every day behind it — a dead end the
+ * student cannot escape and the owner would have no obvious reason to suspect.
+ *
+ * UNPUBLISHING IS ALWAYS ALLOWED, and costs nobody their progress: completion
+ * is derived from `results` rows, which are untouched here. The day simply
+ * disappears until it comes back.
+ */
+export async function setDayPublished(
+  dayId: string,
+  published: boolean,
+): Promise<DisciplineActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const db = createAdminClient();
+
+  if (published) {
+    const { data: attached, error: readErr } = await db
+      .from("discipline_day_tests")
+      .select("test_id")
+      .eq("day_id", dayId);
+    if (readErr) return { ok: false, error: readErr.message };
+    if (rows<{ test_id: string }>(attached).length === 0) {
+      return {
+        ok: false,
+        error: "Add at least one test before publishing — an empty day can never be finished.",
+      };
+    }
+  }
+
+  const { error } = await db
+    .from("discipline_days")
+    .update({ published, published_at: published ? new Date().toISOString() : null })
+    .eq("id", dayId);
+  if (error) return { ok: false, error: error.message };
   refresh();
   return { ok: true };
 }

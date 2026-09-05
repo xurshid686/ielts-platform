@@ -16,6 +16,8 @@ import {
   Pencil,
   Upload,
   Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   grantDiscipline,
@@ -30,6 +32,7 @@ import {
   attachTest,
   detachTest,
   moveTest,
+  setDayPublished,
   uploadDisciplineTest,
   searchAttachableTests,
   type PickableTest,
@@ -46,6 +49,8 @@ type Day = {
   day_number: number;
   title: string | null;
   instructions: string | null;
+  /** false = draft. Built here, invisible to students until Publish (0047). */
+  published: boolean;
   tests: { id: string; title: string; skill: "reading" | "listening"; track: string }[];
 };
 
@@ -391,6 +396,14 @@ function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
       ))}
 
       {days.length === 0 && <p className="text-sm text-muted">No days yet. Add Day 1 above.</p>}
+
+      {days.length > 0 && (
+        <p className="text-sm text-muted">
+          A new day is a <b>draft</b>: load its papers whenever you like, then press{" "}
+          <b>Publish</b> to release it. Students never see a draft — not on the page, and not
+          from a link to one of its papers.
+        </p>
+      )}
     </div>
   );
 }
@@ -429,7 +442,11 @@ function DayCard({
   return (
     // data-day survives the switch into edit mode, when the heading text that
     // would otherwise identify this card is replaced by the form.
-    <Card className="space-y-3" data-day={day.day_number}>
+    <Card
+      className={cn("space-y-3", !day.published && "border-dashed border-warning/50")}
+      data-day={day.day_number}
+      data-published={day.published ? "true" : "false"}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {editing ? (
@@ -467,9 +484,21 @@ function DayCard({
             </div>
           ) : (
             <>
-              <p className="font-semibold">
-                Day {day.day_number}
-                {day.title ? ` — ${day.title}` : ""}
+              <p className="flex flex-wrap items-center gap-2 font-semibold">
+                <span>
+                  Day {day.day_number}
+                  {day.title ? ` — ${day.title}` : ""}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-medium",
+                    day.published
+                      ? "bg-success/15 text-success"
+                      : "bg-warning/15 text-warning",
+                  )}
+                >
+                  {day.published ? "Published" : "Draft"}
+                </span>
               </p>
               {day.instructions && (
                 <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{day.instructions}</p>
@@ -480,6 +509,40 @@ function DayCard({
 
         {!editing && (
           <div className="flex shrink-0 items-center gap-1">
+            <Button
+              size="sm"
+              variant={day.published ? "ghost" : "primary"}
+              disabled={busy === "pub"}
+              onClick={() => {
+                if (
+                  day.published &&
+                  !confirm(
+                    `Hide Day ${day.day_number} from students again? Nobody loses progress — the scores they have already recorded still count when you publish it back.`,
+                  )
+                ) {
+                  return;
+                }
+                run(
+                  "pub",
+                  () => setDayPublished(day.id, !day.published),
+                  day.published
+                    ? `Day ${day.day_number} is a draft again.`
+                    : `Day ${day.day_number} is live for your students.`,
+                );
+              }}
+            >
+              {busy === "pub" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : day.published ? (
+                <>
+                  <EyeOff className="h-4 w-4" /> Unpublish
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4" /> Publish
+                </>
+              )}
+            </Button>
             <Button
               variant="ghost"
               size="sm"
