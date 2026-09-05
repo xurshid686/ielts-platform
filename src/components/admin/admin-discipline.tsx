@@ -22,6 +22,7 @@ import {
   FileDown,
   AtSign,
   CalendarClock,
+  ChevronRight,
 } from "lucide-react";
 import {
   grantDiscipline,
@@ -47,7 +48,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { STRIKE_LIMIT } from "@/lib/discipline-shared";
 import { cn } from "@/lib/utils";
-import type { ProgressGrid, GridCellTest, DisciplineMemberRow } from "@/lib/discipline";
+import type { ProgressGrid, GridCellTest, GridRow, DisciplineMemberRow } from "@/lib/discipline";
 
 type Day = {
   id: string;
@@ -948,17 +949,34 @@ function Cell({ tests }: { tests: GridCellTest[] }) {
   return (
     <span className="flex flex-col gap-0.5">
       {tests.map((t) => (
-        <span
-          key={t.testId}
-          title={`${t.title}${t.at ? ` · ${new Date(t.at).toLocaleDateString()}` : " · not done"}${
-            t.band !== null ? ` · band ${t.band}` : ""
-          }`}
-          className={cn(
-            "rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
-            t.raw === null ? "text-muted" : scoreTone(t.raw, t.total),
-          )}
-        >
-          {t.raw === null ? "·" : `${t.raw}/${t.total ?? "?"}`}
+        <span key={t.testId} className="flex flex-col items-center gap-0.5">
+          <span
+            title={`${t.title}${t.at ? ` · ${new Date(t.at).toLocaleDateString()}` : " · not done"}${
+              t.band !== null ? ` · band ${t.band}` : ""
+            }`}
+            className={cn(
+              "rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
+              // Coloured by the FIRST attempt, so the grid's colours keep the
+              // meaning the owner already reads them with.
+              t.raw === null ? "text-muted" : scoreTone(t.raw, t.total),
+            )}
+          >
+            {t.raw === null ? "·" : `${t.raw}/${t.total ?? "?"}`}
+          </span>
+
+          {/* Re-dos, lighter and below: a student who improved must not look
+              identical to one who scored once and never came back. */}
+          {t.attempts.slice(1).map((a) => (
+            <span
+              key={a.resultId ?? a.at}
+              title={`${t.title} · re-do · ${new Date(a.at).toLocaleDateString()}${
+                a.band !== null ? ` · band ${a.band}` : ""
+              }`}
+              className="text-[11px] tabular-nums text-muted"
+            >
+              ↳ {a.raw ?? "·"}/{a.total ?? "?"}
+            </span>
+          ))}
         </span>
       ))}
     </span>
@@ -988,6 +1006,72 @@ function downloadBase64(base64: string, filename: string, mime: string) {
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+/**
+ * One student's whole record, opened from their row in the grid.
+ *
+ * Every paper, every attempt, with dates — the thing the grid cannot show
+ * without becoming unreadable. It renders from `grid`, which the page already
+ * loaded, so opening a student costs no query and no navigation.
+ */
+function HistoryRow({
+  row,
+  days,
+}: {
+  row: GridRow;
+  days: ProgressGrid["days"];
+}) {
+  const tone = (a: { raw: number | null; total: number | null }) =>
+    a.raw === null ? "text-muted" : scoreTone(a.raw, a.total);
+
+  return (
+    <tr className="border-b border-border/60 bg-surface-2/40">
+      <td colSpan={4 + days.length} className="px-3 py-3">
+        <div className="space-y-2">
+          {days.map((d) => {
+            const tests = row.cells[d.id] ?? [];
+            if (tests.length === 0) return null;
+            return (
+              <div key={d.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 text-sm">
+                <span className="w-16 shrink-0 font-medium tabular-nums">D{d.day_number}</span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {tests.map((t) => (
+                    <div key={t.testId} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 truncate text-muted">{t.title}</span>
+                      {t.attempts.length === 0 ? (
+                        <span className="text-xs text-muted">not started</span>
+                      ) : (
+                        t.attempts.map((a, i) => (
+                          <span
+                            key={a.resultId ?? a.at}
+                            className={cn(
+                              "rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
+                              i === 0 ? tone(a) : "text-muted",
+                            )}
+                          >
+                            {a.raw ?? "·"}/{a.total ?? "?"}
+                            <span className="ml-1 font-normal text-muted">
+                              {new Date(a.at).toLocaleDateString()}
+                              {a.band !== null ? ` · band ${a.band}` : ""}
+                              {i === 0 ? " · first" : ""}
+                            </span>
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {days.every((d) => (row.cells[d.id] ?? []).length === 0) && (
+            <p className="text-sm text-muted">No papers attached to any day yet.</p>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void }) {
   const [q, setQ] = useState("");
   const [onlyInactive, setOnlyInactive] = useState(false);
@@ -995,6 +1079,8 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
   const [onlyStrikes, setOnlyStrikes] = useState(false);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
   const [dayFilter, setDayFilter] = useState<string>("all");
+  /** Which student's full attempt history is open. Client state only. */
+  const [openRow, setOpenRow] = useState<string | null>(null);
   // Off by default: the owner turns it on to take a screenshot, and a hidden
   // email would otherwise be a surprise on a page whose job is identifying
   // students. Deliberately not remembered between visits.
@@ -1159,7 +1245,20 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
             {visible.map((r) => (
               <tr key={r.userId} className="border-b border-border/60 last:border-0">
                 <td className="sticky left-0 z-10 bg-surface px-3 py-2">
-                  <p className="font-medium">{r.name || "Student"}</p>
+                  {/* The whole history is already in `grid` — opening a student
+                      needs no new query and no navigation. */}
+                  <button
+                    onClick={() => setOpenRow((v) => (v === r.userId ? null : r.userId))}
+                    className="flex items-center gap-1 text-left font-medium hover:text-primary"
+                    aria-expanded={openRow === r.userId}
+                  >
+                    {openRow === r.userId ? (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    {r.name || "Student"}
+                  </button>
                   {!hideEmails && <p className="text-xs text-muted">{r.email}</p>}
                   <span className="mt-0.5 flex gap-1">
                     {r.inactive && (
@@ -1200,7 +1299,12 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                   </td>
                 ))}
               </tr>
-            ))}
+            ))
+              .flatMap((row, i) => {
+                const r = visible[i];
+                if (openRow !== r.userId) return [row];
+                return [row, <HistoryRow key={`${r.userId}-history`} row={r} days={grid.days} />];
+              })}
             {visible.length === 0 && (
               <tr>
                 <td colSpan={4 + grid.days.length} className="px-3 py-6 text-center text-muted">

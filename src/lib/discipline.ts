@@ -181,22 +181,34 @@ async function assembleDays(
 }
 
 /**
- * First counting attempt per (user, test), keyed `${userId}:${testId}`.
+ * EVERY counting attempt per (user, test), keyed `${userId}:${testId}`, oldest
+ * first.
  *
- * Rows come back ascending, so the first one seen for a pair is the earliest —
- * later retakes are ignored rather than overwriting it. A row dated before the
- * student's `reset_at` is skipped entirely: it belongs to a previous run at the
- * challenge, which is what lets Reset take their progress without deleting a
- * single scored record.
+ * This used to keep only the first attempt and drop the rest on the floor —
+ * while fetching them all anyway. So a student who scored 22/40, went away,
+ * worked, and came back with 34/40 looked exactly like one who scored 22 and
+ * never tried again, which is the opposite of what the programme is for.
+ * Nothing was ever missing from the database; the retakes were discarded here,
+ * at render time.
+ *
+ * The FIRST attempt keeps its special status — it is `attempts[0]`, it is what
+ * the grid and the student's page lead with, and it is the one `apply_rating`
+ * rates. That alignment is why the headline stays the first attempt rather than
+ * the best or the latest: the grid, the leaderboard and the rating ladder must
+ * tell the same story about the same paper.
+ *
+ * A row dated before the student's `reset_at` is skipped entirely: it belongs
+ * to a previous run at the challenge, which is what lets Reset take their
+ * progress without deleting a single scored record.
  */
-async function loadFirstAttempts(
+async function loadAttempts(
   userIds: string[],
   testIds: string[],
   resetAtByUser: Map<string, string | null>,
-): Promise<{ first: Map<string, Attempt>; lastActivity: Map<string, string> }> {
-  const first = new Map<string, Attempt>();
+): Promise<{ byPair: Map<string, Attempt[]>; lastActivity: Map<string, string> }> {
+  const byPair = new Map<string, Attempt[]>();
   const lastActivity = new Map<string, string>();
-  if (userIds.length === 0 || testIds.length === 0) return { first, lastActivity };
+  if (userIds.length === 0 || testIds.length === 0) return { byPair, lastActivity };
 
   const db = createAdminClient();
   const { data } = await db
@@ -218,18 +230,22 @@ async function loadFirstAttempts(
     if (!countsAfterReset(r.submitted_at, resetAtByUser.get(r.user_id) ?? null)) continue;
 
     const key = `${r.user_id}:${r.test_id}`;
-    if (!first.has(key)) {
-      first.set(key, {
-        resultId: r.id,
-        raw: r.raw,
-        total: r.total,
-        band: r.band,
-        at: r.submitted_at,
-      });
-    }
+    // Rows arrive ascending, so pushing preserves "oldest first" and
+    // `attempts[0]` is the first attempt without a second sort.
+    const list = byPair.get(key);
+    const attempt: Attempt = {
+      resultId: r.id,
+      raw: r.raw,
+      total: r.total,
+      band: r.band,
+      at: r.submitted_at,
+    };
+    if (list) list.push(attempt);
+    else byPair.set(key, [attempt]);
+
     lastActivity.set(r.user_id, r.submitted_at); // ascending, so the last wins
   }
-  return { first, lastActivity };
+  return { byPair, lastActivity };
 }
 
 /**
@@ -239,18 +255,24 @@ async function loadFirstAttempts(
 function deriveDays(
   days: { tests: { id: string }[] }[],
   userId: string,
-  first: Map<string, Attempt>,
+  byPair: Map<string, Attempt[]>,
 ): { complete: boolean[]; currentIndex: number } {
   const done = new Set<string>();
   for (const d of days) {
-    for (const t of d.tests) if (first.has(`${userId}:${t.id}`)) done.add(t.id);
+    // One counting attempt is enough — a retake never un-completes a day.
+    for (const t of d.tests) if (byPair.has(`${userId}:${t.id}`)) done.add(t.id);
   }
   return deriveDayStatus(days, done);
 }
 
 // ------------------------------------------------------------- student view
 
-export type StudentTest = DisciplineTest & { attempt: Attempt | null };
+export type StudentTest = DisciplineTest & {
+  /** Their FIRST counting attempt — the headline, and the one that is rated. */
+  attempt: Attempt | null;
+  /** Every counting attempt, oldest first. Empty when they have not started. */
+  attempts: Attempt[];
+};
 
 export type StudentDay = Omit<DisciplineDay, "tests"> & {
   tests: StudentTest[];
@@ -280,15 +302,18 @@ export async function loadStudentProgress(
   // day before publishing it. A member's RLS policy would refuse them anyway.
   const days = await loadProgramme(preview);
   const testIds = [...new Set(days.flatMap((d) => d.tests.map((t) => t.id)))];
-  const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, resetAt]]));
-  const { complete, currentIndex } = deriveDays(days, userId, first);
+  const { byPair } = await loadAttempts([userId], testIds, new Map([[userId, resetAt]]));
+  const { complete, currentIndex } = deriveDays(days, userId, byPair);
 
   const now = new Date();
 
   return {
     days: days.map((d, i) => ({
       ...d,
-      tests: d.tests.map((t) => ({ ...t, attempt: first.get(`${userId}:${t.id}`) ?? null })),
+      tests: d.tests.map((t) => {
+        const attempts = byPair.get(`${userId}:${t.id}`) ?? [];
+        return { ...t, attempt: attempts[0] ?? null, attempts };
+      }),
       complete: complete[i],
       locked: preview ? false : i > currentIndex,
       // Shown on locked days too: a student should be able to see what is
@@ -308,10 +333,13 @@ export type GridCellTest = {
   testId: string;
   title: string;
   skill: "reading" | "listening";
+  /** The FIRST attempt — what the cell leads with and colours itself by. */
   raw: number | null;
   total: number | null;
   band: number | null;
   at: string | null;
+  /** Every counting attempt, oldest first, so re-dos are visible. */
+  attempts: Attempt[];
 };
 
 export type GridRow = {
@@ -387,13 +415,13 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
   );
 
   const testIds = [...new Set(programme.flatMap((d) => d.tests.map((t) => t.id)))];
-  const { first, lastActivity } = await loadFirstAttempts(
+  const { byPair, lastActivity } = await loadAttempts(
     members.map((m) => m.user_id),
     testIds,
     new Map(members.map((m) => [m.user_id, m.reset_at])),
   );
 
-  const derived = members.map((m) => ({ member: m, ...deriveDays(programme, m.user_id, first) }));
+  const derived = members.map((m) => ({ member: m, ...deriveDays(programme, m.user_id, byPair) }));
 
   const sorted = derived
     .map((d) => (d.currentIndex === -1 ? 0 : programme[d.currentIndex].day_number))
@@ -414,7 +442,8 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
     const cells: Record<string, GridCellTest[]> = {};
     for (const d of programme) {
       cells[d.id] = d.tests.map((t) => {
-        const a = first.get(`${m.user_id}:${t.id}`);
+        const attempts = byPair.get(`${m.user_id}:${t.id}`) ?? [];
+        const a = attempts[0];
         return {
           testId: t.id,
           title: t.title,
@@ -423,6 +452,7 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
           total: a?.total ?? null,
           band: a?.band ?? null,
           at: a?.at ?? null,
+          attempts,
         };
       });
     }
@@ -523,8 +553,8 @@ export async function recordDisciplineProgress(
   // the ladder the student can actually walk.
   const programme = await loadProgrammeAsAdmin();
   const testIds = [...new Set(programme.flatMap((d) => d.tests.map((t) => t.id)))];
-  const { first } = await loadFirstAttempts([userId], testIds, new Map([[userId, member.reset_at]]));
-  const { complete, currentIndex } = deriveDays(programme, userId, first);
+  const { byPair } = await loadAttempts([userId], testIds, new Map([[userId, member.reset_at]]));
+  const { complete, currentIndex } = deriveDays(programme, userId, byPair);
 
   const finished = programme.filter((_, i) => complete[i]);
   if (finished.length > 0) {

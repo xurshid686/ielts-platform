@@ -32,6 +32,33 @@ describe("testScoreText / cellLines", () => {
   it("returns one line per test, in the order given", () => {
     expect(cellLines([{ raw: 10, total: 13 }, { raw: null, total: 40 }])).toEqual(["10/13", "·"]);
   });
+
+  it("shows EVERY attempt, first one first", () => {
+    // The point of the change: a student who improved must not read the same
+    // as one who scored 22 once and never came back.
+    expect(
+      cellLines([
+        {
+          raw: 22,
+          total: 40,
+          attempts: [
+            { raw: 22, total: 40 },
+            { raw: 31, total: 40 },
+            { raw: 34, total: 40 },
+          ],
+        },
+      ]),
+    ).toEqual(["22/40", "31/40", "34/40"]);
+  });
+
+  it("keeps every test's attempts grouped when a day holds several papers", () => {
+    expect(
+      cellLines([
+        { raw: 8, total: 13, attempts: [{ raw: 8, total: 13 }, { raw: 11, total: 13 }] },
+        { raw: null, total: 40, attempts: [] },
+      ]),
+    ).toEqual(["8/13", "11/13", "·"]);
+  });
 });
 
 describe("studentLabel / flagSuffix", () => {

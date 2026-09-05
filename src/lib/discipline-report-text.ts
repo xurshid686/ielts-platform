@@ -23,14 +23,30 @@ export function testScoreText(t: { raw: number | null; total: number | null }): 
   return `${t.raw}/${t.total ?? "?"}`;
 }
 
+/** One test in a day, with every counting attempt the student made at it. */
+export type ReportTest = {
+  raw: number | null;
+  total: number | null;
+  attempts?: { raw: number | null; total: number | null }[];
+};
+
 /**
- * One line per test attached to that day, matching the on-screen cell.
+ * One line per ATTEMPT, grouped by test, matching the on-screen cell.
+ *
+ * A student who re-does a paper gets a line per try — "22/40", then "34/40" —
+ * because a report that shows only the first attempt cannot tell someone who
+ * improved from someone who never came back. The first attempt leads, since it
+ * is the one the rating ladder counts.
+ *
  * A day with no tests reads "—" rather than being blank, so an empty column is
- * obviously empty rather than looking like missing data.
+ * obviously empty rather than looking like missing data. A test with no
+ * attempts still contributes its "·", so the row shows what is outstanding.
  */
-export function cellLines(tests: { raw: number | null; total: number | null }[]): string[] {
+export function cellLines(tests: ReportTest[]): string[] {
   if (tests.length === 0) return ["—"];
-  return tests.map(testScoreText);
+  return tests.flatMap((t) =>
+    t.attempts && t.attempts.length > 0 ? t.attempts.map(testScoreText) : [testScoreText(t)],
+  );
 }
 
 /** A student with no name saved still needs something in the Student column. */

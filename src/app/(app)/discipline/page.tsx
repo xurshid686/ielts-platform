@@ -260,6 +260,21 @@ function TestRow({ test }: { test: StudentTest }) {
         </span>
       )}
 
+      {/* Every re-do after the first, so a student can see their own progress.
+          The first attempt stays the bold one — it is what gets rated. */}
+      {test.attempts.length > 1 && (
+        <span className="flex shrink-0 flex-wrap items-center gap-1.5 text-xs text-muted">
+          {test.attempts.slice(1).map((a) => (
+            <span key={a.resultId ?? a.at} className="tabular-nums">
+              → {a.raw ?? "·"}/{a.total ?? "?"}
+            </span>
+          ))}
+          <span className="text-muted/70">
+            ({test.attempts.length} attempts)
+          </span>
+        </span>
+      )}
+
       <Link
         href={href}
         className={cn(
