@@ -19,6 +19,8 @@ import {
   Check,
   Eye,
   EyeOff,
+  FileDown,
+  AtSign,
 } from "lucide-react";
 import {
   grantDiscipline,
@@ -34,6 +36,7 @@ import {
   detachTest,
   moveTest,
   setDayPublished,
+  exportDisciplineReport,
   uploadDisciplineTest,
   searchAttachableTests,
   type PickableTest,
@@ -122,7 +125,7 @@ export function AdminDiscipline({
         <Members members={initialMembers} roster={roster} onMsg={setMsg} />
       )}
       {tab === "programme" && <Programme days={days} onMsg={setMsg} />}
-      {tab === "progress" && <Progress grid={grid} />}
+      {tab === "progress" && <Progress grid={grid} onMsg={setMsg} />}
     </div>
   );
 }
@@ -873,12 +876,40 @@ function Cell({ tests }: { tests: GridCellTest[] }) {
   );
 }
 
-function Progress({ grid }: { grid: ProgressGrid }) {
+/**
+ * Hands the browser a file built on the server.
+ *
+ * The action returns base64 rather than a URL because there is nothing to host:
+ * the document is generated per click, from the filters in force at that moment.
+ * The object URL is revoked on the next tick — revoking it synchronously after
+ * `click()` races the download in some browsers and yields an empty file.
+ */
+function downloadBase64(base64: string, filename: string, mime: string) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void }) {
   const [q, setQ] = useState("");
   const [onlyInactive, setOnlyInactive] = useState(false);
   const [onlyTrailing, setOnlyTrailing] = useState(false);
   const [onlyStrikes, setOnlyStrikes] = useState(false);
   const [dayFilter, setDayFilter] = useState<string>("all");
+  // Off by default: the owner turns it on to take a screenshot, and a hidden
+  // email would otherwise be a surprise on a page whose job is identifying
+  // students. Deliberately not remembered between visits.
+  const [hideEmails, setHideEmails] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -896,6 +927,30 @@ function Progress({ grid }: { grid: ProgressGrid }) {
       return true;
     });
   }, [grid.rows, q, onlyInactive, onlyTrailing, onlyStrikes, dayFilter]);
+
+  async function saveAsWord() {
+    setSaving(true);
+    onMsg(null);
+    // The visible rows, in the order they are on screen; the server re-derives
+    // every number from the database rather than trusting anything sent here.
+    const res = await exportDisciplineReport(
+      visible.map((r) => r.userId),
+      {
+        query: q,
+        onlyInactive,
+        onlyTrailing,
+        onlyStrikes,
+        dayNumber: grid.days.find((d) => d.id === dayFilter)?.day_number ?? null,
+      },
+    );
+    setSaving(false);
+    if (!res.ok) {
+      onMsg({ ok: false, text: res.error });
+      return;
+    }
+    downloadBase64(res.base64, res.filename, DOCX_MIME);
+    onMsg({ ok: true, text: `Saved ${res.filename} — ${visible.length} students, no emails.` });
+  }
 
   if (grid.rows.length === 0 || grid.days.length === 0) {
     return <p className="text-sm text-muted">Add students and days to see progress here.</p>;
@@ -942,6 +997,30 @@ function Progress({ grid }: { grid: ProgressGrid }) {
             </option>
           ))}
         </select>
+
+        {/* For screenshots shared with the students' group. Display only — the
+            search box above still matches on email, so a student can be found
+            by address while their address is off screen. */}
+        <button
+          className={chip(hideEmails)}
+          onClick={() => setHideEmails((v) => !v)}
+          aria-pressed={hideEmails}
+        >
+          <span className="flex items-center gap-1.5">
+            <AtSign className="h-4 w-4" />
+            {hideEmails ? "Emails hidden" : "Hide emails"}
+          </span>
+        </button>
+
+        <Button variant="outline" onClick={saveAsWord} disabled={saving || visible.length === 0}>
+          {saving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <FileDown className="h-4 w-4" /> Save as Word
+            </>
+          )}
+        </Button>
       </div>
 
       <p className="text-xs text-muted">
@@ -976,7 +1055,7 @@ function Progress({ grid }: { grid: ProgressGrid }) {
               <tr key={r.userId} className="border-b border-border/60 last:border-0">
                 <td className="sticky left-0 z-10 bg-surface px-3 py-2">
                   <p className="font-medium">{r.name || "Student"}</p>
-                  <p className="text-xs text-muted">{r.email}</p>
+                  {!hideEmails && <p className="text-xs text-muted">{r.email}</p>}
                   <span className="mt-0.5 flex gap-1">
                     {r.inactive && (
                       <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-[11px] font-medium text-danger">

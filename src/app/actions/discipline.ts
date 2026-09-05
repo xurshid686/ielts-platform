@@ -6,6 +6,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rows } from "@/types/database";
 import { createTestFromHtml } from "@/lib/tests/create";
 import { inferQuestionTypes } from "@/lib/ielts/infer-question-types";
+import { loadProgressGrid } from "@/lib/discipline";
+import { buildProgressReport } from "@/lib/discipline-report";
+import { reportFilename, type ReportFilters } from "@/lib/discipline-report-text";
 
 // Admin actions for the Discipline challenge (migration 0046).
 //
@@ -423,4 +426,50 @@ export async function uploadDisciplineTest(formData: FormData): Promise<
 
   refresh();
   return { ok: true };
+}
+
+// ------------------------------------------------------------ Word export
+
+export type ProgressReportResult =
+  | { ok: true; filename: string; base64: string }
+  | { ok: false; error: string };
+
+/**
+ * The Progress tab as a Word document.
+ *
+ * `userIds` says WHICH rows to include — the ones the owner's filters were
+ * showing — and nothing else. The numbers are re-derived here with
+ * `loadProgressGrid()`, so the client chooses the selection but never supplies
+ * the figures: a tampered browser cannot mint a report claiming whatever scores
+ * it likes. Same principle as scored records being written by the server.
+ *
+ * **No email address goes into the file.** `buildProgressReport` never reads
+ * `GridRow.email`, and there is no option to include it — the report is a file
+ * that gets forwarded to a group.
+ *
+ * Returned base64 rather than streamed from a route handler: this reuses
+ * `assertAdmin()` above (one gate for the whole feature, instead of a new route
+ * with its own), and the document is tens of KB for a realistic cohort, where
+ * base64's third of overhead does not matter.
+ */
+export async function exportDisciplineReport(
+  userIds: string[],
+  filters: ReportFilters,
+): Promise<ProgressReportResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return { ok: false, error: "Nothing to export — no students are shown." };
+  }
+
+  try {
+    const grid = await loadProgressGrid();
+    const now = new Date();
+    const buffer = await buildProgressReport(grid, userIds, filters, now);
+    return { ok: true, filename: reportFilename(now), base64: buffer.toString("base64") };
+  } catch (e) {
+    console.error(`[exportDisciplineReport] ${String(e)}`);
+    return { ok: false, error: "Could not build the Word file." };
+  }
 }

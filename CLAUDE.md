@@ -732,6 +732,29 @@ things follow, and both bit during the change:
   transition's `pending` instead, so buttons un-busy themselves when the
   refreshed payload lands rather than when the action merely resolves.
 
+## The progress report — no email ever reaches it
+
+The Progress tab has **Save as Word** (a real `.docx`, via the `docx` package) and a
+**Hide emails** toggle, both added 2026-09-05. The owner screenshots that tab and shares
+it with a students' group, which is what both exist for.
+
+- **`buildProgressReport()` never reads `GridRow.email`, and there is no flag to make it.**
+  A report is a file that gets forwarded; the on-screen toggle is cosmetic and separate,
+  and the document does not consult it. Do not add an "include emails" option.
+- **The client sends which rows, never what the numbers are.** `exportDisciplineReport()`
+  takes `userIds` (the filtered selection, in display order) and re-derives every figure
+  with `loadProgressGrid()`. Same principle as scored records being server-written.
+- It returns base64 from a server action rather than streaming from a route handler, so it
+  reuses `assertAdmin()` instead of needing a second gate. Fine at tens of KB; if the
+  cohort ever grows enough to matter, that is the trade to revisit.
+- The document uses **ISO dates**, not `toLocaleDateString()`: it is rendered on the server
+  and read by other people, and "9/5/2026" means two different dates depending on who
+  opens it.
+- The wording helpers live in `discipline-report-text.ts`, which imports NOTHING — the same
+  constraint as `discipline-shared.ts`, so they can be unit-tested without a `@/` alias.
+- `docx` is server-only. Verified after the build that it does not reach any client chunk;
+  keep it that way.
+
 ## Uploading a Discipline paper
 
 Two doors, one pipeline. The ordinary upload form (`/admin/tests`) has a fourth
