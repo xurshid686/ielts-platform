@@ -732,6 +732,45 @@ things follow, and both bit during the change:
   transition's `pending` instead, so buttons un-busy themselves when the
   refreshed payload lands rather than when the action merely resolves.
 
+## The track gate: `canOpenTrack`, never bare `canAccessTrack`
+
+Fixed 2026-09-05, after the owner reported a Discipline paper being invisible to the
+student it was built for.
+
+`canAccessTrack()` compares a track against `profiles.level`, and **no level is ever
+'discipline'** — so it returns false for every non-admin and a Discipline paper 404s. That
+was always known: `resolveTestAccess()` carried its own membership check for the track.
+**But `TestDetail` — the page — called bare `canAccessTrack`**, so from 0046 until the fix a
+member clicking a paper on their own programme got "not found": the paper was listed, the
+API would have served the file, and the page refused to render it.
+
+It stayed hidden for two reasons, both worth remembering: **admins pass `canAccessTrack`
+unconditionally**, so the owner could open everything; and every day built before that used
+ordinary `track: 'regular'` library papers, which never reach the branch. The first paper
+uploaded through the day card — which forces `track: 'discipline'` — was the first to hit it.
+
+The rule now lives once, in `canOpenTrack()` in `src/lib/tests/access.ts`, and both
+`resolveTestAccess()` (the API) and `TestDetail` (the page) call it. **Do not re-inline it,
+and do not add a third caller that reasons about tracks on its own.** Entitlement lives in
+ONE place; this was that rule being broken by omission rather than by disagreement.
+
+### Verifying an access change: two traps that make a browser test lie
+
+Both cost real time on 2026-09-05. Any future test of a gate must avoid them:
+
+1. **`notFound()` on these pages answers HTTP 200**, with the 404 UI streamed into the body
+   — the same "response already started" mechanic that degrades `permanentRedirect` into a
+   meta refresh. **A page's status code proves nothing.** Assert on the rendered DOM.
+2. **The string "This page could not be found" is in EVERY page's RSC payload**, as the
+   layout's `notFound` template, and `textContent`/`page.content()` include `<script>`
+   bodies. Searching the HTML reports a 404 on a page that rendered perfectly. Use
+   `document.body.innerText`.
+3. A refused page renders EITHER the app-shell 404 or an empty main, depending on timing.
+   Assert "the paper's title is not shown", not which of the two appeared.
+4. Playwright must `waitForLoadState("networkidle")` before submitting the login form.
+   Clicking pre-hydration submits it NATIVELY, nothing signs in, and every later assertion
+   silently describes a logged-out visitor.
+
 ## The progress report — no email ever reaches it
 
 The Progress tab has **Save as Word** (a real `.docx`, via the `docx` package) and a
@@ -756,6 +795,13 @@ it with a students' group, which is what both exist for.
   keep it that way.
 
 ## Uploading a Discipline paper
+
+**Both doors must attach the paper to a day.** A Discipline paper is reached only through
+the programme, so one that lands on no day is invisible to everyone — including the owner
+who uploaded it. On 2026-09-05 the /admin/tests form offered "Discipline challenge only"
+and attached nothing, so a listening paper uploaded there went nowhere. That form now
+requires a day when the track is Discipline, and both paths attach through the single
+`attachTestToDay()` helper in `src/lib/discipline.ts`.
 
 Two doors, one pipeline. The ordinary upload form (`/admin/tests`) has a fourth
 **For** option, "Discipline challenge only"; and each day card on
