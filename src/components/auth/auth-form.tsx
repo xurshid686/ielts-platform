@@ -39,7 +39,7 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
         setLoading(false);
         return;
       }
-      // If email confirmation is ON, there is no session yet.
+    // If email confirmation is ON, there is no session yet.
       if (!data.session) {
         setInfo("Check your email to confirm your account, then sign in.");
         setLoading(false);
@@ -59,7 +59,24 @@ export function AuthForm({ mode, next }: { mode: "login" | "register"; next?: st
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" is a SAFETY NET, not a route — nothing serves POST here.
+    //
+    // This form is submitted by `handleSubmit` in the browser. But between the
+    // HTML arriving and React hydrating, the button is a plain submit button,
+    // and a student on a slow connection who clicks in that window gets the
+    // browser's DEFAULT submit. The default method is GET, which serialises
+    // every named field INTO THE URL — reproduced 2026-09-05:
+    //
+    //     /login?email=someone@gmail.com&password=<their real password>
+    //
+    // which is then in their history and in the Cloudflare/DigitalOcean access
+    // logs, while the sign-in silently does nothing and they just retry.
+    //
+    // POST puts the fields in a request body instead, so the password never
+    // reaches the URL. The page has no POST handler, so an early submit now
+    // fails VISIBLY (405) rather than quietly leaking. That trade is
+    // deliberate: a rare ugly error beats a silent credential leak.
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       {mode === "register" && (
         <Field label="Full name">
           {(id) => (

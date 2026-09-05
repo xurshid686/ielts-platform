@@ -86,7 +86,11 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" for the same reason as the sign-in form: a submit that
+    // lands before React hydrates falls back to the browser default, GET, which
+    // would put the NEW password in the URL and the server logs. The leak is
+    // identical; only the field differs. See auth-form.tsx.
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <PasswordField
         label="New password"
         value={password}

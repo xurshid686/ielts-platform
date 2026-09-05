@@ -52,7 +52,10 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    // method="post" for the same reason as the sign-in form: a submit that
+    // lands before React hydrates falls back to the browser default, GET, which
+    // would put this address in the URL and the server logs. See auth-form.tsx.
+    <form onSubmit={handleSubmit} method="post" className="space-y-4">
       <div className="space-y-1.5">
         <label htmlFor={id} className="text-sm font-medium text-foreground">
           Email
