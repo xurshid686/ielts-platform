@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { UploadForm } from "@/components/admin/upload-form";
+import { loadProgramme } from "@/lib/discipline";
 import { DeleteTestButton } from "@/components/admin/delete-test-button";
 import { RenameTestButton } from "@/components/admin/rename-test-button";
 import type { Test } from "@/types/database";
@@ -18,6 +19,10 @@ export default async function AdminTestsPage() {
     .order("created_at", { ascending: false });
   const list = (tests ?? []) as Test[];
 
+  // Drafts included: a paper should be loadable onto next week's day before that
+  // day goes live. The picker labels them "(draft)".
+  const disciplineDays = await loadProgramme(true);
+
   return (
     <div className="space-y-8">
       <div>
@@ -32,7 +37,14 @@ export default async function AdminTestsPage() {
 
       <Card>
         <h2 className="mb-4 font-semibold">Upload a test</h2>
-        <UploadForm />
+        <UploadForm
+          disciplineDays={disciplineDays.map((d) => ({
+            id: d.id,
+            day_number: d.day_number,
+            title: d.title,
+            published: d.published,
+          }))}
+        />
       </Card>
 
       <section>

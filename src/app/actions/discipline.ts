@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rows } from "@/types/database";
 import { createTestFromHtml } from "@/lib/tests/create";
 import { inferQuestionTypes } from "@/lib/ielts/infer-question-types";
-import { loadProgressGrid } from "@/lib/discipline";
+import { attachTestToDay, loadProgressGrid } from "@/lib/discipline";
 import { buildProgressReport } from "@/lib/discipline-report";
 import { reportFilename, type ReportFilters } from "@/lib/discipline-report-text";
 
@@ -412,17 +412,10 @@ export async function uploadDisciplineTest(formData: FormData): Promise<
   if (!created.ok) return { ok: false, error: created.error };
 
   // Attach it immediately. An unattached discipline paper is invisible to
-  // everyone, including the owner who just uploaded it.
-  const { data: existing } = await createAdminClient()
-    .from("discipline_day_tests")
-    .select("test_id")
-    .eq("day_id", dayId);
-  const position = rows<{ test_id: string }>(existing).length;
-
-  const { error } = await createAdminClient()
-    .from("discipline_day_tests")
-    .insert({ day_id: dayId, test_id: created.id, position });
-  if (error) return { ok: false, error: `Uploaded, but not attached: ${error.message}` };
+  // everyone, including the owner who just uploaded it. Shared with the
+  // /admin/tests upload path so the two doors cannot drift.
+  const attached = await attachTestToDay(dayId, created.id);
+  if (!attached.ok) return { ok: false, error: `Uploaded, but not attached: ${attached.error}` };
 
   refresh();
   return { ok: true };

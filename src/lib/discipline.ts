@@ -416,6 +416,40 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
   return { days, rows: gridRows, medianDay };
 }
 
+// ------------------------------------------------------------ attaching
+
+/**
+ * Put a test on a day, at the end of that day's list.
+ *
+ * ONE COPY, because there are two upload doors — the day card on
+ * /admin/discipline and the "Discipline challenge only" option on /admin/tests —
+ * and a paper that lands on no day is invisible to every student. That is
+ * exactly what happened to a listening paper on 2026-09-05: the /admin/tests
+ * form set the track and attached nothing, so the upload silently went nowhere.
+ *
+ * Authorisation-free by design, like createTestFromHtml(): it writes with the
+ * service-role client because 0046 grants no client role INSERT here, and it
+ * trusts its CALLERS to have gated. Do not call it from anywhere ungated.
+ */
+export async function attachTestToDay(
+  dayId: string,
+  testId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = createAdminClient();
+
+  const { data: existing, error: readErr } = await db
+    .from("discipline_day_tests")
+    .select("test_id")
+    .eq("day_id", dayId);
+  if (readErr) return { ok: false, error: readErr.message };
+
+  const { error } = await db
+    .from("discipline_day_tests")
+    .insert({ day_id: dayId, test_id: testId, position: rows<{ test_id: string }>(existing).length });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // -------------------------------------------------------------- the recorder
 
 /**

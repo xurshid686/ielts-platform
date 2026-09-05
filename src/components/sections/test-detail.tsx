@@ -4,7 +4,7 @@ import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { canAccessTest } from "@/lib/premium";
-import { canAccessTrack } from "@/lib/levels";
+import { canOpenTrack } from "@/lib/tests/access";
 import { TestRunner } from "@/components/test-runner";
 import { PremiumContact } from "@/components/premium-contact";
 import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
@@ -43,10 +43,24 @@ export async function TestDetail({
   if (!test) notFound();
   const t = test as unknown as Test;
 
-  // Level gate: a Pre-IELTS / Intro test is only openable by students of that
-  // level (admins pass). Guests only ever see regular-track material.
+  // Track gate: a Pre-IELTS / Intro test is only openable by students of that
+  // level, a Discipline paper only by a member of the challenge whose programme
+  // it is published on (admins pass both). Guests only ever see regular-track
+  // material — `viewer` gives them the default level and a null user id.
+  //
+  // THIS MUST BE `canOpenTrack`, NOT `canAccessTrack`. It called the latter
+  // until 2026-09-05, which 404s every Discipline paper for the very students it
+  // belongs to: no `profiles.level` is ever 'discipline'. `canOpenTrack` is the
+  // same gate /api/test-html uses, so the page and the file agree.
   const viewer = profile ?? { role: "student", level: "regular", premium_until: null };
-  if (!canAccessTrack(viewer, t.track)) notFound();
+  const openable = await canOpenTrack({
+    supabase,
+    viewer,
+    userId: profile?.id ?? null,
+    track: t.track,
+    testId: t.id,
+  });
+  if (!openable) notFound();
 
   // A signed-out visitor may TAKE a free test — proving the product beats any
   // amount of marketing copy. Their attempt is graded server-side but not

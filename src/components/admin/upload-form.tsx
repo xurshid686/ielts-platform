@@ -1,18 +1,25 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UploadCloud } from "lucide-react";
 import { uploadTest } from "@/app/actions/admin";
 import { Button } from "@/components/ui/button";
 import { QUESTION_TYPES } from "@/lib/ielts/question-types";
 
-export function UploadForm() {
+/** The Discipline days a paper can be uploaded onto, drafts included. */
+export type UploadDay = { id: string; day_number: number; title: string | null; published: boolean };
+
+export function UploadForm({ disciplineDays = [] }: { disciplineDays?: UploadDay[] }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [loading, setLoading] = useState(false);
   const [skill, setSkill] = useState("reading");
   const [kind, setKind] = useState("single");
+  // Watched so the day picker can appear: the Discipline track is the one track
+  // that needs somewhere to put the paper.
+  const [track, setTrack] = useState("regular");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function action(formData: FormData) {
@@ -84,13 +91,50 @@ export function UploadForm() {
         </label>
         <label className="space-y-1.5">
           <span className="text-sm font-medium">For</span>
-          <select name="track" required className="admin-input" defaultValue="regular">
+          <select
+            name="track"
+            required
+            className="admin-input"
+            value={track}
+            onChange={(e) => setTrack(e.target.value)}
+          >
             <option value="regular">Regular IELTS — normal pages</option>
             <option value="pre_ielts">Pre-IELTS students only</option>
             <option value="intro">Introduction students only</option>
             <option value="discipline">Discipline challenge only</option>
           </select>
         </label>
+
+        {/* A Discipline paper is reached ONLY through the programme, so one that
+            lands on no day is invisible to every student — and to the owner who
+            uploaded it. Required here rather than optional for that reason. */}
+        {track === "discipline" && (
+          <label className="space-y-1.5">
+            <span className="text-sm font-medium">Discipline day</span>
+            {disciplineDays.length === 0 ? (
+              <p className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm">
+                No days exist yet. Add one on{" "}
+                <Link href="/admin/discipline" className="underline">
+                  Discipline
+                </Link>{" "}
+                first — a paper with no day cannot be seen by anyone.
+              </p>
+            ) : (
+              <select name="dayId" required className="admin-input" defaultValue="">
+                <option value="" disabled>
+                  Choose a day…
+                </option>
+                {disciplineDays.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    Day {d.day_number}
+                    {d.title ? ` — ${d.title}` : ""}
+                    {d.published ? "" : " (draft)"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+        )}
         <label className="space-y-1.5">
           <span className="text-sm font-medium">Level (optional)</span>
           <input name="level" placeholder="Band 6–7" className="admin-input" />

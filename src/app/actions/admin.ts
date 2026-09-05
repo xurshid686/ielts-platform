@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rows } from "@/types/database";
 import { createTestFromHtml, type Track } from "@/lib/tests/create";
+import { attachTestToDay } from "@/lib/discipline";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 
 async function assertAdmin() {
@@ -47,6 +48,10 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   const track = ["regular", "pre_ielts", "intro", "discipline"].includes(trackRaw)
     ? trackRaw
     : "regular";
+  // Required when the track is 'discipline': the programme is the only way a
+  // student reaches that track, so a paper uploaded without a day would be
+  // created, stored, and visible to nobody. That happened on 2026-09-05.
+  const dayId = String(formData.get("dayId") || "").trim();
   const passageRaw = String(formData.get("passage") || "").trim();
   // A passage number only applies to a single reading passage.
   const passage =
@@ -57,6 +62,12 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   if (skill !== "reading" && skill !== "listening")
     return { ok: false, error: "Skill must be reading or listening." };
   if (!file || file.size === 0) return { ok: false, error: "Please choose an HTML file." };
+  if (track === "discipline" && !dayId) {
+    return {
+      ok: false,
+      error: "Pick the Discipline day this paper belongs to — an unattached paper is invisible.",
+    };
+  }
   if (!file.name.toLowerCase().endsWith(".html") && file.type !== "text/html")
     return { ok: false, error: "File must be a .html file." };
 
@@ -79,6 +90,14 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     createdBy: user!.id,
   });
   if (!created.ok) return { ok: false, error: created.error };
+
+  if (track === "discipline") {
+    const attached = await attachTestToDay(dayId, created.id);
+    if (!attached.ok) {
+      return { ok: false, error: `Uploaded, but not attached to the day: ${attached.error}` };
+    }
+    revalidatePath("/admin/discipline");
+  }
 
   revalidatePath("/admin/tests");
   revalidatePath(`/${skill}`);
