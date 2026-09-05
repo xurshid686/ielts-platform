@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Loader2,
@@ -99,13 +100,18 @@ export function AdminDiscipline({
         ))}
       </nav>
 
+      {/* Sticky, because the message now SURVIVES the action that set it (the
+          old reload wiped it before it could be read) and the day list is long
+          enough that the top of the page is often off screen. `bg-surface` is
+          opaque on purpose — a translucent banner would have day cards
+          scrolling visibly through the text. */}
       {msg && (
         <p
           className={cn(
-            "rounded-lg border px-3 py-2 text-sm",
+            "sticky top-0 z-10 rounded-lg border bg-surface px-3 py-2 text-sm shadow-soft",
             msg.ok
-              ? "border-success/30 bg-success/5 text-success"
-              : "border-danger/30 bg-danger/5 text-danger",
+              ? "border-success/30 text-success"
+              : "border-danger/30 text-danger",
           )}
         >
           {msg.text}
@@ -121,21 +127,62 @@ export function AdminDiscipline({
   );
 }
 
-/** Runs a server action, reports the outcome, reloads on success. */
+/**
+ * Runs a server action, reports the outcome, and pulls the fresh server data
+ * into the page on success.
+ *
+ * IT MUST NOT RELOAD THE PAGE. It used to end with `window.location.reload()`,
+ * which threw the owner back to the top of the Members tab after every publish,
+ * upload, edit or reorder — and destroyed the confirmation message this hook had
+ * just set, so "Day 5 is live" was never actually readable. Building a programme
+ * is dozens of these in a row.
+ *
+ * `router.refresh()` re-fetches the server component and patches the new props
+ * in, leaving the tab, the scroll position and any open panel exactly as they
+ * were. Every action in actions/discipline.ts already calls `revalidatePath`, so
+ * the data being refetched is current. This is the same pattern the rest of the
+ * admin UI uses (admin-team.tsx, delete-test-button.tsx, upload-form.tsx).
+ *
+ * `busy` is held until the refresh LANDS, not merely until the action resolves:
+ * re-enabling the buttons while the list still shows stale data invites a second
+ * click on a row that has already moved.
+ *
+ * `onSuccess` is where a caller closes whatever the reload used to close for it.
+ * Anything derived from props at mount — an editor, a picker, the next free day
+ * number — has to be reset by hand now.
+ */
 function useRunner(onMsg: (m: Msg) => void) {
-  const [busy, setBusy] = useState<string | null>(null);
-  async function run(
-    key: string,
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [key, setKey] = useState<string | null>(null);
+
+  function run(
+    innerKey: string,
     fn: () => Promise<{ ok: true } | { ok: false; error: string }>,
     okText: string,
+    onSuccess?: () => void,
   ) {
-    setBusy(key);
-    const res = await fn();
-    setBusy(null);
-    onMsg(res.ok ? { ok: true, text: okText } : { ok: false, text: res.error });
-    if (res.ok) window.location.reload();
+    setKey(innerKey);
+    // The whole action runs INSIDE the transition (a React 19 Action), so
+    // `pending` stays true across the await and through the refresh that
+    // follows it. Awaiting first and starting a transition afterwards would
+    // leave a gap where the buttons are live but the data is stale.
+    startTransition(async () => {
+      const res = await fn();
+      if (!res.ok) {
+        onMsg({ ok: false, text: res.error });
+        return;
+      }
+      onMsg({ ok: true, text: okText });
+      onSuccess?.();
+      router.refresh();
+    });
   }
-  return { busy, run };
+
+  // Derived rather than cleared by hand: the moment the transition settles,
+  // every button un-busies itself. Nothing has to remember to reset it, and
+  // there is no setState-in-an-effect to cascade renders.
+  return { busy: pending ? key : null, run };
 }
 
 // --------------------------------------------------------------- members
@@ -329,6 +376,10 @@ function Members({
 // -------------------------------------------------------------- programme
 
 function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
+  // Seeded from the props ONCE, at mount. Without the old page reload nothing
+  // re-derives it, so the Add button below has to advance it itself — otherwise
+  // the box still reads 5 after Day 5 is created and the next click fails with
+  // "Day 5 already exists."
   const nextDay = (days.at(-1)?.day_number ?? 0) + 1;
   const [dayNumber, setDayNumber] = useState(String(nextDay));
   const [title, setTitle] = useState("");
@@ -377,7 +428,12 @@ function Programme({ days, onMsg }: { days: Day[]; onMsg: (m: Msg) => void }) {
             run(
               "add",
               () => addDisciplineDay(Number(dayNumber), title, instructions),
-              `Day ${dayNumber} added.`,
+              `Day ${dayNumber} added as a draft.`,
+              () => {
+                setDayNumber(String(Number(dayNumber) + 1));
+                setTitle("");
+                setInstructions("");
+              },
             )
           }
         >
@@ -426,7 +482,6 @@ function DayCard({
   const [mode, setMode] = useState<"none" | "pick" | "upload">("none");
   const [testQuery, setTestQuery] = useState("");
   const [tests, setTests] = useState<PickableTest[] | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   async function openPicker() {
     setMode("pick");
@@ -472,6 +527,7 @@ function DayCard({
                       "save",
                       () => updateDisciplineDay(day.id, title, instructions),
                       `Day ${day.day_number} updated.`,
+                      () => setEditing(false),
                     )
                   }
                 >
@@ -681,6 +737,11 @@ function DayCard({
                         `a-${t.id}`,
                         () => attachTest(day.id, t.id, day.tests.length),
                         `${t.title} attached to Day ${day.day_number}.`,
+                        () => {
+                          setMode("none");
+                          setTests(null);
+                          setTestQuery("");
+                        },
                       )
                     }
                     className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-surface-2"
@@ -708,19 +769,24 @@ function DayCard({
       {mode === "upload" && (
         <form
           className="space-y-3 rounded-lg border border-border p-3"
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault();
-            const fd = new FormData(e.currentTarget);
+            // Captured before the await: `currentTarget` is null by the time an
+            // async handler resumes, and the reset below needs the form.
+            const form = e.currentTarget;
+            const fd = new FormData(form);
             fd.set("dayId", day.id);
-            setUploading(true);
-            const res = await uploadDisciplineTest(fd);
-            setUploading(false);
-            onMsg(
-              res.ok
-                ? { ok: true, text: `Uploaded and attached to Day ${day.day_number}.` }
-                : { ok: false, text: res.error },
+            // Through the same runner as every other action, so there is one
+            // definition of "it worked — update the page".
+            run(
+              "upload",
+              () => uploadDisciplineTest(fd),
+              `Uploaded and attached to Day ${day.day_number}.`,
+              () => {
+                form.reset();
+                setMode("none");
+              },
             );
-            if (res.ok) window.location.reload();
           }}
         >
           <p className="text-sm text-muted">
@@ -758,8 +824,12 @@ function DayCard({
             </label>
           </div>
           <div className="flex gap-2">
-            <Button type="submit" disabled={uploading}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Upload & attach"}
+            <Button type="submit" disabled={busy === "upload"}>
+              {busy === "upload" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Upload & attach"
+              )}
             </Button>
             <Button variant="ghost" type="button" onClick={() => setMode("none")}>
               Cancel
