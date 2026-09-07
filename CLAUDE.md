@@ -904,6 +904,67 @@ through four SECURITY DEFINER RPCs (`grant_discipline`, `revoke_discipline`,
 `is_admin(auth.uid())` — which means, as ever, that **the Telegram bot cannot
 call them under the service role**; a bot command would need `_for` variants.
 
+# Every test page must be linked — `Discovered - currently not indexed`
+
+On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**
+(Discovered - currently not indexed) and 8 crawled-but-not-indexed, out of 187
+test pages in the sitemap. Nothing was misconfigured: robots.txt was correct,
+every page server-renders 1,100-1,500 words of real passage, and each canonical
+matched its sitemap entry exactly. The pages were **orphans**.
+
+Two separate causes, both fixed the same day:
+
+1. **The catalogue linked 24 of 174.** `test-browser.tsx` caps the grid at
+   `PAGE_SIZE = 24` and reveals the rest with a client-side `setVisible` button
+   — which is not a URL, so the served HTML of `/reading` carried 24 outbound
+   test links and nothing else on the site linked the other ~150.
+2. **`RelatedTests` linked the same 12 pages from every page.** It took the
+   twelve NEWEST siblings, so all ~190 test pages emitted a byte-identical set
+   of twelve links (verified by diffing three random pages). Twelve tests
+   collected ~190 inbound links each; the other ~175 still had zero. A strip
+   that links the same twelve pages everywhere is a sitewide nav block, not
+   internal linking.
+
+## The two rules that follow
+
+- **`RelatedTests` rotates.** Siblings are ordered `created_at` then `id` (the
+  tie-break matters — papers uploaded in one batch share a timestamp, and an
+  unstable sort would hand a page different neighbours on every crawl), and each
+  test links the twelve that FOLLOW it, wrapping past the end. The catalogue is
+  therefore one cycle: every test has exactly 12 inbound and 12 outbound links
+  and a crawler entering anywhere reaches everything. **Verified empirically**
+  by crawling all 174 reading pages on the dev preview: outbound 12/12 on every
+  page, inbound min 12 / max 12, 174 distinct targets, zero orphans.
+- **`TestIndexLinks` is the hub** — a plain server-rendered `<ul>` of every
+  paper's title, below the card grid on `/reading` and `/listening`. It exists
+  because the grid cannot list everything without the cost the cap was added to
+  avoid.
+
+**Do NOT fix a future version of this by raising `PAGE_SIZE` or rendering every
+card.** That was already measured and rejected: 171 cards is 506 KB of HTML and
+171 hydrating subtrees. The index is plain anchors in a server component —
+measured cost on `/reading` with 174 links is gzip 24 KB -> 45 KB, brotli 31 KB,
+and no client work at all. Quote the COMPRESSED number if this is revisited; the
+raw delta (172 KB -> 317 KB, because the markup lands in both the HTML and the
+RSC payload) looks alarming and is not what anybody downloads.
+
+And do not make the index crawler-only. A hidden block of links only Googlebot
+sees is a doorway; this one is visible, uses each paper's own title as anchor
+text, and is the fastest way to Ctrl-F the library.
+
+## What was NOT the problem
+
+Worth recording, because all three are the usual first guesses and all three
+were already correct: robots.txt, the sitemap (`lastmod`, canonical-matching
+URLs), and content depth. **The uuid URLs are not the cause either** — see
+`USE_SLUG_URLS` above. Renaming URLs while 136 pages are waiting to be crawled
+would add a re-crawl and re-attribution on top of the real problem. Leave the
+flag off until indexing recovers.
+
+Indexing is not instant: expect the 136 to clear over the following weeks as
+Google re-crawls, and judge the fix by the Discovered-not-indexed count falling,
+not by any single URL.
+
 # Patterns deliberately removed — do not reintroduce
 
 ## Schema-probe fallbacks
@@ -954,7 +1015,10 @@ inline styles, not Tailwind.
 - The PDF export button is hidden: `stripDownloadTools` removes the html2pdf
   library, so it would silently do nothing.
 - Question-type filter is single-select; no combining types.
-- No "show more" paging — all 185 cards render at once.
+- ~~No "show more" paging — all 185 cards render at once.~~ **Stale.**
+  `test-browser.tsx` caps the grid at `PAGE_SIZE = 24` behind a "Show more"
+  button. See "Every test page must be linked" above — that cap had an SEO
+  cost, and the fix was NOT to remove it.
 - No admin UI yet for correcting inferred question types.
 - `/pricing` and a real upgrade flow don't exist; Premium is arranged by
   contacting the admin on Telegram (`src/lib/site.ts`).

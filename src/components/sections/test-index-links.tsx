@@ -14,10 +14,21 @@ import { testPath } from "@/lib/tests/ref";
  * the exact count of tests the catalogue never links to.
  *
  * DO NOT "fix" this by raising PAGE_SIZE or rendering every card. That was
- * measured and rejected — 171 cards is 506 KB of HTML and 171 hydrating
- * subtrees, and it is the reason the cap exists. A bare `<a>` costs about a
- * hundred bytes and hydrates nothing, so the full index here adds roughly 20 KB
- * to a page that was already 170 KB, and no client work at all.
+ * measured and rejected - 171 cards is 506 KB of HTML and 171 hydrating
+ * subtrees, and it is the reason the cap exists. A bare `<a>` hydrates nothing,
+ * which is the whole point of putting the full list HERE rather than in the
+ * grid.
+ *
+ * Measured on the dev preview, 2026-09-07, /reading with 174 links:
+ *
+ *     raw HTML   172 KB -> 317 KB   (the markup appears twice: once in the
+ *                                    HTML, once again in the RSC payload)
+ *     gzip        24 KB ->  45 KB
+ *     brotli                31 KB   (what a real browser actually receives)
+ *
+ * So the honest cost is about 7-21 KB over the wire and zero client work. Quote
+ * the compressed figure, not the raw one, if this is ever revisited - the raw
+ * delta looks alarming and is not what anybody downloads.
  *
  * It is a real section for readers too, not a crawler-only appendix: the anchor
  * text is each paper's own title, the list is visible with no interaction, and
