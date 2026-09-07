@@ -6,6 +6,7 @@ import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
+import { TestIndexLinks } from "@/components/sections/test-index-links";
 import { RecentBandsChart, type RecentBandPoint } from "@/components/sections/recent-bands";
 import { PremiumContact } from "@/components/premium-contact";
 import type { Result, Test } from "@/types/database";
@@ -197,6 +198,11 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       />
 
       {!canAccessPremium && <PremiumContact className="mt-2" />}
+
+      {/* The crawlable index. TestBrowser above caps itself at 24 cards behind
+          a client-side button, so without this the other ~150 papers have no
+          `<a href>` anywhere on the site. See `TestIndexLinks`. */}
+      <TestIndexLinks items={items} skill={skill} />
     </div>
   );
 }

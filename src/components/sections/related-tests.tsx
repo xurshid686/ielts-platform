@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTrack } from "@/lib/levels";
 import { testPath } from "@/lib/tests/ref";
 
+/** How many siblings each test page links to. See `loadRelated`. */
+const RELATED_COUNT = 12;
+
 type RelatedRow = {
   id: string;
   slug: string | null;
@@ -24,6 +27,14 @@ type RelatedRow = {
  *
  * These are plain server-rendered `<a href>`s. They give every test page a real
  * path in and out, which is what lets crawl equity move between them.
+ *
+ * The window ROTATES (see `loadRelated`). The first version of this strip took
+ * the twelve newest siblings, which meant every one of the ~190 pages emitted
+ * the identical twelve links: twelve tests collected ~190 inbound links each
+ * and the other ~175 still had none. Search Console read that exactly as it
+ * looked — 136 URLs sat in "Discovered - currently not indexed". A strip that
+ * links the same twelve pages everywhere is not internal linking, it is a
+ * sitewide nav block.
  */
 export async function RelatedTests({
   skill,
@@ -71,7 +82,20 @@ export async function RelatedTests({
 }
 
 /**
- * Twelve of the newest sibling tests, minus this one.
+ * Twelve siblings, chosen as the twelve that FOLLOW this test in a stable
+ * ordering, wrapping past the end.
+ *
+ * Ordering every regular sibling by `created_at` and walking forward from this
+ * test's own position makes the whole catalogue one cycle: test i links i+1
+ * through i+12, so every test has exactly twelve inbound links and twelve
+ * outbound ones, and a crawler entering at ANY page can reach every other page
+ * by following them. No test is orphaned and none is over-linked.
+ *
+ * The ordering is `created_at` then `id`, never the raw database order: the tie
+ * break matters because papers uploaded in one batch share a timestamp, and an
+ * unstable sort there would hand different neighbours to the same page on
+ * different renders — links that move on every crawl teach Google to trust none
+ * of them.
  *
  * Service-role because this renders for logged-out visitors and needs `track`
  * to filter on; only non-sensitive columns are selected. Restricted to the
@@ -79,7 +103,7 @@ export async function RelatedTests({
  * 404s for everyone else, so linking it would publish titles for pages a
  * crawler cannot open.
  *
- * Never throws — a missing related strip costs the page nothing, and a 500 on
+ * Never throws - a missing related strip costs the page nothing, and a 500 on
  * a URL Google is crawling costs it everything.
  */
 async function loadRelated(
@@ -87,17 +111,34 @@ async function loadRelated(
   excludeId: string,
 ): Promise<RelatedRow[]> {
   try {
+    // The FULL sibling list, not a page of it: the rotation needs this test's
+    // index within the whole ordering, which a `.limit()` cannot give. These
+    // are five small columns over ~190 rows.
     const { data } = await createAdminClient()
       .from("tests")
-      .select("id, slug, title, total, question_types, track")
+      .select("id, slug, title, total, question_types, track, created_at")
       .eq("skill", skill)
-      .neq("id", excludeId)
       .order("created_at", { ascending: false })
-      .limit(24);
+      .order("id", { ascending: false });
 
-    return ((data ?? []) as (RelatedRow & { track: string | null })[])
-      .filter((r) => canAccessTrack({ role: "student", level: "regular" }, r.track ?? "regular"))
-      .slice(0, 12);
+    const all = ((data ?? []) as (RelatedRow & { track: string | null })[]).filter((r) =>
+      canAccessTrack({ role: "student", level: "regular" }, r.track ?? "regular"),
+    );
+
+    // Where this test sits in that ordering. -1 when the current test is off
+    // the regular track (its own page still renders, and still deserves a
+    // strip) - starting at 0 is the right fallback.
+    const here = all.findIndex((r) => r.id === excludeId);
+    const start = here === -1 ? 0 : here;
+
+    const out: RelatedRow[] = [];
+    // Walk forward from the NEXT sibling, wrapping. Bounded by `all.length` so
+    // a catalogue smaller than twelve terminates instead of repeating itself.
+    for (let step = 1; step <= all.length && out.length < RELATED_COUNT; step++) {
+      const row = all[(start + step) % all.length];
+      if (row.id !== excludeId) out.push(row);
+    }
+    return out;
   } catch (e) {
     console.error(`[seo] could not load related ${skill} tests:`, e);
     return [];
