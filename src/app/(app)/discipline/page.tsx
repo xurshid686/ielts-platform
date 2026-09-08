@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { requireDiscipline } from "@/lib/auth";
 import { loadStudentProgress, STRIKE_LIMIT, type StudentTest } from "@/lib/discipline";
+import { lateLabel } from "@/lib/discipline-shared";
 import { testPath } from "@/lib/tests/ref";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -128,6 +129,13 @@ export default async function DisciplinePage() {
                           Done
                         </span>
                       )}
+                      {/* Done AND late are both true, and both are shown:
+                          the work counts, and the delay stays on the record. */}
+                      {day.complete && day.finishedLateMs !== null && (
+                        <span className="ml-2 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">
+                          Done {lateLabel(day.finishedLateMs)}
+                        </span>
+                      )}
                       {day.overdue && (
                         <span className="ml-2 rounded-full bg-danger/15 px-2 py-0.5 text-xs font-medium text-danger">
                           Late
@@ -143,8 +151,13 @@ export default async function DisciplinePage() {
                     </p>
                     {/* A student should be able to plan for a deadline, not
                         meet it on the day — so it shows on every day, ahead or
-                        behind. It labels the work; it never withholds it. */}
-                    {day.deadline && (
+                        behind. It labels the work; it never withholds it.
+                        A FINISHED day has no countdown (`deadline` is null once
+                        complete): it kept ticking before, so a day done early
+                        read "2 days late" a week later. It keeps the due date
+                        alone, and the badge above says whether it went in
+                        late. */}
+                    {(day.deadline || (day.complete && day.due_at)) && (
                       <p
                         className={cn(
                           "mt-1 flex items-center gap-1.5 text-sm font-medium",
@@ -155,7 +168,8 @@ export default async function DisciplinePage() {
                         {day.deadline}
                         {day.due_at && (
                           <span className="font-normal text-muted">
-                            · due {formatDue(day.due_at, profile.timezone)}
+                            {day.deadline ? "· " : ""}due{" "}
+                            {formatDue(day.due_at, profile.timezone)}
                           </span>
                         )}
                       </p>

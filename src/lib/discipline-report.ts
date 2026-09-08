@@ -23,6 +23,7 @@ import {
   filterSummary,
   flagSuffix,
   studentLabel,
+  LATE_MARK,
   type ReportFilters,
 } from "@/lib/discipline-report-text";
 
@@ -148,6 +149,8 @@ export async function buildProgressReport(
                 text:
                   "Scores are each student's first attempt — the one the rating ladder counts. " +
                   "A dot means the paper has not been done; an em dash means the day has no papers. " +
+                  `A ${LATE_MARK} after a score means that paper was handed in after its day's ` +
+                  "deadline, and “N late” after a name counts the days finished late. " +
                   "Overdue = a day past its deadline that is still unfinished. " +
                   "Inactive = nothing submitted in 3 days. Trailing = behind the group median.",
                 size: 16,

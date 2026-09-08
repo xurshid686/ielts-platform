@@ -9,10 +9,12 @@ import { rows } from "@/types/database";
 export { STRIKE_LIMIT } from "@/lib/discipline-shared";
 import {
   countsAfterReset,
+  dayFinishedAt,
   deadlineLabel,
   deadlineState,
   deriveDayStatus,
   isOverdueFor,
+  lateBy,
 } from "@/lib/discipline-shared";
 
 export type DisciplineTest = {
@@ -294,10 +296,22 @@ export type StudentTest = DisciplineTest & {
 export type StudentDay = Omit<DisciplineDay, "tests"> & {
   tests: StudentTest[];
   complete: boolean;
-  /** "3 days left" / "2 days late", or null when the day has no deadline. */
+  /**
+   * "3 days left" / "2 days late" while the day is still outstanding — null
+   * once it is finished. It measures the deadline against NOW, and a finished
+   * day is no longer racing the clock: a day completed comfortably early kept
+   * counting, so a week later it read "2 days late" to a student who had done
+   * it on time. A finished day reports `finishedLateMs` instead.
+   */
   deadline: string | null;
   /** Past its deadline and not finished. Derived, never stored. */
   overdue: boolean;
+  /**
+   * How late they FINISHED it, in ms — null when they were on time, the day has
+   * no deadline, or it is not finished yet. Honest both ways: the student sees
+   * that the day is done AND that it went in late.
+   */
+  finishedLateMs: number | null;
 };
 
 export type StudentProgress = {
@@ -324,16 +338,22 @@ export async function loadStudentProgress(
   const now = new Date();
 
   return {
-    days: days.map((d, i) => ({
-      ...d,
-      tests: d.tests.map((t) => {
+    days: days.map((d, i) => {
+      const tests = d.tests.map((t) => {
         const attempts = byPair.get(`${userId}:${t.id}`) ?? [];
         return { ...t, attempt: attempts[0] ?? null, attempts };
-      }),
-      complete: complete[i],
-      deadline: deadlineLabel(deadlineState(d.due_at, now)),
-      overdue: isOverdueFor(d, complete[i], now),
-    })),
+      });
+      return {
+        ...d,
+        tests,
+        complete: complete[i],
+        // A finished day stops counting down: the countdown is about work still
+        // to do. Whether it went in late is `finishedLateMs`, below.
+        deadline: complete[i] ? null : deadlineLabel(deadlineState(d.due_at, now)),
+        overdue: isOverdueFor(d, complete[i], now),
+        finishedLateMs: lateBy(d.due_at, dayFinishedAt(tests.map((t) => t.attempt?.at ?? null))),
+      };
+    }),
     currentDay: currentIndex === -1 ? 0 : days[currentIndex].day_number,
     totalDays: days.length,
     finished: days.length > 0 && complete.every(Boolean),
@@ -353,6 +373,13 @@ export type GridCellTest = {
   at: string | null;
   /** Every counting attempt, oldest first, so re-dos are visible. */
   attempts: Attempt[];
+  /**
+   * How long AFTER the day's deadline this paper was FIRST submitted, in ms —
+   * null when it was on time, the day has no deadline, or it was never done.
+   * Measured on the first attempt, like the score beside it: a re-do is
+   * practice, not a second run at the deadline.
+   */
+  lateMs: number | null;
 };
 
 export type GridRow = {
@@ -374,6 +401,15 @@ export type GridRow = {
    * this one says "has missed something you set".
    */
   overdue: boolean;
+  /**
+   * How many days they FINISHED after the deadline.
+   *
+   * The counterpart to `overdue`, and the reason it exists: that flag reports
+   * what is outstanding NOW and clears itself the moment the work lands, so
+   * without this a student who hands everything in a week late reads as clean.
+   * A day with no deadline can never count towards it.
+   */
+  lateDays: number;
   /** day id -> one entry per test attached to that day, in display order. */
   cells: Record<string, GridCellTest[]>;
 };
@@ -453,6 +489,7 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
 
   const gridRows: GridRow[] = derived.map(({ member: m, complete, currentIndex }) => {
     const cells: Record<string, GridCellTest[]> = {};
+    let lateDays = 0;
     for (const d of programme) {
       cells[d.id] = d.tests.map((t) => {
         const attempts = byPair.get(`${m.user_id}:${t.id}`) ?? [];
@@ -466,8 +503,16 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
           band: a?.band ?? null,
           at: a?.at ?? null,
           attempts,
+          lateMs: lateBy(d.due_at, a?.at ?? null),
         };
       });
+      // The DAY is late when the paper that COMPLETED it landed after the
+      // deadline — not when any one paper did. Someone who does the reading on
+      // time and the listening a day late finished the day late; someone who
+      // does both early did not. `dayFinishedAt` is null until every paper is
+      // done, so an unfinished day never counts here: it is already reported by
+      // `overdue`, and counting it twice would overstate the problem.
+      if (lateBy(d.due_at, dayFinishedAt(cells[d.id].map((c) => c.at))) !== null) lateDays += 1;
     }
     const last = lastActivity.get(m.user_id) ?? null;
     const currentDay = currentIndex === -1 ? 0 : programme[currentIndex].day_number;
@@ -484,6 +529,7 @@ export async function loadProgressGrid(inactiveDays = 3): Promise<ProgressGrid> 
       inactive: !last || new Date(last).getTime() < cutoff,
       trailing: currentDay < medianDay,
       overdue: programme.some((d, i) => isOverdueFor(d, complete[i], now)),
+      lateDays,
       cells,
     };
   });

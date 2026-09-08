@@ -110,6 +110,54 @@ export function isOverdueFor(
   return deadlineState(day.due_at, now).kind === "overdue";
 }
 
+/**
+ * How late a piece of work was HANDED IN, in ms — null when it was on time,
+ * has no deadline, or was never done.
+ *
+ * `isOverdueFor` above answers "is this outstanding RIGHT NOW", and goes quiet
+ * the moment the work arrives. That was enough while a missed day locked the
+ * ladder, because the punishment was automatic. Now that nothing is locked, a
+ * day finished five days late is otherwise indistinguishable from one finished
+ * on time, and the owner has no way to see who is drifting. This is the durable
+ * record: it compares the deadline to the SUBMISSION, so it still reads true
+ * long after the fact.
+ *
+ * STRICTLY AFTER, where `deadlineState` counts the exact instant as overdue.
+ * The two ask different questions: at the deadline the day IS due, but a
+ * submission landing on that same instant made it — and a mark reading
+ * "0 minutes late" would be noise. A student on the line gets the benefit.
+ */
+export function lateBy(
+  dueAt: string | null | undefined,
+  submittedAt: string | null | undefined,
+): number | null {
+  if (!dueAt || !submittedAt) return null;
+  const due = new Date(dueAt).getTime();
+  const at = new Date(submittedAt).getTime();
+  if (Number.isNaN(due) || Number.isNaN(at)) return null;
+  return at > due ? at - due : null;
+}
+
+/**
+ * WHEN a day was finished: the moment its last outstanding test was first
+ * attempted. Null while any test on it has never been done.
+ *
+ * The LATEST of the first attempts, not the earliest — a day with two papers
+ * is not finished until both are, so the second one is what completes it. A day
+ * with no tests is never finished, matching `deriveDayStatus`.
+ */
+export function dayFinishedAt(firstAttemptTimes: (string | null)[]): string | null {
+  if (firstAttemptTimes.length === 0) return null;
+  let latest = 0;
+  for (const t of firstAttemptTimes) {
+    if (!t) return null;
+    const ms = new Date(t).getTime();
+    if (Number.isNaN(ms)) return null;
+    if (ms > latest) latest = ms;
+  }
+  return new Date(latest).toISOString();
+}
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -144,4 +192,14 @@ export function deadlineLabel(state: DeadlineState): string | null {
   if (state.kind === "none") return null;
   if (state.kind === "upcoming") return `${duration(state.ms, Math.floor)} left`;
   return `${duration(state.ms, Math.ceil)} late`;
+}
+
+/**
+ * "2 days late" — how late a finished piece of work was handed in.
+ *
+ * Rounds UP, like the overdue half of `deadlineLabel` and for the same reason:
+ * never make a missed deadline look fresher than it was.
+ */
+export function lateLabel(ms: number): string {
+  return `${duration(ms, Math.ceil)} late`;
 }

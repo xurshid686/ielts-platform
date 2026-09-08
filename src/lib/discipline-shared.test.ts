@@ -3,8 +3,11 @@ import {
   countsAfterReset,
   deadlineLabel,
   deadlineState,
+  dayFinishedAt,
   deriveDayStatus,
   isOverdueFor,
+  lateBy,
+  lateLabel,
   STRIKE_LIMIT,
 } from "./discipline-shared";
 
@@ -194,5 +197,81 @@ describe("isOverdueFor", () => {
 
   it("does not flag work that is merely unfinished", () => {
     expect(isOverdueFor({ due_at: inMs(DAY) }, false, NOW)).toBe(false);
+  });
+});
+
+// ------------------------------------------------------------- late marks
+
+describe("lateBy", () => {
+  const DUE = "2026-09-05T12:00:00Z";
+
+  it("measures the gap between the deadline and the SUBMISSION", () => {
+    expect(lateBy(DUE, "2026-09-07T12:00:00Z")).toBe(2 * DAY);
+  });
+
+  it("is null for work handed in before the deadline", () => {
+    expect(lateBy(DUE, "2026-09-04T12:00:00Z")).toBeNull();
+  });
+
+  it("gives a submission on the exact deadline the benefit of the doubt", () => {
+    // `deadlineState` calls this instant overdue, which is right for work that
+    // has NOT arrived. Work landing on it made it, and "0 minutes late" would
+    // be a mark that means nothing.
+    expect(lateBy(DUE, DUE)).toBeNull();
+  });
+
+  it("is null when there is no deadline or no submission", () => {
+    expect(lateBy(null, "2026-09-07T12:00:00Z")).toBeNull();
+    expect(lateBy(DUE, null)).toBeNull();
+    expect(lateBy(undefined, undefined)).toBeNull();
+  });
+
+  it("does not throw on a malformed date", () => {
+    expect(lateBy("not a date", "2026-09-07T12:00:00Z")).toBeNull();
+    expect(lateBy(DUE, "not a date")).toBeNull();
+  });
+
+  it("compares instants, so the answer is the same in every timezone", () => {
+    expect(lateBy("2026-09-05T17:00:00+05:00", "2026-09-06T12:00:00Z")).toBe(DAY);
+  });
+
+  it("still reads true long after the fact, where isOverdueFor goes quiet", () => {
+    // The whole reason it exists: the overdue flag clears itself the moment the
+    // work arrives, so without this a day finished four days late looks clean.
+    const later = new Date("2026-12-01T00:00:00Z");
+    expect(isOverdueFor({ due_at: DUE }, true, later)).toBe(false);
+    expect(lateBy(DUE, "2026-09-09T12:00:00Z")).toBe(4 * DAY);
+  });
+});
+
+describe("dayFinishedAt", () => {
+  it("is the LAST first-attempt — the one that completed the day", () => {
+    expect(dayFinishedAt(["2026-09-05T09:00:00Z", "2026-09-06T09:00:00Z"])).toBe(
+      "2026-09-06T09:00:00.000Z",
+    );
+  });
+
+  it("is null while any test on the day is undone", () => {
+    expect(dayFinishedAt(["2026-09-05T09:00:00Z", null])).toBeNull();
+  });
+
+  it("treats a day with no tests as unfinished, like deriveDayStatus", () => {
+    expect(dayFinishedAt([])).toBeNull();
+  });
+
+  it("does not throw on a malformed date", () => {
+    expect(dayFinishedAt(["not a date"])).toBeNull();
+  });
+});
+
+describe("lateLabel", () => {
+  it("rounds up, so a miss never looks fresher than it was", () => {
+    expect(lateLabel(25 * HOUR)).toBe("2 days late");
+    expect(lateLabel(90 * 60_000)).toBe("2 hours late");
+    expect(lateLabel(2 * DAY)).toBe("2 days late");
+  });
+
+  it("says something sensible for a near miss", () => {
+    expect(lateLabel(30_000)).toBe("less than a minute late");
   });
 });

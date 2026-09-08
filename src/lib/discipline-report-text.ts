@@ -13,6 +13,7 @@ export type ReportFilters = {
   onlyTrailing: boolean;
   onlyStrikes: boolean;
   onlyOverdue: boolean;
+  onlyLate: boolean;
   /** The day the filter is keyed to ("not finished Day N"), or null for any. */
   dayNumber: number | null;
 };
@@ -28,7 +29,18 @@ export type ReportTest = {
   raw: number | null;
   total: number | null;
   attempts?: { raw: number | null; total: number | null }[];
+  /** Set when the FIRST attempt landed after the day's deadline. */
+  lateMs?: number | null;
 };
+
+/**
+ * The mark a late hand-in carries.
+ *
+ * A Word table has no colour the owner can rely on — the file is printed,
+ * forwarded and screenshotted — so lateness is an asterisk, explained in the
+ * legend under the table.
+ */
+export const LATE_MARK = "*";
 
 /**
  * One line per ATTEMPT, grouped by test, matching the on-screen cell.
@@ -44,9 +56,15 @@ export type ReportTest = {
  */
 export function cellLines(tests: ReportTest[]): string[] {
   if (tests.length === 0) return ["—"];
-  return tests.flatMap((t) =>
-    t.attempts && t.attempts.length > 0 ? t.attempts.map(testScoreText) : [testScoreText(t)],
-  );
+  return tests.flatMap((t) => {
+    const lines =
+      t.attempts && t.attempts.length > 0 ? t.attempts.map(testScoreText) : [testScoreText(t)];
+    // The mark goes on the FIRST line only. Lateness is a fact about when the
+    // paper was first handed in; a re-do three weeks later is practice, and
+    // marking that late too would report the same delay twice.
+    if (t.lateMs != null && lines.length > 0) lines[0] = `${lines[0]} ${LATE_MARK}`;
+    return lines;
+  });
 }
 
 /** A student with no name saved still needs something in the Student column. */
@@ -62,11 +80,15 @@ export function flagSuffix(row: {
   inactive: boolean;
   trailing: boolean;
   overdue?: boolean;
+  lateDays?: number;
 }): string {
   const flags: string[] = [];
   // Overdue leads: it is the only one of the three that names something the
   // owner actually set, so it is the one worth acting on first.
   if (row.overdue) flags.push("Overdue");
+  // Then the durable record. Overdue goes quiet as soon as the work arrives, so
+  // on its own it lets a student who is always late read as never late.
+  if (row.lateDays) flags.push(`${row.lateDays} late`);
   if (row.inactive) flags.push("Inactive");
   if (row.trailing) flags.push("Trailing");
   return flags.length === 0 ? "" : ` (${flags.join(", ")})`;
@@ -100,6 +122,7 @@ export function filterSummary(f: ReportFilters): string {
   if (f.onlyTrailing) parts.push("trailing only");
   if (f.onlyStrikes) parts.push("with strikes");
   if (f.onlyOverdue) parts.push("overdue only");
+  if (f.onlyLate) parts.push("finished late only");
   if (f.dayNumber !== null) parts.push(`not finished Day ${f.dayNumber}`);
   const q = f.query.trim();
   if (q) parts.push(`matching “${q}”`);

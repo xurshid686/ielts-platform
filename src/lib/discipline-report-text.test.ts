@@ -102,6 +102,7 @@ describe("filterSummary", () => {
     onlyTrailing: false,
     onlyStrikes: false,
     onlyOverdue: false,
+    onlyLate: false,
     dayNumber: null,
   };
 

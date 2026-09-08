@@ -46,7 +46,7 @@ import {
 } from "@/app/actions/discipline";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { STRIKE_LIMIT } from "@/lib/discipline-shared";
+import { STRIKE_LIMIT, lateLabel } from "@/lib/discipline-shared";
 import { cn } from "@/lib/utils";
 import type { ProgressGrid, GridCellTest, GridRow, DisciplineMemberRow } from "@/lib/discipline";
 
@@ -953,15 +953,22 @@ function Cell({ tests }: { tests: GridCellTest[] }) {
           <span
             title={`${t.title}${t.at ? ` · ${new Date(t.at).toLocaleDateString()}` : " · not done"}${
               t.band !== null ? ` · band ${t.band}` : ""
-            }`}
+            }${t.lateMs !== null ? ` · handed in ${lateLabel(t.lateMs)}` : ""}`}
             className={cn(
               "rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
               // Coloured by the FIRST attempt, so the grid's colours keep the
               // meaning the owner already reads them with.
               t.raw === null ? "text-muted" : scoreTone(t.raw, t.total),
+              // Lateness is marked WITHOUT touching the score colour: the two
+              // say different things, and a late 38/40 is still a 38/40.
+              t.lateMs !== null &&
+                "underline decoration-warning decoration-dotted underline-offset-2",
             )}
           >
             {t.raw === null ? "·" : `${t.raw}/${t.total ?? "?"}`}
+            {/* Not colour alone — this grid is read on a projector and shared
+                as a screenshot, and a dotted underline can be lost in both. */}
+            {t.lateMs !== null && <span className="ml-0.5 text-warning">*</span>}
           </span>
 
           {/* Re-dos, lighter and below: a student who improved must not look
@@ -1078,6 +1085,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
   const [onlyTrailing, setOnlyTrailing] = useState(false);
   const [onlyStrikes, setOnlyStrikes] = useState(false);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [onlyLate, setOnlyLate] = useState(false);
   const [dayFilter, setDayFilter] = useState<string>("all");
   /** Which student's full attempt history is open. Client state only. */
   const [openRow, setOpenRow] = useState<string | null>(null);
@@ -1095,6 +1103,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
       if (onlyTrailing && !r.trailing) return false;
       if (onlyStrikes && r.strikes === 0) return false;
       if (onlyOverdue && !r.overdue) return false;
+      if (onlyLate && r.lateDays === 0) return false;
       if (dayFilter !== "all") {
         // "Day N" means: this student has not finished day N yet.
         const cells = r.cells[dayFilter] ?? [];
@@ -1103,7 +1112,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
       }
       return true;
     });
-  }, [grid.rows, q, onlyInactive, onlyTrailing, onlyStrikes, onlyOverdue, dayFilter]);
+  }, [grid.rows, q, onlyInactive, onlyTrailing, onlyStrikes, onlyOverdue, onlyLate, dayFilter]);
 
   async function saveAsWord() {
     setSaving(true);
@@ -1118,6 +1127,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         onlyTrailing,
         onlyStrikes,
         onlyOverdue,
+        onlyLate,
         dayNumber: grid.days.find((d) => d.id === dayFilter)?.day_number ?? null,
       },
     );
@@ -1166,6 +1176,9 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         <button className={chip(onlyOverdue)} onClick={() => setOnlyOverdue((v) => !v)}>
           Overdue
         </button>
+        <button className={chip(onlyLate)} onClick={() => setOnlyLate((v) => !v)}>
+          Finished late
+        </button>
         <select
           value={dayFilter}
           onChange={(e) => setDayFilter(e.target.value)}
@@ -1212,6 +1225,9 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
         <b>Trailing</b> = behind the group median (Day {grid.medianDay}).
         <span className="mx-1.5">·</span>
         <b>Overdue</b> = a day past its deadline they have not finished.
+        <span className="mx-1.5">·</span>
+        <b>N late</b> = days finished AFTER the deadline; a <b>*</b> marks the paper that landed
+        late.
         <span className="mx-1.5">·</span>
         {visible.length} of {grid.rows.length} students shown.
       </p>
@@ -1274,6 +1290,17 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                     {r.overdue && (
                       <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-medium text-danger">
                         Overdue
+                      </span>
+                    )}
+                    {/* The durable one: Overdue clears itself the moment the
+                        work lands, so this is the only flag that still shows a
+                        student who finishes everything — always days late. */}
+                    {r.lateDays > 0 && (
+                      <span
+                        title={`Finished ${r.lateDays} ${r.lateDays === 1 ? "day" : "days"} after the deadline`}
+                        className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning"
+                      >
+                        {r.lateDays} late
                       </span>
                     )}
                   </span>
