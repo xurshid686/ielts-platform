@@ -162,9 +162,11 @@ export async function addDisciplineDay(
  * itself even to a member who guesses its URL.
  *
  * PUBLISHING AN EMPTY DAY IS REFUSED. `deriveDayStatus` only ever calls a day
- * complete when it has at least one test, so a live day with none would be
- * permanently unfinishable and would lock every day behind it — a dead end the
- * student cannot escape and the owner would have no obvious reason to suspect.
+ * complete when it has at least one test, so a live day with none can never be
+ * finished: it would pin the student's "current day" on itself forever, hold the
+ * whole cohort's median down, and sit on the admin grid as a column nobody can
+ * ever clear. It no longer LOCKS anything — days after it are open regardless —
+ * but it is still a dead end the owner would have no obvious reason to suspect.
  *
  * UNPUBLISHING IS ALWAYS ALLOWED, and costs nobody their progress: completion
  * is derived from `results` rows, which are untouched here. The day simply

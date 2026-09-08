@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   BookOpen,
   Headphones,
-  Lock,
   Check,
   Target,
   AlertTriangle,
@@ -24,8 +23,8 @@ export default async function DisciplinePage() {
   // not locked — a non-member never learns it exists.
   const { profile, member } = await requireDiscipline();
 
-  // An admin with no membership row is previewing, not competing: every day is
-  // open to them so they can check what they have built.
+  // An admin with no membership row is previewing, not competing: they also see
+  // DRAFT days, so they can check a day before publishing it.
   const preview = !member;
   const progress = await loadStudentProgress(profile.id, member?.reset_at ?? null, preview);
   const strikes = member?.strikes ?? 0;
@@ -41,8 +40,8 @@ export default async function DisciplinePage() {
             <h1 className="text-2xl font-bold">Discipline</h1>
             <p className="text-sm text-muted">
               {preview
-                ? "Admin preview — every day is unlocked for you, drafts included."
-                : "One day at a time. Finish today's tests to unlock tomorrow."}
+                ? "Admin preview — drafts included."
+                : "Work through the days at your own pace. Missed one? You can still do it — nothing is locked."}
             </p>
           </div>
         </div>
@@ -99,33 +98,26 @@ export default async function DisciplinePage() {
         />
       ) : (
         <ol className="space-y-3">
-          {progress.days.map((day) => (
+          {progress.days.map((day) => {
+            // The one day highlighted is the lowest UNFINISHED one — where the
+            // student is. Everything else is open too; this is a signpost, not
+            // a gate. (`currentDay` is 0 only for an empty programme.)
+            const current = !day.complete && day.day_number === progress.currentDay;
+            return (
             <li key={day.id}>
-              <Card
-                className={cn(
-                  "space-y-3",
-                  day.locked && "opacity-60",
-                  !day.locked && !day.complete && "border-primary/35",
-                )}
-              >
+              <Card className={cn("space-y-3", current && "border-primary/35")}>
                 <div className="flex items-start gap-3">
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular-nums",
                       day.complete
                         ? "bg-success/15 text-success"
-                        : day.locked
-                          ? "bg-surface-2 text-muted"
-                          : "bg-primary/10 text-primary",
+                        : current
+                          ? "bg-primary/10 text-primary"
+                          : "bg-surface-2 text-muted",
                     )}
                   >
-                    {day.complete ? (
-                      <Check className="h-4 w-4" />
-                    ) : day.locked ? (
-                      <Lock className="h-4 w-4" />
-                    ) : (
-                      day.day_number
-                    )}
+                    {day.complete ? <Check className="h-4 w-4" /> : day.day_number}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">
@@ -149,8 +141,9 @@ export default async function DisciplinePage() {
                         </span>
                       )}
                     </p>
-                    {/* Shown on locked days too — a student should be able to
-                        plan for a deadline, not meet it on the day. */}
+                    {/* A student should be able to plan for a deadline, not
+                        meet it on the day — so it shows on every day, ahead or
+                        behind. It labels the work; it never withholds it. */}
                     {day.deadline && (
                       <p
                         className={cn(
@@ -167,33 +160,27 @@ export default async function DisciplinePage() {
                         )}
                       </p>
                     )}
-                    {day.instructions && !day.locked && (
+                    {day.instructions && (
                       <p className="mt-0.5 whitespace-pre-line text-sm text-muted">
                         {day.instructions}
-                      </p>
-                    )}
-                    {day.locked && (
-                      <p className="mt-0.5 text-sm text-muted">
-                        Finish Day {progress.currentDay} to unlock this.
                       </p>
                     )}
                   </div>
                 </div>
 
-                {!day.locked && day.tests.length > 0 && (
+                {day.tests.length > 0 ? (
                   <ul className="space-y-1.5 pl-12">
                     {day.tests.map((t) => (
                       <TestRow key={t.id} test={t} />
                     ))}
                   </ul>
-                )}
-
-                {!day.locked && day.tests.length === 0 && (
+                ) : (
                   <p className="pl-12 text-sm text-muted">No tests attached to this day yet.</p>
                 )}
               </Card>
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
     </div>

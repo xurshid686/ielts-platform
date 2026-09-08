@@ -42,8 +42,11 @@ export function countsAfterReset(submittedAt: string, resetAt: string | null): b
  *
  * - a day is complete when it has at least one test and the student has a
  *   counting attempt at every one of them;
- * - `currentIndex` is the first incomplete day, and every day after it is
- *   locked;
+ * - `currentIndex` is the first incomplete day — the day the student is ON. It
+ *   no longer gates anything: days after it used to be locked, and a single
+ *   missed day therefore hid the whole rest of the programme. Every published
+ *   day is open, and this index only decides what the header and the admin grid
+ *   call "current";
  * - once the programme is finished `currentIndex` is the LAST day, so the
  *   header reads "Day N of N" and never names a day that does not exist;
  * - an empty programme gives -1, meaning "nothing to show".

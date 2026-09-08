@@ -653,8 +653,39 @@ A 200 with a populated body is the failure, and it is invisible in a browser.
 
 # The Discipline challenge
 
-A sequential, day-by-day programme for a hand-picked set of students. Migration
+A day-by-day programme for a hand-picked set of students. Migration
 **0046**, applied to Frankfurt on 2026-09-03.
+
+## NO DAY IS LOCKED — the sequential gate was removed (2026-09-08)
+
+Every published day is open to every member, all the time: the missed one, the
+current one, and every day ahead.
+
+It used to be strictly sequential — `loadStudentProgress()` set
+`locked: i > currentIndex`, and `discipline/page.tsx` simply did not render the
+test links of a locked day. So **one missed day walled off the entire rest of
+the ladder**, and a student looking at a page of padlocks and "Finish Day N to
+unlock this" had no way to tell that the late day itself was still open. The
+owner reported exactly that. A challenge that answers a slip by removing the
+work is the opposite of what it is for.
+
+`StudentDay` now has **no `locked` field at all** — deleted rather than
+falsified, so a new caller cannot grow a dependence on it. Do not reintroduce
+one. Two things make that safe and cheap:
+
+- **The lock was never enforced.** `canOpenTrack()` checks membership and
+  "attached to a published day", and no RLS policy, RPC or route ever compared a
+  test's day against the student's current day. A member who guessed a future
+  paper's URL could always open and submit it. Removing the lock removes zero
+  security; it only stops hiding work from the honest.
+- **`currentIndex` still exists and is unchanged.** It is the lowest unfinished
+  day, and it still drives the "Day N of M" header, the highlighted card, the
+  admin grid's current-day column, the Trailing/median flag and the `current_day`
+  cache. It just no longer decides what a student may see.
+
+Pace is now communicated instead: the deadline line ("3 days left" / "2 days
+late"), the red **Late** badge, and the owner's manual Strike. Publish/draft
+(0047) is the one remaining gate, and it is RLS-backed.
 
 **Membership IS the grant.** A row in `discipline_members` means the student is
 in; no row means the section does not exist for them — no nav entry,
@@ -671,7 +702,7 @@ privileged-field trigger did not have to grow another column.
 ## Where the gates are
 
 - `requireDiscipline()` in `src/lib/auth.ts` — the page gate. Admins pass with a
-  null member row and get an "admin preview" with every day unlocked.
+  null member row and get an "admin preview" that also shows DRAFT days.
 - `resolveTestAccess()` in `src/lib/tests/access.ts` — the CONTENT gate, and the
   only one that matters for answer keys. The `discipline` track cannot go
   through `canAccessTrack()`, because that compares against `profiles.level` and
@@ -701,7 +732,10 @@ papers in advance and release them deliberately.
   client, so the policy hid drafts from it anyway.
 - **Publishing an EMPTY day is refused** (`setDayPublished`). `deriveDayStatus`
   only calls a day complete when it has at least one test, so a live empty day
-  would be permanently unfinishable and would lock every day behind it.
+  can never be finished: it pins the student's current day on itself forever,
+  holds the cohort median down, and sits on the grid as a column nobody clears.
+  (It no longer locks the days behind it — nothing does — but it is still a dead
+  end with no obvious cause.)
 - **Unpublishing costs nobody their progress** — completion is derived from
   `results` rows, which are untouched. The day just disappears until it returns.
 - Drafts are excluded from the progress rule entirely: `loadProgramme()` and
@@ -844,7 +878,8 @@ through `deriveDays()` / `loadFirstAttempts()`:
   reads "Day N of M".
 
 Consequences worth knowing: attaching a test to a day a student had finished
-REOPENS that day and re-locks the next one (correct — there is new work); and
+REOPENS that day, so it becomes their current day again (correct — there is new
+work), though nothing after it is hidden any more; and
 deleting and rebuilding a day no longer loses anyone's progress, because the
 results it is derived from are still there.
 

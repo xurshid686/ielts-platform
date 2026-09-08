@@ -274,10 +274,26 @@ export type StudentTest = DisciplineTest & {
   attempts: Attempt[];
 };
 
+/**
+ * NO DAY IS EVER LOCKED, and there is deliberately no `locked` field here.
+ *
+ * The programme used to hide every day after the student's first unfinished one
+ * (`locked: i > currentIndex`), which meant a single missed day walled off the
+ * whole rest of the ladder — and a student staring at a page of padlocks had no
+ * way to tell that the late day itself was still open. A challenge that punishes
+ * a slip by removing the work is the opposite of what it is for.
+ *
+ * Pace is now communicated, not enforced: `deadline` and `overdue` below say
+ * where a student stands, and `currentDay` still names the lowest unfinished
+ * day. The one real gate left is publish/draft (0047), which is RLS-backed.
+ *
+ * Do not reintroduce a lock field. The lock was never enforced anywhere —
+ * `canOpenTrack()` checks membership and "attached to a published day", never
+ * the day number — so it only ever hid work from the honest.
+ */
 export type StudentDay = Omit<DisciplineDay, "tests"> & {
   tests: StudentTest[];
   complete: boolean;
-  locked: boolean;
   /** "3 days left" / "2 days late", or null when the day has no deadline. */
   deadline: string | null;
   /** Past its deadline and not finished. Derived, never stored. */
@@ -295,7 +311,7 @@ export type StudentProgress = {
 export async function loadStudentProgress(
   userId: string,
   resetAt: string | null,
-  /** Admins previewing the programme see every day unlocked. */
+  /** Admins previewing the programme see DRAFT days too, flagged as drafts. */
   preview = false,
 ): Promise<StudentProgress> {
   // An admin previewing sees drafts too, flagged as drafts, so they can check a
@@ -315,9 +331,6 @@ export async function loadStudentProgress(
         return { ...t, attempt: attempts[0] ?? null, attempts };
       }),
       complete: complete[i],
-      locked: preview ? false : i > currentIndex,
-      // Shown on locked days too: a student should be able to see what is
-      // coming and plan for it, not discover the deadline on the day.
       deadline: deadlineLabel(deadlineState(d.due_at, now)),
       overdue: isOverdueFor(d, complete[i], now),
     })),
