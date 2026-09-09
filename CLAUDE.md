@@ -973,6 +973,20 @@ content that was never real.
 
 `/cambridge` is also `robots: { index: false, follow: false }`.
 
+## Reading / Listening is a SWITCHER, not two stacked sections
+
+`CambridgeSkillTabs` mounts one `TestBrowser` at a time, keyed on the skill.
+Both were rendered stacked at first, which put two full sets of search boxes and
+format tabs on one page and made a student scroll past every reading paper to
+reach listening.
+
+Two details that are load-bearing: only the selected skill is MOUNTED (rendering
+both and hiding one with `hidden` keeps two independent search/filter/paging
+states alive, so switching back shows stale filters the student cannot see), and
+the `key={skill}` remount is what clears the search box on a switch. The pills
+reuse `TestBrowser`'s own format-tab styling because they sit directly above
+that row.
+
 ## Why the whole thing was nearly free
 
 `tests.track` is the existing audience-gating axis, and **every public surface
