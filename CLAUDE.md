@@ -939,6 +939,115 @@ through four SECURITY DEFINER RPCs (`grant_discipline`, `revoke_discipline`,
 `is_admin(auth.uid())` — which means, as ever, that **the Telegram bot cannot
 call them under the service role**; a bot command would need `_for` variants.
 
+# The Cambridge section
+
+A library of real Cambridge papers that only hand-approved students may open,
+added by migration **0049**, APPLIED to Frankfurt on 2026-09-09. Cambridge books are
+copyrighted, so unlike `/reading` and `/listening` the material is never served
+to the public.
+
+It is the Discipline shape — **membership is the grant** — with two deliberate
+differences, and both of them matter:
+
+- **The section is VISIBLE to everyone.** `/cambridge` is public and absent from
+  `PROTECTED` in `src/proxy.ts`. A logged-out visitor sees the page, a locked
+  teaser and a Request-access button. Discipline hides itself because nobody is
+  meant to ask for a place there; Cambridge is the opposite — a student who
+  cannot see the section has no reason to request it.
+- **There is a request queue.** `cambridge_requests`, one row per student, keyed
+  on `user_id` so "already pending" is a primary-key fact rather than something
+  the app polices with a count. A REJECTED request may be re-sent; a refusal is
+  usually "not yet".
+
+## The locked view ships DECOY content, not blurred titles
+
+`CambridgeLocked` builds its placeholder cards from a **count** —
+"Cambridge Reading Test 1..N" — and the real titles never leave the server for
+an unapproved viewer.
+
+**Do not "simplify" this into rendering the real titles with `blur-sm` on top.**
+It would look identical and be worthless: the text would still be in the HTML,
+in the RSC payload, in view-source, and in anything that crawls the page. A CSS
+blur is a visual effect, not an access control. The blur here is decoration over
+content that was never real.
+
+`/cambridge` is also `robots: { index: false, follow: false }`.
+
+## Why the whole thing was nearly free
+
+`tests.track` is the existing audience-gating axis, and **every public surface
+already filters on `track === "regular"`**. Adding `'cambridge'` to the check
+constraint therefore excluded the papers from the sitemap, the catalogue
+(`skill-section.tsx`), the `RelatedTests` link cycle, `TestIndexLinks`, the
+review page and `/api/guest-grade` **by construction, with no new filters**. If
+you add another public surface that lists tests, filter on the track there too —
+that is the contract the whole section leans on.
+
+The content gate is one branch in `canOpenTrack()` (`src/lib/tests/access.ts`),
+which `resolveTestAccess()` and `TestDetail` both already call. Entitlement lives
+in ONE place; do not add a second caller that reasons about tracks on its own.
+
+## No admin RPCs — deliberately
+
+Every other admin grant on this site is a SECURITY DEFINER RPC starting with
+`is_admin(auth.uid())`, and **`auth.uid()` is NULL under the service role**, so
+the Telegram bot cannot call any of them (see 0040 and "The bot cannot call the
+admin RPCs"). Approving from a phone is the entire point of the Telegram push
+here, so the rules live in TypeScript instead:
+
+**`src/lib/cambridge.ts` is the one place Cambridge is written.** It is
+`server-only`, uses the service-role client (0049 revokes writes from `anon` and
+`authenticated` on both tables), and is **authorisation-free on purpose, gated by
+its callers** — `assertAdmin()` in `app/actions/cambridge.ts`, the webhook's
+owner check in the bot. Same contract as `createTestFromHtml()`. Do not call it
+from anywhere that has not gated first.
+
+`approveRequest()` does three things at once — grants membership, stamps the
+request, and inserts the `notifications` row the header bell renders — precisely
+so the web UI and the bot cannot drift. An approval from the phone that forgot
+the notification would be a silent grant nobody knew they had.
+
+`MAX_REQUEST_MESSAGE` lives in `cambridge-shared.ts`, not `cambridge.ts`, for the
+same reason `STRIKE_LIMIT` does: the request form is a client component and the
+library is `server-only`.
+
+## The Telegram push carries buttons
+
+`notifyCambridgeRequest()` is the only notifier with an inline keyboard, and the
+bot answers `cbA` / `cbR` by calling `approveRequest` / `rejectRequest` directly.
+It passes `adminId: null` — the owner has no session in a webhook, and stamping
+some arbitrary admin's id would be a worse record than an honest absence.
+
+The handler re-escapes `cq.message.text` before echoing it: Telegram hands back
+the RENDERED text with HTML entities stripped, so a student named `a<b` would
+break `parse_mode` on the way out. It also drops the buttons after deciding — a
+live Approve button on an answered request invites a second tap.
+
+## Status: 0049 applied, types still overridden — REGENERATE THEM
+
+0049 was applied to Frankfurt on **2026-09-09** and verified: both tables exist
+with RLS on, `is_cambridge_member` exists, the track constraint accepts
+`'cambridge'`, `anon` / `authenticated` hold no INSERT/UPDATE/DELETE on either
+table, and both grant SELECT to `authenticated`. It is ADDITIVE — new tables,
+one widened check constraint, no revokes of anything current code reads — so it
+carried no deploy-order hazard.
+
+**`src/types/database.ts` still carries a temporary `PendingTables` /
+`PendingFunctions` block** for those objects. Run
+`SUPABASE_ACCESS_TOKEN=<token> npm run types` and **delete that block**. An
+override that outlives its migration hides the real shape, which is worse than
+having none.
+
+Worth knowing before trying to avoid the token: **`supabase gen types
+--db-url` requires Docker**, which is not installed here, so the
+`--project-id` path (and therefore a personal access token) is the only one that
+works on this machine.
+
+**The dev preview and production read the SAME Frankfurt database.** There is no
+staging schema, so nothing about this feature could be tested until 0049 was
+applied — and applying it changed nothing for existing students, because no test
+has `track = 'cambridge'` until one is uploaded.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

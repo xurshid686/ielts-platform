@@ -23,27 +23,57 @@ import type { Database as GeneratedDatabase } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// NO PENDING SCHEMA OVERRIDES.
+// PENDING SCHEMA OVERRIDES — migration 0049 ONLY.
 //
-// There used to be `PendingFunctions` and `PendingTables` here: hand-written
-// stand-ins for objects that a migration had created in the live database but
-// that ./supabase.ts had not yet seen, because regenerating it needs a Supabase
-// personal access token and the machine writing the migrations did not have one.
+// Hand-written stand-ins for objects that migration 0049 (the Cambridge
+// section) creates, which ./supabase.ts has not seen yet because regenerating
+// it needs a Supabase personal access token.
 //
-// They were deleted on 2026-09-05, when `npm run types` was finally run against
-// the live Frankfurt project. Everything they declared — the `*_as` RPCs (0042),
-// the `discipline_*` tables and RPCs (0046) and `discipline_days.published`
-// (0047) — is now in the GENERATED types, which are the real ones.
+// ⚠️ TEMPORARY. Run `SUPABASE_ACCESS_TOKEN=<token> npm run types` once 0049 is
+// applied to the live project and DELETE this block. An override that outlives
+// its migration is worse than no override, because it hides the real shape
+// instead of failing the build.
 //
-// If you add a migration and need the app to compile before you can regenerate:
-// bring the pattern back, keep it to the objects that migration adds, and delete
-// it again the moment `npm run types` has run. An override that outlives its
-// migration is worse than no override, because it hides the real signature.
+// The pattern itself is not new — `PendingFunctions` / `PendingTables` lived
+// here until 2026-09-05, covering 0040, 0042, 0046 and 0047, and were removed
+// the moment the types were regenerated. Keep entries scoped to one migration.
+
+type PendingTable<Row> = {
+  Row: Row;
+  Insert: Partial<Row>;
+  Update: Partial<Row>;
+  Relationships: [];
+};
+
+type PendingTables = {
+  cambridge_members: PendingTable<{
+    user_id: string;
+    granted_by: string | null;
+    granted_at: string;
+  }>;
+  cambridge_requests: PendingTable<{
+    user_id: string;
+    status: string;
+    message: string | null;
+    created_at: string;
+    decided_at: string | null;
+    decided_by: string | null;
+  }>;
+};
+
+type PendingFunctions = {
+  is_cambridge_member: { Args: { uid: string }; Returns: boolean };
+};
 
 /** The generated schema, passed to every Supabase client. */
-export type Database = GeneratedDatabase;
+export type Database = Omit<GeneratedDatabase, "public"> & {
+  public: Omit<GeneratedDatabase["public"], "Functions" | "Tables"> & {
+    Functions: GeneratedDatabase["public"]["Functions"] & PendingFunctions;
+    Tables: GeneratedDatabase["public"]["Tables"] & PendingTables;
+  };
+};
 
-type Tables = GeneratedDatabase["public"]["Tables"];
+type Tables = GeneratedDatabase["public"]["Tables"] & PendingTables;
 type Views = GeneratedDatabase["public"]["Views"];
 
 /** A table's row, exactly as the database returns it. */

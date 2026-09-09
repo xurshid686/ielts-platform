@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { verifyWebhookSecret, isOwner } from "@/lib/telegram/auth";
-import { sendMessage, editMessageText, answerCallbackQuery } from "@/lib/telegram/api";
+import { sendMessage, editMessageText, answerCallbackQuery, escapeHtml } from "@/lib/telegram/api";
 import { parseCommand } from "@/lib/telegram/router";
 import { decodeCb } from "@/lib/telegram/callback";
+import { approveRequest, rejectRequest } from "@/lib/cambridge";
 import { claimUpdate, getSession, setSession, clearSession } from "@/lib/telegram/state";
 import {
   updateSender,
@@ -182,6 +183,36 @@ async function handleCallback(chatId: number, update: TelegramUpdate): Promise<v
         return;
       }
       await editMessageText(chatId, messageId, card.text, card.keyboard);
+      return;
+    }
+
+    // Cambridge access, answered straight from the notification's buttons
+    // (see notifyCambridgeRequest). These call the same library the admin panel
+    // does — legal under the service role precisely BECAUSE lib/cambridge.ts is
+    // plain TypeScript rather than an `is_admin(auth.uid())` RPC, which would
+    // raise here. The owner check happened at gate 2 of the webhook.
+    //
+    // `adminId` is null: the owner has no session here, and stamping some
+    // arbitrary admin's id would be a worse record than an honest absence.
+    case "cbA":
+    case "cbR": {
+      const id = args[0] ?? "";
+      const approve = verb === "cbA";
+      const out = approve ? await approveRequest(id, null) : await rejectRequest(id, null);
+      const note = out.ok
+        ? approve
+          ? "✅ Approved — they can open the Cambridge tests now."
+          : "🚫 Rejected."
+        : `⚠️ ${out.error}`;
+      // Edited in place, and the buttons are dropped: the decision is made, and
+      // a live Approve button on an answered request invites a second tap.
+      // The original text is re-escaped before being sent back: Telegram hands
+      // back the RENDERED text with its HTML entities stripped, so a student
+      // named "a<b" would arrive as raw `<` and break parse_mode on the way out.
+      const original = escapeHtml(cq.message.text ?? "Cambridge request");
+      await editMessageText(chatId, messageId, `${original}
+
+<i>${note}</i>`);
       return;
     }
 
