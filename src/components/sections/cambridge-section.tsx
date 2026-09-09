@@ -1,6 +1,6 @@
-import { BookOpen, Headphones } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
+import type { BrowserItem } from "@/components/sections/test-browser";
+import { CambridgeSkillTabs } from "@/components/sections/cambridge-skill-tabs";
 import type { Profile, Result, Test } from "@/types/database";
 import { rows } from "@/types/database";
 
@@ -87,34 +87,10 @@ export async function CambridgeSection({ profile }: { profile: Profile }) {
   }
 
   return (
-    <div className="space-y-10">
-      {reading.length > 0 && (
-        <section>
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <BookOpen className="h-4 w-4 text-primary" /> Reading
-          </h2>
-          <TestBrowser
-            items={reading}
-            skill="reading"
-            canAccessPremium
-            isAdmin={profile.role === "admin"}
-          />
-        </section>
-      )}
-
-      {listening.length > 0 && (
-        <section>
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <Headphones className="h-4 w-4 text-primary" /> Listening
-          </h2>
-          <TestBrowser
-            items={listening}
-            skill="listening"
-            canAccessPremium
-            isAdmin={profile.role === "admin"}
-          />
-        </section>
-      )}
-    </div>
+    <CambridgeSkillTabs
+      reading={reading}
+      listening={listening}
+      isAdmin={profile.role === "admin"}
+    />
   );
 }
