@@ -2,9 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMessage } from "./api";
-import { encodeCb } from "./callback";
 import { escapeHtml, band, num } from "./format";
-import type { InlineKeyboard } from "./types";
 
 // One-way pushes to the owner.
 //
@@ -25,10 +23,10 @@ export function notificationsConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN) && ownerChatId() !== null;
 }
 
-async function push(text: string, keyboard?: InlineKeyboard): Promise<void> {
+async function push(text: string): Promise<void> {
   const chatId = ownerChatId();
   if (!chatId || !process.env.TELEGRAM_BOT_TOKEN) return; // silently disabled
-  const res = await sendMessage(chatId, text, keyboard);
+  const res = await sendMessage(chatId, text);
   if (!res.ok) console.error(`[telegram] notify failed: ${res.error}`);
 }
 
@@ -104,51 +102,5 @@ export async function notifyNewStudent(input: {
     );
   } catch (e) {
     console.error("[telegram] notifyNewStudent failed", e);
-  }
-}
-
-/**
- * A student asked for access to the Cambridge section (0049).
- *
- * The only notification here that carries BUTTONS, and deliberately: the owner
- * is the single approver, the answer is yes or no, and a push that ends in
- * "now go and open the admin panel" wastes the trip. `cbA:<uuid>` is 40 bytes,
- * well inside encodeCb's 64-byte cap.
- *
- * Called from requestCambridgeAccess() inside `after()`, so the student's
- * request is already saved by the time this runs — same contract as the rest of
- * this file: it never throws and never blocks its caller.
- */
-export async function notifyCambridgeRequest(input: {
-  userId: string;
-  name: string | null;
-  email: string | null;
-  message: string;
-}): Promise<void> {
-  if (!notificationsConfigured()) return;
-
-  try {
-    const db = createAdminClient();
-    const { count } = await db
-      .from("cambridge_requests")
-      .select("user_id", { count: "exact", head: true })
-      .eq("status", "pending");
-
-    const lines = [
-      `📚 <b>Cambridge access requested</b>`,
-      escapeHtml(input.name || "(no name)"),
-      escapeHtml(input.email || "(no email)"),
-    ];
-    if (input.message) lines.push("", `<i>${escapeHtml(input.message)}</i>`);
-    lines.push("", `${num(count ?? 1)} waiting.`);
-
-    await push(lines.join("\n"), [
-      [
-        { text: "✅ Approve", callback_data: encodeCb("cbA", input.userId) },
-        { text: "🚫 Reject", callback_data: encodeCb("cbR", input.userId) },
-      ],
-    ]);
-  } catch (e) {
-    console.error("[telegram] notifyCambridgeRequest failed", e);
   }
 }

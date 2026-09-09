@@ -8,11 +8,9 @@ import {
   ShieldCheck,
   Crown,
   Target,
-  Library,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { countPending } from "@/lib/cambridge";
 import { Card } from "@/components/ui/card";
 import { timeAgo } from "@/lib/utils";
 import type { Profile } from "@/types/database";
@@ -21,13 +19,11 @@ export default async function AdminPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: students }, { count: testCount }, { count: resultCount }, pendingCambridge] =
-    await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("tests").select("id", { count: "exact", head: true }),
-      supabase.from("results").select("id", { count: "exact", head: true }),
-      countPending(),
-    ]);
+  const [{ data: students }, { count: testCount }, { count: resultCount }] = await Promise.all([
+    supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+    supabase.from("tests").select("id", { count: "exact", head: true }),
+    supabase.from("results").select("id", { count: "exact", head: true }),
+  ]);
 
   const people = (students ?? []) as Profile[];
   const activeStreaks = people.filter((p) => p.streak > 0).length;
@@ -84,28 +80,6 @@ export default async function AdminPage() {
           </div>
           <Link
             href="/admin/discipline"
-            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
-          >
-            Open <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Card>
-        <Card className="flex items-center justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 font-semibold">
-              <Library className="h-4 w-4 text-primary" /> Cambridge
-              {/* The badge is the point of this card: a request that nobody
-                  notices is the failure mode the Telegram push exists to
-                  prevent, and this is its counterpart for anyone at a desk. */}
-              {pendingCambridge > 0 && (
-                <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
-                  {pendingCambridge} waiting
-                </span>
-              )}
-            </h2>
-            <p className="text-sm text-muted">Approve who may practise the Cambridge papers.</p>
-          </div>
-          <Link
-            href="/admin/cambridge"
             className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
           >
             Open <ArrowRight className="h-4 w-4" />

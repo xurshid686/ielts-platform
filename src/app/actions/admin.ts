@@ -45,7 +45,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     .filter(Boolean);
   const level = String(formData.get("level") || "").trim() || null;
   const trackRaw = String(formData.get("track") || "regular");
-  const track = ["regular", "pre_ielts", "intro", "discipline", "cambridge"].includes(trackRaw)
+  const track = ["regular", "pre_ielts", "intro", "discipline"].includes(trackRaw)
     ? trackRaw
     : "regular";
   // Required when the track is 'discipline': the programme is the only way a

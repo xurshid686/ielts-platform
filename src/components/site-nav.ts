@@ -7,7 +7,6 @@ import {
   Trophy,
   Shield,
   Target,
-  Library,
   Send,
 } from "lucide-react";
 import { CONTACT_TELEGRAM_URL } from "@/lib/site";
@@ -45,7 +44,6 @@ export function navItemsFor(
     return [
       { href: "/reading", label: "Reading", icon: BookOpen },
       { href: "/listening", label: "Listening", icon: Headphones },
-      { href: "/cambridge", label: "Cambridge", icon: Library },
       { href: CONTACT_TELEGRAM_URL, label: "Contact", icon: Send, external: true },
     ];
   }
@@ -54,11 +52,6 @@ export function navItemsFor(
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/reading", label: "Reading", icon: BookOpen },
     { href: "/listening", label: "Listening", icon: Headphones },
-    // Shown to EVERYONE, unlike /discipline above. The section is meant to be
-    // discoverable — a student who cannot see it has no reason to ask for it —
-    // and the page itself is what decides between the real catalogue and the
-    // locked teaser.
-    { href: "/cambridge", label: "Cambridge", icon: Library },
     { href: "/writing", label: "Writing", icon: PenLine },
     { href: "/speaking", label: "Speaking", icon: Mic },
   ];

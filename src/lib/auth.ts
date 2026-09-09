@@ -159,27 +159,6 @@ export const isDisciplineMember = cache(async function isDisciplineMember(
 });
 
 /**
- * Is this user approved for the Cambridge section (0049)?
- *
- * Read with the viewer's own client and cached per request, like
- * `isDisciplineMember`. Unlike Discipline this does NOT gate a page —
- * /cambridge renders for everyone, showing a locked teaser to non-members —
- * so there is no `requireCambridge()`. The gate that matters is
- * `canOpenTrack()` in lib/tests/access.ts, which decides who may open a paper.
- */
-export const isCambridgeMember = cache(async function isCambridgeMember(
-  userId: string,
-): Promise<boolean> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("cambridge_members")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return !!data;
-});
-
-/**
  * Gate a page to students of a given level. Admins always pass (so they can
  * preview the content). Everyone else is sent back to their dashboard.
  */

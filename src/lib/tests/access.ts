@@ -40,8 +40,7 @@ export type TestRow = {
  *
  * The two discipline reads use the CALLER'S client on purpose: the 0046/0047
  * RLS policies then decide, so the app and the database cannot drift, and a
- * draft day stays hidden even from a member who was handed the URL. The
- * cambridge read (0049) does the same, for the same reason.
+ * draft day stays hidden even from a member who was handed the URL.
  */
 export async function canOpenTrack({
   supabase,
@@ -57,27 +56,7 @@ export async function canOpenTrack({
   track: string | null | undefined;
   testId: string;
 }): Promise<boolean> {
-  const t = track ?? "regular";
-
-  // The Cambridge section (0049). Membership alone is the grant — there is no
-  // second condition like discipline's "must sit on a published day", because a
-  // Cambridge paper is reached straight from /cambridge rather than through a
-  // programme. Approved students may open every paper in the section.
-  //
-  // A signed-out visitor can never open one, however public /cambridge itself
-  // is: the page shows a locked teaser, not the material.
-  if (t === "cambridge") {
-    if (viewer.role === "admin") return true;
-    if (!userId) return false;
-    const { data: member } = await supabase
-      .from("cambridge_members")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    return !!member;
-  }
-
-  if (t !== "discipline") return canAccessTrack(viewer, track);
+  if ((track ?? "regular") !== "discipline") return canAccessTrack(viewer, track);
 
   if (viewer.role === "admin") return true;
   if (!userId) return false;
