@@ -33,20 +33,25 @@ const NOTES: Record<MockSection, string[]> = {
     "When time is up your answers are handed in automatically.",
   ],
   writing: [
-    "Task 1 and Task 2 share one clock that starts when you click Start.",
-    "Your essays save every 20 seconds. Large pastes are recorded for your teacher.",
-    "When time is up your writing is handed in automatically.",
+    "Task 1 and Task 2 share one clock that starts when you click Start. Switch between them with Part 1 / Part 2 at the bottom.",
+    "Task 1: spend about 20 minutes and write at least 150 words. Task 2: spend about 40 minutes and write at least 250 words.",
+    "Violations: leaving the exam for another tab or app for 5 seconds or more, pasting more than 10 words, and reloading the page.",
+    "After 3 violations your writing is submitted automatically, exactly as it is.",
+    "Pressing Esc hides the test until you return to fullscreen — the clock keeps running.",
+    "Your essays save every 20 seconds. When time is up your writing is handed in automatically.",
   ],
 };
 
 type PaperPayload = { deadline: number; draft: Record<string, string>; audioPos: number; testId: string; title: string };
-type WritingPayload = Omit<WritingProps, "mockId">;
+type WritingPayload = Omit<WritingProps, "mockId" | "studentName">;
 
 export type SectionFlowProps = {
   mockId: string;
   attemptId: string;
   section: MockSection;
   mockTitle: string;
+  /** For the Writing PDF copy. */
+  studentName: string;
   phase: "video" | "ready" | "active";
   minutes: number;
   video: { url: string; duration: number } | null;
@@ -165,6 +170,7 @@ export function SectionFlow(props: SectionFlowProps) {
           <StartPanel
             mockId={mockId}
             section={section}
+            mockTitle={props.mockTitle}
             minutes={props.minutes}
             blocked={blocked}
             onStarted={(p) => {
@@ -191,7 +197,7 @@ export function SectionFlow(props: SectionFlowProps) {
           />
         )}
         {phase === "active" && section === "writing" && writing && (
-          <WritingSection mockId={mockId} {...writing} flushRef={flushRef} />
+          <WritingSection mockId={mockId} studentName={props.studentName} {...writing} flushRef={flushRef} />
         )}
       </ExamGuard>
 
@@ -432,12 +438,14 @@ type Started = { kind: "paper"; payload: PaperPayload } | { kind: "writing"; pay
 function StartPanel({
   mockId,
   section,
+  mockTitle,
   minutes,
   blocked,
   onStarted,
 }: {
   mockId: string;
   section: MockSection;
+  mockTitle: string;
   minutes: number;
   blocked: string | null;
   onStarted: (s: Started) => void;
@@ -445,6 +453,8 @@ function StartPanel({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Writing v3: the student confirms the 3-violation rule before the clock starts.
+  const [agreed, setAgreed] = useState(section !== "writing");
   const label = LABEL[section];
 
   useEffect(() => {
@@ -469,13 +479,14 @@ function StartPanel({
         onStarted({
           kind: "writing",
           payload: {
-            title: "Writing",
+            title: mockTitle,
             deadline,
             initialTask1: res.task1,
             initialTask2: res.task2,
             task1Prompt: res.task1Prompt,
             task2Prompt: res.task2Prompt,
             task1ImageUrl: res.task1ImageUrl,
+            initialViolations: res.violations,
           },
         });
       }
@@ -502,9 +513,22 @@ function StartPanel({
           {blocked ? (
             <p className="mt-6 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm">{blocked}</p>
           ) : (
-            <Button className="mt-6 h-12 w-full text-base" onClick={start} disabled={pending}>
+            <>
+            {section === "writing" && (
+              <label className="mt-5 flex cursor-pointer items-start gap-2.5 rounded-lg border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                />
+                <span>I understand that 3 violations will submit my writing automatically.</span>
+              </label>
+            )}
+            <Button className="mt-6 h-12 w-full text-base" onClick={start} disabled={pending || !agreed}>
               {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />} Start {label}
             </Button>
+            </>
           )}
           {error && <p className="mt-3 text-sm text-danger">{error}</p>}
         </div>

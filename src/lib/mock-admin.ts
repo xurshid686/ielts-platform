@@ -231,6 +231,7 @@ function readinessIssues(
     | "reading_test_id"
     | "writing_task1_prompt"
     | "writing_task2_prompt"
+    | "writing_task1_image_path"
     | "writing_minutes"
     | "listening_minutes"
     | "reading_minutes"
@@ -254,8 +255,10 @@ function readinessIssues(
   };
   check(mock.listening_test_id, "listening", "Listening");
   check(mock.reading_test_id, "reading", "Reading");
-  if (!mock.writing_task1_prompt?.trim()) issues.push("Add the Writing Task 1 prompt.");
-  if (!mock.writing_task2_prompt?.trim()) issues.push("Add the Writing Task 2 prompt.");
+  if (!mock.writing_task1_prompt?.trim()) issues.push("Add the Writing Task 1 topic.");
+  // Writing v3: Task 1 is a topic sentence plus a picture — never one without the other.
+  if (!mock.writing_task1_image_path) issues.push("Upload the Writing Task 1 picture.");
+  if (!mock.writing_task2_prompt?.trim()) issues.push("Add the Writing Task 2 question.");
   const inRange = (m: number) => m >= 10 && m <= 180;
   if (!inRange(mock.listening_minutes)) issues.push("Listening time must be 10–180 minutes.");
   if (!inRange(mock.reading_minutes)) issues.push("Reading time must be 10–180 minutes.");
@@ -360,6 +363,9 @@ function liteStage(a: AdminAttemptRowLite) {
 
 export type AdminAttemptSummary = {
   id: string;
+  /** Writing v3 violations on record, and whether they handed the writing in. */
+  writing_violations: number;
+  writing_auto_submitted: boolean;
   user_id: string | null;
   student_name: string | null;
   student_email: string | null;
@@ -442,9 +448,12 @@ export async function listAttemptsAdmin(): Promise<AdminAttemptSummary[]> {
       writing_band: num(a.writing_band),
       overall_band: num(a.overall_band),
     };
+    const counters = asIntegrity(integrity).counters;
     return {
       ...a,
       ...bands,
+      writing_violations: counters.writing_violations,
+      writing_auto_submitted: counters.writing_auto_submitted > 0,
       stage: adminStage({ ...a, ...bands }),
       mock_title: title.get(a.mock_id) ?? "(deleted mock)",
       // The full event list stays on the server; the list needs only the verdict.
@@ -547,6 +556,7 @@ export async function saveMock(
   const mins = (v: unknown, fallback: number) => Math.round(Number(v ?? fallback) || 0);
   const minutes = mins(input.writing_minutes, 60);
 
+  const existing = input.id ? await getMock(input.id) : null;
   const candidate = {
     listening_test_id: input.listening_test_id || null,
     reading_test_id: input.reading_test_id || null,
@@ -559,7 +569,8 @@ export async function saveMock(
 
   const ids = [candidate.listening_test_id, candidate.reading_test_id].filter(Boolean) as string[];
   const [paperList, videos] = await Promise.all([ids.length ? loadPapers(ids) : Promise.resolve([]), getMockVideos()]);
-  const issues = readinessIssues(candidate, new Map(paperList.map((p) => [p.id, p])), videos);
+  // The picture is uploaded on its own (uploadTask1Image), so saving never writes it — only checks it.
+  const issues = readinessIssues({ ...candidate, writing_task1_image_path: existing?.writing_task1_image_path ?? null }, new Map(paperList.map((p) => [p.id, p])), videos);
   for (const [label, m] of [
     ["Listening", candidate.listening_minutes],
     ["Reading", candidate.reading_minutes],

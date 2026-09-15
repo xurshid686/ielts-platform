@@ -233,7 +233,24 @@ export const LONG_AWAY_MS = 3_000;
 export const HIDDEN_GRACE_MS = 2_000;
 export const MAX_EVENTS = 300;
 
-export type IntegrityEventType = "device" | "away" | "reload" | "second_tab" | "paste" | "seek_back" | "timeout";
+export type IntegrityEventType =
+  | "device"
+  | "away"
+  | "reload"
+  | "second_tab"
+  | "paste"
+  | "seek_back"
+  | "timeout"
+  | "violation"
+  | "auto_submit";
+
+/** Writing v3: three violations hand the writing in automatically (Writing only). */
+export const WRITING_MAX_VIOLATIONS = 3;
+/** A tab/app switch counts once the page has been away this long. */
+export const SWITCH_VIOLATION_MS = 5_000;
+/** A paste of MORE than this many words counts. */
+export const PASTE_VIOLATION_WORDS = 10;
+export type WritingViolationKind = "switch" | "paste" | "reload";
 
 export type IntegrityEvent = {
   /** Server receive time (ISO). Client clocks are not trusted for ordering. */
@@ -246,6 +263,8 @@ export type IntegrityEvent = {
   /** paste */
   words?: number;
   task?: 1 | 2;
+  /** violation */
+  violation?: WritingViolationKind;
   /** device */
   ua?: string;
   screen?: string;
@@ -262,6 +281,8 @@ export type Integrity = {
     pastes: number;
     largest_paste_words: number;
     seek_back: number;
+    writing_violations: number;
+    writing_auto_submitted: number;
   };
   device: string | null;
   events: IntegrityEvent[];
@@ -279,6 +300,8 @@ export function emptyIntegrity(): Integrity {
       pastes: 0,
       largest_paste_words: 0,
       seek_back: 0,
+      writing_violations: 0,
+      writing_auto_submitted: 0,
     },
     device: null,
     events: [],
@@ -378,6 +401,36 @@ export function recordReload(current: Integrity, section: MockSection, now: stri
   return next;
 }
 
+/**
+ * Server-side (Writing v3): one violation. The count only ever grows and the
+ * server is the only writer, so a reload cannot reset it.
+ */
+export function applyWritingViolation(
+  current: Integrity,
+  kind: WritingViolationKind,
+  detail: { ms?: number; words?: number; task?: 1 | 2 },
+  now: string,
+): Integrity {
+  const next = asIntegrity(current);
+  next.counters.writing_violations++;
+  const ev: IntegrityEvent = { t: now, type: "violation", section: "writing", violation: kind };
+  if (kind === "switch") ev.ms = clampInt(detail.ms, 3 * 60 * 60 * 1000);
+  if (kind === "paste") {
+    ev.words = clampInt(detail.words, 100_000);
+    ev.task = detail.task === 2 ? 2 : 1;
+  }
+  next.events = [...next.events, ev].slice(-MAX_EVENTS);
+  return next;
+}
+
+/** Server-side (Writing v3): the writing was handed in because of violations. */
+export function recordAutoSubmit(current: Integrity, now: string): Integrity {
+  const next = asIntegrity(current);
+  next.counters.writing_auto_submitted = 1;
+  next.events = [...next.events, { t: now, type: "auto_submit" as const, section: "writing" as const }].slice(-MAX_EVENTS);
+  return next;
+}
+
 /** Server-side: a section closed by the clock rather than by the student. */
 export function recordTimeout(current: Integrity, section: MockSection, now: string): Integrity {
   const next = asIntegrity(current);
@@ -402,6 +455,8 @@ export type SectionTiming = {
 export function integrityVerdict(integrity: Integrity, timings: SectionTiming[] = []): IntegrityVerdict {
   const c = integrity.counters;
   const reasons: string[] = [];
+  if (c.writing_auto_submitted) reasons.push(`Writing auto-submitted after ${WRITING_MAX_VIOLATIONS} violations`);
+  else if (c.writing_violations > 0) reasons.push(`Writing violations: ${c.writing_violations} of ${WRITING_MAX_VIOLATIONS}`);
   if (c.long_away >= 3) reasons.push(`Left fullscreen or the tab ${c.long_away} times`);
   if (c.away_ms >= 60_000) reasons.push(`${Math.round(c.away_ms / 1000)} s away from the exam in total`);
   if (c.second_tab > 0) reasons.push("Opened the exam in a second tab");

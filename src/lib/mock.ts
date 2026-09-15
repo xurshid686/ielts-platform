@@ -18,6 +18,11 @@ import {
   type SessionState,
   recordReload,
   recordTimeout,
+  applyWritingViolation,
+  recordAutoSubmit,
+  WRITING_MAX_VIOLATIONS,
+  SWITCH_VIOLATION_MS,
+  PASTE_VIOLATION_WORDS,
   type Integrity,
   type MockSection,
 } from "@/lib/mock-shared";
@@ -488,7 +493,7 @@ function isExpired(startedAt: string | null, minutes: number, now = Date.now()):
  * a server render Next memoizes identical GETs and a repeated read would return
  * the same stale row forever.
  */
-async function mutateIntegrity(attemptId: string, change: (current: Integrity) => Integrity): Promise<void> {
+async function mutateIntegrity(attemptId: string, change: (current: Integrity) => Integrity): Promise<Integrity | null> {
   for (let i = 0; i < 6; i++) {
     const { data, error } = await db()
       .from("mock_attempts")
@@ -498,7 +503,7 @@ async function mutateIntegrity(attemptId: string, change: (current: Integrity) =
       .maybeSingle();
     if (error || !data) {
       console.error("[mock] integrity read failed", error?.message);
-      return;
+      return null;
     }
     const row = data as { integrity: unknown; integrity_rev: number };
     const next = change(asIntegrity(row.integrity));
@@ -510,11 +515,13 @@ async function mutateIntegrity(attemptId: string, change: (current: Integrity) =
       .select("id");
     if (wErr) {
       console.error("[mock] integrity write failed", wErr.message);
-      return;
+      return null;
     }
-    if (written?.length) return;
+    // The record as written — callers that need a count use this, never a re-read (fetch memo).
+    if (written?.length) return next;
   }
   console.error(`[mock] integrity write gave up after conflicts on ${attemptId}`);
+  return null;
 }
 
 export type SectionStart =
@@ -901,14 +908,88 @@ export async function finalizeExpiredSection(userId: string, mockId: string): Pr
 export async function startWriting(
   userId: string,
   mockId: string,
-): Promise<{ ok: true; startedAt: string; reloaded: boolean; longAway: number } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; startedAt: string; reloaded: boolean; longAway: number; violations: number; autoSubmitted: boolean }
+  | { ok: false; error: string }
+> {
   const a = await loadAttempt(userId, mockId);
   if (!a) return { ok: false, error: "You don't have a place on this mock." };
   if (nextSection(a) !== "writing") return { ok: false, error: "Writing isn't open yet." };
   if (!a.writing_started_at) return { ok: false, error: "Writing hasn't started." };
   const now = new Date().toISOString();
-  await mutateIntegrity(a.id, (cur) => recordReload(cur, "writing", now));
-  return { ok: true, startedAt: a.writing_started_at, reloaded: true, longAway: asIntegrity(a.integrity).counters.long_away };
+  // Writing v3: a reload is also a violation. One write for both, so the count
+  // comes back from this render's own write (fetch-memo trap).
+  const written = await mutateIntegrity(a.id, (cur) =>
+    applyWritingViolation(recordReload(cur, "writing", now), "reload", {}, now),
+  );
+  const violations = written?.counters.writing_violations ?? asIntegrity(a.integrity).counters.writing_violations + 1;
+  let autoSubmitted = false;
+  if (violations >= WRITING_MAX_VIOLATIONS) {
+    // Hand in what the server already has (the pagehide beacon saved the last text).
+    autoSubmitted = await autoSubmitWriting(userId, mockId, a.id, a.writing_task1 ?? "", a.writing_task2 ?? "");
+  }
+  return {
+    ok: true,
+    startedAt: a.writing_started_at,
+    reloaded: true,
+    longAway: asIntegrity(a.integrity).counters.long_away,
+    violations,
+    autoSubmitted,
+  };
+}
+
+/** Hands the writing in because of violations and records it. False if it was already in. */
+async function autoSubmitWriting(userId: string, mockId: string, attemptId: string, task1: string, task2: string): Promise<boolean> {
+  const res = await saveWriting(userId, mockId, task1, task2, true);
+  // "Already submitted" means a normal submit won the race: it is in, just not by violations.
+  if (!res.ok && /already been submitted/i.test(res.error)) return true;
+  if (!res.ok || !res.submitted) return false;
+  await mutateIntegrity(attemptId, (cur) => recordAutoSubmit(cur, new Date().toISOString()));
+  return true;
+}
+
+export type WritingViolationResult =
+  | { ok: true; violations: number; submitted: boolean }
+  | { ok: false; error: string };
+
+/**
+ * One Writing violation reported by the browser (tab/app switch ≥ 5 s, paste of
+ * more than 10 words). The server counts; at three the writing is handed in with
+ * the texts the browser sent along (the latest the student typed).
+ */
+export async function addWritingViolation(
+  userId: string,
+  mockId: string,
+  kind: unknown,
+  detail: { ms?: unknown; words?: unknown; task?: unknown },
+  task1: string,
+  task2: string,
+): Promise<WritingViolationResult> {
+  if (kind !== "switch" && kind !== "paste") return { ok: false, error: "Unknown violation." };
+  const a = await loadAttempt(userId, mockId);
+  if (!a) return { ok: false, error: "You don't have a place on this mock." };
+  if (a.writing_submitted_at) {
+    return { ok: true, violations: asIntegrity(a.integrity).counters.writing_violations, submitted: true };
+  }
+  if (nextSection(a) !== "writing" || !a.writing_started_at) return { ok: false, error: "Writing isn't open yet." };
+
+  const ms = Number(detail.ms);
+  const words = Number(detail.words);
+  // Re-check the thresholds here: the browser decides when to report, not what counts.
+  if (kind === "switch" && !(ms >= SWITCH_VIOLATION_MS)) return { ok: false, error: "Too short to count." };
+  if (kind === "paste" && !(words > PASTE_VIOLATION_WORDS)) return { ok: false, error: "Too short to count." };
+
+  const now = new Date().toISOString();
+  const written = await mutateIntegrity(a.id, (cur) =>
+    applyWritingViolation(cur, kind, { ms, words, task: detail.task === 2 ? 2 : 1 }, now),
+  );
+  if (!written) return { ok: false, error: "Couldn't record that. Check your connection." };
+  const violations = written.counters.writing_violations;
+  if (violations < WRITING_MAX_VIOLATIONS) return { ok: true, violations, submitted: false };
+
+  const submitted = await autoSubmitWriting(userId, mockId, a.id, String(task1 ?? ""), String(task2 ?? ""));
+  if (!submitted) return { ok: false, error: "Couldn't hand in your writing. Check your connection." };
+  return { ok: true, violations, submitted: true };
 }
 
 export type BeginWritingResult =
@@ -918,6 +999,7 @@ export type BeginWritingResult =
       minutes: number;
       reloaded: boolean;
       longAway: number;
+      violations: number;
       task1: string;
       task2: string;
       task1Prompt: string;
@@ -942,6 +1024,7 @@ export async function beginWriting(userId: string, mockId: string): Promise<Begi
     minutes,
     reloaded,
     longAway,
+    violations: asIntegrity(a.integrity).counters.writing_violations,
     task1: a.writing_task1 ?? "",
     task2: a.writing_task2 ?? "",
     task1Prompt: p1 ?? "",

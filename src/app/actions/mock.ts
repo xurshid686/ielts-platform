@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  addWritingViolation,
   beginSection,
   beginWriting,
   getMock,
@@ -17,6 +18,7 @@ import {
   type BeginSectionResult,
   type BeginWritingResult,
   type WritingSaveResult,
+  type WritingViolationResult,
 } from "@/lib/mock";
 import {
   approveRequest,
@@ -45,7 +47,7 @@ import {
   type MockInput,
   type PaperUploadResult,
 } from "@/lib/mock-admin";
-import { MAX_REQUEST_MESSAGE, SECTION_ORDER, type MockSection } from "@/lib/mock-shared";
+import { MAX_REQUEST_MESSAGE, SECTION_ORDER, WRITING_MAX_VIOLATIONS, type MockSection } from "@/lib/mock-shared";
 import { notifyMockFinished, notifyMockRequest } from "@/lib/telegram/notify";
 
 // Server actions for the Mock exam section (migration 0050).
@@ -210,19 +212,36 @@ export async function saveMockWriting(
   if (!user) return { ok: false, error: "Your session expired. Sign in again." };
 
   const res = await saveWriting(user.id, mockId, String(task1 ?? ""), String(task2 ?? ""), !!final);
-  if (res.ok && res.submitted) {
-    const [mock, { supabase }] = await Promise.all([getMock(mockId), sessionUser()]);
-    const { data: prof } = await supabase.from("profiles").select("name, email").eq("id", user.id).maybeSingle();
-    const who = (prof as { name?: string | null; email?: string | null } | null) ?? {};
-    after(() =>
-      notifyMockFinished({
-        name: who.name ?? null,
-        email: who.email ?? user.email ?? null,
-        mockTitle: mock?.title ?? "a mock",
-      }),
-    );
-    // No revalidatePath: same reason as submitMockSection.
-  }
+  if (res.ok && res.submitted) await notifyWritingIn(user, mockId);
+  return res;
+}
+
+async function notifyWritingIn(user: { id: string; email?: string | null }, mockId: string) {
+  const [mock, { supabase }] = await Promise.all([getMock(mockId), sessionUser()]);
+  const { data: prof } = await supabase.from("profiles").select("name, email").eq("id", user.id).maybeSingle();
+  const who = (prof as { name?: string | null; email?: string | null } | null) ?? {};
+  after(() =>
+    notifyMockFinished({
+      name: who.name ?? null,
+      email: who.email ?? user.email ?? null,
+      mockTitle: mock?.title ?? "a mock",
+    }),
+  );
+  // No revalidatePath: same reason as submitMockSection.
+}
+
+/** Writing v3: a tab/app switch or a big paste. Three hand the writing in. */
+export async function reportWritingViolation(
+  mockId: string,
+  kind: "switch" | "paste",
+  detail: { ms?: number; words?: number; task?: 1 | 2 },
+  task1: string,
+  task2: string,
+): Promise<WritingViolationResult> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  const res = await addWritingViolation(user.id, mockId, kind, detail ?? {}, String(task1 ?? ""), String(task2 ?? ""));
+  if (res.ok && res.submitted && res.violations >= WRITING_MAX_VIOLATIONS) await notifyWritingIn(user, mockId);
   return res;
 }
 

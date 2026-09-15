@@ -62,6 +62,7 @@ export default async function MockSectionPage({
     attemptId: attempt.id,
     section,
     mockTitle: mock.title,
+    studentName: profile.name ?? "",
     minutes: view.minutes,
     video: view.video ? { url: view.video.url, duration: view.video.duration } : null,
     videoPos: view.videoPos,
@@ -99,6 +100,8 @@ export default async function MockSectionPage({
           task1Prompt: draft.task1Prompt ?? fresh.writing_task1_prompt ?? "",
           task2Prompt: draft.task2Prompt ?? fresh.writing_task2_prompt ?? "",
           task1ImageUrl: image,
+          initialViolations: started.violations,
+          autoSubmitted: started.autoSubmitted,
         }}
       />
     );

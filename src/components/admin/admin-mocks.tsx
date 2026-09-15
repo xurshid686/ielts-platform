@@ -52,6 +52,8 @@ import {
   uploadMockTask1Image,
 } from "@/app/actions/mock";
 import type { AdminAttemptSummary, AdminMock, AdminRequest, MockPaper } from "@/lib/mock-admin";
+import { WritingPrompt } from "@/components/mock/writing-prompt";
+import { parseTask1, parseTask2, spendLine, wordsLine } from "@/lib/ielts/writing-prompt";
 import {
   SECTION_ORDER,
   SESSION_LABEL,
@@ -690,9 +692,9 @@ function Results({
   const back = encodeURIComponent(url.query);
 
   function exportCsv() {
-    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons"];
+    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons", "writing_violations", "writing_auto_submitted"];
     const lines = filtered.map((a) =>
-      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; ")]
+      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; "), a.writing_violations, a.writing_auto_submitted ? "yes" : "no"]
         .map(csvCell)
         .join(","),
     );
@@ -995,7 +997,15 @@ function StageCell({ a }: { a: AdminAttemptSummary }) {
   return (
     <div>
       <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", stageTone[a.stage])}>{STAGE_LABEL[a.stage]}</span>
-      {a.integrity.level === "review" && (
+      {a.writing_auto_submitted && (
+        <span
+          title="Writing handed in automatically after 3 violations"
+          className="ml-1 inline-flex items-center gap-0.5 rounded bg-danger/10 px-1.5 py-0.5 text-xs font-medium text-danger"
+        >
+          <AlertTriangle className="h-3 w-3" /> Auto-submitted
+        </span>
+      )}
+      {a.integrity.level === "review" && !a.writing_auto_submitted && (
         <span
           title={a.integrity.reasons.join(" · ")}
           className="ml-1 inline-flex items-center gap-0.5 rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
@@ -1363,6 +1373,8 @@ function MockForm({
   const [form, setForm] = useState(initial);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const locked = !!mock?.locked;
+  // Set by the picture box ahead of the refresh that brings the new path from the server.
+  const [hasLocalImage, setHasLocalImage] = useState<boolean | null>(null);
 
   useEffect(() => {
     onDirty(dirty);
@@ -1395,14 +1407,46 @@ function MockForm({
     { ok: paperReady(form.listening_test_id), label: "Listening paper parsed + live check passed" },
     { ok: paperReady(form.reading_test_id), label: "Reading paper parsed + live check passed" },
     { ok: SECTION_ORDER.every((s) => !!videos[s]), label: "Three instruction videos" },
-    { ok: !!form.writing_task1_prompt.trim(), label: "Writing Task 1 prompt" },
-    { ok: !!form.writing_task2_prompt.trim(), label: "Writing Task 2 prompt" },
+    { ok: !!form.writing_task1_prompt.trim(), label: "Writing Task 1 topic" },
+    { ok: hasLocalImage ?? !!mock?.writing_task1_image_path, label: "Writing Task 1 picture" },
+    { ok: !!form.writing_task2_prompt.trim(), label: "Writing Task 2 question" },
     {
       ok: [form.listening_minutes, form.reading_minutes, form.writing_minutes].every((m) => m >= 10 && m <= 180),
       label: "Section times 10–180 min",
     },
   ];
   const ready = checks.every((c) => c.ok);
+
+  /**
+   * A new mock has no id to hang the picture on: the picture box saves the draft
+   * first (same action as Save draft), keeps the form open as an edit, then uploads.
+   */
+  async function ensureSaved(): Promise<string | null> {
+    if (mock) return mock.id;
+    if (!form.title.trim()) {
+      onMsg({ ok: false, text: "Add a title first — the draft is saved before the picture is uploaded." });
+      return null;
+    }
+    const res = await saveMockDefinition({
+      title: form.title,
+      description: form.description || null,
+      listening_test_id: form.listening_test_id || null,
+      reading_test_id: form.reading_test_id || null,
+      writing_task1_prompt: form.writing_task1_prompt,
+      writing_task2_prompt: form.writing_task2_prompt,
+      writing_minutes: Number(form.writing_minutes),
+      listening_minutes: Number(form.listening_minutes),
+      reading_minutes: Number(form.reading_minutes),
+      published: false,
+    });
+    if (!res.ok) {
+      onMsg({ ok: false, text: res.error, details: res.issues });
+      return null;
+    }
+    onDirty(false);
+    onSaved(res.id);
+    return res.id;
+  }
 
   function save(publish: boolean | null) {
     startTransition(async () => {
@@ -1427,7 +1471,7 @@ function MockForm({
         onDirty(false);
         onMsg({
           ok: true,
-          text: publish ? `${form.title} saved and published.` : mock ? `Saved ${form.title}.` : `Created ${form.title} as a draft. Add the Task 1 image below if it needs one.`,
+          text: publish ? `${form.title} saved and published.` : mock ? `Saved ${form.title}.` : `Created ${form.title} as a draft. Add the Task 1 picture below.`,
         });
         router.refresh();
         // A new mock stays open (now as an edit) so the image can be uploaded straight away.
@@ -1487,46 +1531,19 @@ function MockForm({
         />
       </div>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Writing Task 1 prompt</span>
-        <textarea
-          className="admin-input min-h-28 py-2"
-          disabled={locked}
-          value={form.writing_task1_prompt}
-          onChange={(e) => set("writing_task1_prompt", e.target.value)}
-          placeholder="The chart below shows… Summarise the information by selecting and reporting the main features, and make comparisons where relevant."
-        />
-      </label>
-
-      <div className="space-y-2 rounded-lg border border-border p-3">
-        <p className="flex items-center gap-2 text-sm font-medium">
-          <ImageIcon className="h-4 w-4" /> Task 1 image
-        </p>
-        {image && (
-          <a href={image} target="_blank" rel="noreferrer" title="Open full size">
-            {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL from private storage */}
-            <img src={image} alt="Current Task 1 image" className="max-h-56 max-w-full rounded-lg border border-border bg-white" />
-          </a>
-        )}
-        {!mock ? (
-          <p className="text-xs text-muted">Save the draft first; the editor stays open so you can add the image.</p>
-        ) : locked ? (
-          <p className="text-xs text-muted">{image ? "Locked." : "No image. Locked."}</p>
-        ) : (
-          <ImageControls mockId={mock.id} hasImage={!!mock.writing_task1_image_path} onMsg={onMsg} />
-        )}
-      </div>
-
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Writing Task 2 prompt</span>
-        <textarea
-          className="admin-input min-h-28 py-2"
-          disabled={locked}
-          value={form.writing_task2_prompt}
-          onChange={(e) => set("writing_task2_prompt", e.target.value)}
-          placeholder="Some people believe… To what extent do you agree or disagree?"
-        />
-      </label>
+      <WritingEditor
+        mockId={mock?.id ?? null}
+        locked={locked}
+        task1={form.writing_task1_prompt}
+        task2={form.writing_task2_prompt}
+        onTask1={(v) => set("writing_task1_prompt", v)}
+        onTask2={(v) => set("writing_task2_prompt", v)}
+        imageUrl={image ?? null}
+        hasImage={!!mock?.writing_task1_image_path}
+        ensureSaved={ensureSaved}
+        onImage={setHasLocalImage}
+        onMsg={onMsg}
+      />
 
       {/* Server-enforced section clock (0052). Listening and Reading times sit with their papers above. */}
       <label className="block space-y-1.5">
@@ -1880,51 +1897,285 @@ function InstructionVideos({ videos, onMsg }: { videos: Videos; onMsg: (m: Msg) 
   );
 }
 
-function ImageControls({ mockId, hasImage, onMsg }: { mockId: string; hasImage: boolean; onMsg: (m: Msg) => void }) {
+// -------------------------------------------------------------- writing (v3)
+
+/**
+ * Writing v3: the owner types only the Task 1 topic sentence and the Task 2
+ * question; the platform adds the Cambridge wording (writing-prompt.ts). The
+ * picture goes in by drag & drop, click, or Ctrl+V while the form is open.
+ * The preview is the student's own component, so what you see is what they see.
+ */
+function WritingEditor({
+  mockId,
+  locked,
+  task1,
+  task2,
+  onTask1,
+  onTask2,
+  imageUrl,
+  hasImage,
+  ensureSaved,
+  onImage,
+  onMsg,
+}: {
+  mockId: string | null;
+  locked: boolean;
+  task1: string;
+  task2: string;
+  onTask1: (v: string) => void;
+  onTask2: (v: string) => void;
+  imageUrl: string | null;
+  hasImage: boolean;
+  ensureSaved: () => Promise<string | null>;
+  onImage: (has: boolean) => void;
+  onMsg: (m: Msg) => void;
+}) {
   const router = useRouter();
-  const [pending, start] = useTransition();
-  return (
-    <form
-      className="flex flex-wrap items-center gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        fd.set("mockId", mockId);
-        start(async () => {
-          try {
-            const res = await uploadMockTask1Image(fd);
-            onMsg(res.ok ? { ok: true, text: hasImage ? "Task 1 image replaced." : "Task 1 image uploaded." } : { ok: false, text: res.error });
-            if (res.ok) router.refresh();
-          } catch {
-            onMsg({ ok: false, text: "Upload failed — check your connection and try again." });
-          }
+  const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
+  const [removed, setRemoved] = useState(false);
+  const [askRemove, setAskRemove] = useState(false);
+  const [preview, setPreview] = useState<1 | 2>(1);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const shown = removed ? null : (localUrl ?? imageUrl);
+  const p1 = parseTask1(task1);
+  const p2 = parseTask2(task2);
+
+  useEffect(
+    () => () => {
+      if (localUrl) URL.revokeObjectURL(localUrl);
+    },
+    [localUrl],
+  );
+
+  const upload = useCallback(
+    async (file: File) => {
+      if (locked || busy) return;
+      if (!file.type.startsWith("image/")) {
+        onMsg({ ok: false, text: "The Task 1 picture must be an image file (PNG or JPG)." });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        onMsg({ ok: false, text: "Keep the picture under 5 MB." });
+        return;
+      }
+      setBusy(true);
+      try {
+        const id = mockId ?? (await ensureSaved());
+        if (!id) return;
+        const fd = new FormData();
+        fd.set("mockId", id);
+        fd.set("file", file);
+        const res = await uploadMockTask1Image(fd);
+        if (!res.ok) {
+          onMsg({ ok: false, text: res.error });
+          return;
+        }
+        setRemoved(false);
+        setLocalUrl(URL.createObjectURL(file));
+        onImage(true);
+        onMsg({
+          ok: true,
+          text: mockId ? (hasImage ? "Task 1 picture replaced." : "Task 1 picture uploaded.") : "Draft saved and Task 1 picture uploaded.",
         });
-      }}
-    >
-      <input type="file" name="file" accept="image/*" required aria-label="Task 1 image file" className="text-sm" />
-      <Button size="sm" type="submit" className="h-10" disabled={pending}>
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {hasImage ? "Replace" : "Upload"}
-      </Button>
-      {hasImage && (
-        <Button
-          size="sm"
-          variant="outline"
-          type="button"
-          className="h-10"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              if (!confirm("Remove the Task 1 image from this mock?")) return;
-              const res = await removeMockTask1Image(mockId);
-              onMsg(res.ok ? { ok: true, text: "Image removed." } : { ok: false, text: res.error });
-              if (res.ok) router.refresh();
-            })
-          }
-        >
-          Remove
-        </Button>
-      )}
-    </form>
+        router.refresh();
+      } catch {
+        onMsg({ ok: false, text: "Upload failed — check your connection and try again." });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, ensureSaved, hasImage, locked, mockId, onImage, onMsg, router],
+  );
+
+  // Ctrl+V a screenshot while this form is open (text pastes are left alone).
+  useEffect(() => {
+    if (locked) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      void upload(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [locked, upload]);
+
+  async function remove() {
+    if (!mockId) return;
+    setBusy(true);
+    try {
+      const res = await removeMockTask1Image(mockId);
+      onMsg(res.ok ? { ok: true, text: "Task 1 picture removed." } : { ok: false, text: res.error });
+      if (res.ok) {
+        setRemoved(true);
+        setLocalUrl(null);
+        onImage(false);
+        router.refresh();
+      }
+    } catch {
+      onMsg({ ok: false, text: "Couldn't reach the server — try again." });
+    } finally {
+      setBusy(false);
+      setAskRemove(false);
+    }
+  }
+
+  const warn = (list: string[]) =>
+    list.length > 0 && (
+      <span className="flex items-start gap-1.5 text-xs text-warning">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {list[0]}
+      </span>
+    );
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <div className="space-y-4">
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Writing Task 1 topic</span>
+          <span className="block text-xs text-muted">
+            Type only the topic sentence. &ldquo;Summarise the information…&rdquo; and &ldquo;Write at least 150 words.&rdquo; are added for you.
+          </span>
+          <textarea
+            className="admin-input min-h-20 py-2"
+            disabled={locked}
+            value={task1}
+            onChange={(e) => onTask1(e.target.value)}
+            placeholder="The diagram below shows the process of using water to produce electricity."
+          />
+          {task1.trim() && warn(p1.warnings)}
+        </label>
+
+        <div className="space-y-2">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <ImageIcon className="h-4 w-4" /> Task 1 picture <span className="text-xs font-normal text-muted">(required)</span>
+          </p>
+          <div
+            role="button"
+            tabIndex={locked ? -1 : 0}
+            aria-disabled={locked}
+            aria-label="Task 1 picture: drop, click or paste"
+            onClick={() => !locked && !busy && fileRef.current?.click()}
+            onKeyDown={(e) => {
+              if ((e.key === "Enter" || e.key === " ") && !locked && !busy) fileRef.current?.click();
+            }}
+            onDragOver={(e) => {
+              if (locked) return;
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) void upload(file);
+            }}
+            className={cn(
+              "flex min-h-32 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-3 text-center text-sm transition-colors",
+              locked ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:border-primary/60",
+              over ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            {busy ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted" />
+            ) : shown ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob preview or short-lived signed URL
+              <img src={shown} alt="Current Task 1 picture" className="max-h-56 max-w-full rounded border border-border bg-white" />
+            ) : (
+              <Upload className="h-6 w-6 text-muted" />
+            )}
+            <span className="text-xs text-muted">
+              {locked
+                ? shown
+                  ? "Locked."
+                  : "No picture. Locked."
+                : shown
+                  ? "Drop, click or Ctrl+V to replace"
+                  : "Drop the picture here, click to choose, or paste it with Ctrl+V"}
+            </span>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            aria-label="Task 1 picture file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void upload(file);
+            }}
+          />
+          {!locked && shown && mockId &&
+            (askRemove ? (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span>Remove the Task 1 picture?</span>
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setAskRemove(false)} disabled={busy}>
+                  Keep
+                </Button>
+                <Button size="sm" className="h-8" onClick={() => void remove()} disabled={busy}>
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="h-8" onClick={() => setAskRemove(true)} disabled={busy}>
+                <Trash2 className="h-4 w-4" /> Remove picture
+              </Button>
+            ))}
+        </div>
+
+        <label className="block space-y-1.5">
+          <span className="text-sm font-medium">Writing Task 2 question</span>
+          <span className="block text-xs text-muted">
+            Type only the question. The statement shows in bold with the question below it; a blank line forces where it splits.
+          </span>
+          <textarea
+            className="admin-input min-h-24 py-2"
+            disabled={locked}
+            value={task2}
+            onChange={(e) => onTask2(e.target.value)}
+            placeholder="Fewer and fewer people today write by hand using a pen or pencil. What are the reasons for this? Is this a positive or a negative development?"
+          />
+          {task2.trim() && warn(p2.warnings)}
+        </label>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Eye className="h-4 w-4" /> Student preview
+          </p>
+          <div className="flex gap-1">
+            {([1, 2] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPreview(n)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium",
+                  preview === n ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface-2",
+                )}
+              >
+                Part {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-lg border border-border bg-white text-black" data-testid="writing-preview">
+          <div className="border-b border-[#d5d5d5] bg-[#F1F2EC] px-4 py-2.5 text-sm" style={{ fontFamily: "Arial, sans-serif" }}>
+            <p className="font-bold">Part {preview}</p>
+            <p>
+              {spendLine(preview)} {wordsLine(preview)}
+            </p>
+          </div>
+          <div className="max-h-[32rem] overflow-y-auto p-4">
+            <WritingPrompt task={preview} raw={preview === 1 ? task1 : task2} imageUrl={preview === 1 ? shown : null} />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

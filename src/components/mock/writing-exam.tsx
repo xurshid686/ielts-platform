@@ -2,29 +2,44 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, Send } from "lucide-react";
-import { saveMockWriting } from "@/app/actions/mock";
+import { AlertTriangle, CheckCircle2, Download, Loader2, Send } from "lucide-react";
+import { reportWritingViolation, saveMockWriting } from "@/app/actions/mock";
 import { leaveExamFullscreen, useExamReport } from "@/components/mock/exam-guard";
 import { ExamClock, ExamTopBar } from "@/components/mock/exam-top-bar";
 import { beaconDraft } from "@/components/mock/mock-runner";
+import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { Button } from "@/components/ui/button";
-import { TASK1_MIN_WORDS, TASK2_MIN_WORDS, countWords } from "@/lib/mock-shared";
-import { cn } from "@/lib/utils";
+import { spendLine, wordsLine } from "@/lib/ielts/writing-prompt";
+import {
+  PASTE_VIOLATION_WORDS,
+  SWITCH_VIOLATION_MS,
+  TASK1_MIN_WORDS,
+  TASK2_MIN_WORDS,
+  WRITING_MAX_VIOLATIONS,
+  countWords,
+} from "@/lib/mock-shared";
 
 const AUTOSAVE_MS = 20_000;
 
 /**
- * Writing, Tasks 1 and 2, on one clock.
+ * Writing, Tasks 1 and 2, on one clock — v3, laid out like the computer-delivered
+ * test: part rubric on top, the task on the left, the answer on the right with a
+ * draggable divider, Part 1 / Part 2 at the bottom.
  *
  * The clock's source of truth is the SERVER: `deadline` is writing_started_at +
  * the mock's minutes, and saveWriting() refuses new text once it has passed.
- * This component only mirrors it — counting down, autosaving every 20 s, and
- * handing in the moment it reaches zero — so closing the tab and coming back
- * later resumes the same clock rather than a fresh one.
+ *
+ * VIOLATIONS (owner, Writing only): the page being away (another tab or app)
+ * for 5 s or more, a paste of more than 10 words, and a reload (counted by the
+ * server when the page renders). The SERVER counts; the third hands the writing
+ * in as it stands. Leaving fullscreen alone is not a violation — ExamGuard hides
+ * the test until the student returns.
  */
 export type WritingProps = {
   mockId: string;
   title: string;
+  /** For the student's PDF copy. */
+  studentName: string;
   /** Epoch ms. */
   deadline: number;
   initialTask1: string;
@@ -32,6 +47,10 @@ export type WritingProps = {
   task1Prompt: string;
   task2Prompt: string;
   task1ImageUrl: string | null;
+  /** Violations already on record (a reload included). */
+  initialViolations: number;
+  /** The server handed the writing in while rendering (the reload was the third violation). */
+  autoSubmitted?: boolean;
   /** The section flow's last-moment save hook (v2.1). */
   flushRef?: React.MutableRefObject<(() => void) | null>;
 };
@@ -41,15 +60,24 @@ export function WritingSection(props: WritingProps) {
   return <WritingBody {...props} />;
 }
 
+type Done = null | "normal" | "violations";
+
+// Inspera tokens (see the reading/listening players).
+const INK = "#535353";
+const TEAL = "#2a6c96";
+
 function WritingBody({
   mockId,
   title,
+  studentName,
   deadline,
   initialTask1,
   initialTask2,
   task1Prompt,
   task2Prompt,
   task1ImageUrl,
+  initialViolations,
+  autoSubmitted,
   flushRef,
 }: WritingProps) {
   const router = useRouter();
@@ -60,9 +88,17 @@ function WritingBody({
   const [now, setNow] = useState(() => Date.now());
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState<Done>(autoSubmitted ? "violations" : null);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
+  /** "Violation N of 3" box; null = hidden. Shown for the reload violation too. */
+  const [notice, setNotice] = useState<number | null>(
+    !autoSubmitted && initialViolations > 0 ? initialViolations : null,
+  );
+  const [leftPct, setLeftPct] = useState(50);
+  const [dragging, setDragging] = useState(false);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
 
   // Latest text for the timers, without re-arming them on every keystroke.
   const latest = useRef({ task1, task2 });
@@ -70,7 +106,7 @@ function WritingBody({
     latest.current = { task1, task2 };
   }, [task1, task2]);
   const lastSent = useRef({ task1: initialTask1, task2: initialTask2 });
-  const finished = useRef(false);
+  const finished = useRef(!!autoSubmitted);
 
   const send = useCallback(
     async (final: boolean) => {
@@ -81,7 +117,7 @@ function WritingBody({
       if (!res.ok) {
         if (/already been submitted/i.test(res.error)) {
           finished.current = true;
-          setSubmitted(true);
+          setDone((d) => d ?? "normal");
           return;
         }
         setError(res.error);
@@ -94,12 +130,75 @@ function WritingBody({
         // No router.refresh(): the writing page redirects once writing is
         // submitted, which would replace this confirmation before it is read.
         finished.current = true;
-        setSubmitted(true);
+        setDone("normal");
       }
     },
     [mockId],
   );
 
+  // ---- violations --------------------------------------------------------
+  const violate = useCallback(
+    async (kind: "switch" | "paste", detail: { ms?: number; words?: number; task?: 1 | 2 }) => {
+      if (finished.current) return;
+      try {
+        const { task1: t1, task2: t2 } = latest.current;
+        const res = await reportWritingViolation(mockId, kind, detail, t1, t2);
+        if (!res.ok) return;
+        if (res.submitted) {
+          finished.current = true;
+          setConfirming(false);
+          setNotice(null);
+          setDone(res.violations >= WRITING_MAX_VIOLATIONS ? "violations" : "normal");
+          return;
+        }
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        setNotice(res.violations);
+      } catch {
+        /* offline: the reload check still counts on the server */
+      }
+    },
+    [mockId],
+  );
+
+  // Another tab or app: counts once the page has been away for 5 s, once per departure.
+  useEffect(() => {
+    let since: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const leave = () => {
+      if (finished.current || since != null) return;
+      since = Date.now();
+      timer = setTimeout(() => {
+        if (since != null) void violate("switch", { ms: Date.now() - since });
+      }, SWITCH_VIOLATION_MS);
+    };
+    const back = () => {
+      if (document.visibilityState === "hidden" || !document.hasFocus()) return;
+      since = null;
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const onVisibility = () => (document.visibilityState === "hidden" ? leave() : back());
+    window.addEventListener("blur", leave);
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("blur", leave);
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [violate]);
+
+  function onPasted(words: number) {
+    if (words >= 5) report({ type: "paste", words, task: tab });
+    if (words > PASTE_VIOLATION_WORDS) {
+      const task = tab;
+      // After the paste lands, so a third violation hands in the text with it.
+      setTimeout(() => void violate("paste", { words, task }), 60);
+    }
+  }
+
+  // ---- clock + autosave -------------------------------------------------
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     const save = setInterval(() => void send(false), AUTOSAVE_MS);
@@ -112,7 +211,6 @@ function WritingBody({
   const remaining = Math.max(0, deadline - now);
   const timeUp = remaining === 0;
 
-  // Hand in automatically when the clock runs out.
   useEffect(() => {
     if (timeUp && !finished.current) void send(true);
   }, [timeUp, send]);
@@ -141,95 +239,93 @@ function WritingBody({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [send]);
 
-  if (submitted) {
+  // ---- divider -------------------------------------------------------------
+  function onDividerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  }
+  function onDividerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragging || !splitRef.current) return;
+    const r = splitRef.current.getBoundingClientRect();
+    setLeftPct(Math.min(75, Math.max(25, ((e.clientX - r.left) / r.width) * 100)));
+  }
+
+  if (done) {
     return (
-      <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
-          <CheckCircle2 className="h-7 w-7" />
-        </div>
-        <h1 className="mt-4 text-xl font-bold">Mock exam submitted</h1>
-        <p className="mt-2 text-sm text-muted">
-          All three sections are in. Your teacher will mark your writing and release your full
-          result — you will get a notification when it is ready.
-        </p>
-        <Button
-          className="mt-6"
-          onClick={() => {
-            // The sitting is over: leave fullscreen on purpose before going back.
-            void leaveExamFullscreen().then(() => router.push(`/mock/${mockId}`));
-          }}
-        >
-          Back to the mock
-        </Button>
-      </div>
+      <DoneScreen
+        byViolations={done === "violations"}
+        onPdf={() =>
+          downloadPdf({ mockTitle: title, studentName, task1Prompt, task2Prompt, task1ImageUrl, ...latest.current })
+        }
+        onBack={() => {
+          // The sitting is over: leave fullscreen on purpose before going back.
+          void leaveExamFullscreen().then(() => router.push(`/mock/${mockId}`));
+        }}
+      />
     );
   }
 
   const words1 = countWords(task1);
   const words2 = countWords(task2);
+  const words = tab === 1 ? words1 : words2;
+  const min = tab === 1 ? TASK1_MIN_WORDS : TASK2_MIN_WORDS;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white text-black" style={{ fontFamily: "Arial, sans-serif" }}>
       <ExamTopBar
         label="Writing"
         title={title}
         center={<ExamClock remainingMs={remaining} />}
         right={
-          <Button size="sm" className="h-9" onClick={() => setConfirming(true)} disabled={pending || timeUp}>
-            <Send className="h-4 w-4" /> Submit writing
-          </Button>
+          <>
+            <span className="hidden text-xs text-muted sm:inline">{pending ? "Submitting…" : savedAt ? "Saved" : ""}</span>
+            <Button size="sm" className="h-9" onClick={() => setConfirming(true)} disabled={pending || timeUp}>
+              <Send className="h-4 w-4" /> Submit writing
+            </Button>
+          </>
         }
       />
-    <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 overflow-y-auto px-4 py-4">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/95 px-4 py-3 shadow-soft backdrop-blur">
-        <div className="flex items-center gap-1.5">
-          {([1, 2] as const).map((n) => (
-            <button
-              key={n}
-              onClick={() => setTab(n)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-sm font-medium",
-                tab === n ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface-2",
-              )}
-            >
-              Task {n}
-              <span className="ml-1.5 text-xs tabular-nums opacity-70">
-                {n === 1 ? words1 : words2}w
-              </span>
-            </button>
-          ))}
-        </div>
-        <span className="text-xs text-muted">
-          {pending ? "Submitting…" : savedAt ? "Saved" : "Autosaves every 20 s"}
-        </span>
+
+      {/* Part rubric band */}
+      <div className="shrink-0 border-b border-[#d5d5d5] bg-[#F1F2EC] px-6 py-3 text-[16px] leading-snug">
+        <p className="font-bold">Part {tab}</p>
+        <p>
+          {spendLine(tab)} {wordsLine(tab)}
+        </p>
       </div>
 
       {error && (
-        <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>
+        <p className="shrink-0 border-b border-danger/30 bg-danger/5 px-6 py-2 text-sm text-danger">{error}</p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
-          <h2 className="font-semibold">Writing Task {tab}</h2>
-          <p className="mt-1 text-xs text-muted">
-            You should spend about {tab === 1 ? 20 : 40} minutes on this task. Write at least{" "}
-            {tab === 1 ? TASK1_MIN_WORDS : TASK2_MIN_WORDS} words.
-          </p>
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-relaxed">
-            {tab === 1 ? task1Prompt : task2Prompt}
-          </div>
-          {tab === 1 && task1ImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL from private storage
-            <img
-              src={task1ImageUrl}
-              alt="Task 1 visual"
-              className="mt-4 max-w-full rounded-lg border border-border bg-white"
-            />
-          )}
+      <div ref={splitRef} className="relative flex min-h-0 flex-1" style={{ cursor: dragging ? "col-resize" : undefined }}>
+        <section className="min-w-0 overflow-y-auto px-6 py-5" style={{ width: `${leftPct}%` }} aria-label={`Writing Task ${tab}`}>
+          <WritingPrompt task={tab} raw={tab === 1 ? task1Prompt : task2Prompt} imageUrl={tab === 1 ? task1ImageUrl : null} />
         </section>
 
-        <section className="flex flex-col rounded-2xl border border-border bg-surface p-3 shadow-soft">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panels"
+          onPointerDown={onDividerDown}
+          onPointerMove={onDividerMove}
+          onPointerUp={() => setDragging(false)}
+          onPointerCancel={() => setDragging(false)}
+          className="relative w-2 shrink-0 cursor-col-resize bg-black/10 touch-none"
+        >
+          <div
+            className="absolute top-1/2 left-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] bg-[#f9f9f9] text-sm select-none hover:bg-[#e1e1e1]"
+            style={{ border: `2px solid ${dragging ? TEAL : INK}`, color: dragging ? TEAL : INK }}
+            aria-hidden
+          >
+            ↔
+          </div>
+        </div>
+
+        <section className="flex min-w-0 flex-1 flex-col px-6 py-5">
           <textarea
+            ref={areaRef}
             key={tab}
             value={tab === 1 ? task1 : task2}
             onChange={(e) => (tab === 1 ? setTask1(e.target.value) : setTask2(e.target.value))}
@@ -237,37 +333,66 @@ function WritingBody({
             spellCheck={false}
             autoCorrect="off"
             autoCapitalize="off"
-            placeholder={`Write your answer to Task ${tab} here…`}
-            // Pasting is allowed (students move their own sentences around) but a
-            // large paste is recorded for the teacher — agreed in the 0052 review:
-            // blocking is bypassable theatre, a record is evidence.
-            onPaste={(e) => {
-              const words = countWords(e.clipboardData.getData("text"));
-              if (words >= 5) report({ type: "paste", words, task: tab });
-            }}
-            onDrop={(e) => {
-              const words = countWords(e.dataTransfer.getData("text"));
-              if (words >= 5) report({ type: "paste", words, task: tab });
-            }}
-            className="min-h-[24rem] w-full flex-1 resize-y rounded-lg bg-surface-2 p-4 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-primary/30 lg:min-h-[32rem]"
+            aria-label={`Your answer to Task ${tab}`}
+            onPaste={(e) => onPasted(countWords(e.clipboardData.getData("text")))}
+            onDrop={(e) => onPasted(countWords(e.dataTransfer.getData("text")))}
+            className="min-h-0 w-full flex-1 resize-none rounded-[3px] bg-white p-3 text-[16px] leading-relaxed text-black outline-none focus:shadow-[0_0_0_2px_rgba(42,108,150,0.35)]"
+            style={{ border: `0.8px solid ${INK}` }}
           />
-          <p className="mt-1 px-1 text-xs text-muted">Large pastes are recorded for your teacher.</p>
-          <p
-            className={cn(
-              "mt-2 px-1 text-right text-xs tabular-nums",
-              (tab === 1 ? words1 < TASK1_MIN_WORDS : words2 < TASK2_MIN_WORDS)
-                ? "text-muted"
-                : "text-success",
-            )}
-          >
-            {tab === 1 ? words1 : words2} words
+          <p className={`mt-2 text-right text-sm tabular-nums ${words < min ? "text-[#b3261e]" : "text-[#535353]"}`}>
+            Words: {words}
           </p>
         </section>
       </div>
 
+      {/* Part footer */}
+      <nav className="flex h-14 shrink-0 bg-white shadow-[0_0_45px_rgba(0,0,0,0.15)]" aria-label="Parts">
+        {([1, 2] as const).map((n) => (
+          <button
+            key={n}
+            onClick={() => setTab(n)}
+            aria-current={tab === n ? "page" : undefined}
+            className="flex flex-1 items-center justify-center gap-2 text-[16px]"
+            style={{
+              background: tab === n ? "#ffffff" : "#efefef",
+              borderTop: `3px solid ${tab === n ? TEAL : "transparent"}`,
+              fontWeight: tab === n ? 700 : 400,
+            }}
+          >
+            Part {n}
+            <span className="text-sm font-normal text-[#535353] tabular-nums">{n === 1 ? words1 : words2} words</span>
+          </button>
+        ))}
+      </nav>
+
+      {notice != null && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true" aria-label="Violation">
+          <div className="w-full max-w-md rounded-2xl border border-danger/40 bg-surface p-6 text-center text-foreground shadow-elevated">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+            <h2 className="mt-4 text-lg font-bold">
+              Violation {Math.min(notice, WRITING_MAX_VIOLATIONS)} of {WRITING_MAX_VIOLATIONS}
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              Leaving the exam for another tab or app, pasting text and reloading the page are violations.{" "}
+              <b className="text-foreground">
+                {WRITING_MAX_VIOLATIONS - notice <= 1
+                  ? "One more and your writing is submitted automatically."
+                  : `After ${WRITING_MAX_VIOLATIONS} your writing is submitted automatically.`}
+              </b>{" "}
+              The clock is still running.
+            </p>
+            <Button className="mt-5 h-11 w-full text-base" onClick={() => setNotice(null)} autoFocus>
+              Continue writing
+            </Button>
+          </div>
+        </div>
+      )}
+
       {confirming && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-elevated">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-foreground shadow-elevated">
             <h2 className="font-semibold">Submit your writing?</h2>
             <p className="mt-1 text-sm text-muted">
               Task 1: {words1} words · Task 2: {words2} words. You cannot change it afterwards, and
@@ -294,6 +419,47 @@ function WritingBody({
         </div>
       )}
     </div>
+  );
+}
+
+async function downloadPdf(input: Parameters<typeof import("@/lib/writing-pdf").downloadWritingPdf>[0]) {
+  const { downloadWritingPdf } = await import("@/lib/writing-pdf");
+  await downloadWritingPdf(input);
+}
+
+function DoneScreen({ byViolations, onPdf, onBack }: { byViolations: boolean; onPdf: () => Promise<void>; onBack: () => void }) {
+  const [making, setMaking] = useState(false);
+  return (
+    <div className="flex h-full items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md text-center">
+        <div
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${byViolations ? "bg-danger/10 text-danger" : "bg-success/10 text-success"}`}
+        >
+          {byViolations ? <AlertTriangle className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
+        </div>
+        <h1 className="mt-4 text-xl font-bold">
+          {byViolations ? "Your writing was submitted automatically" : "Mock exam submitted"}
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          {byViolations
+            ? `There were ${WRITING_MAX_VIOLATIONS} violations, so your writing was handed in as it was. Your teacher will see why. `
+            : "All three sections are in. "}
+          Your teacher will mark your writing and release your full result — you will get a notification when it is ready.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button
+            variant="outline"
+            disabled={making}
+            onClick={() => {
+              setMaking(true);
+              void onPdf().finally(() => setMaking(false));
+            }}
+          >
+            {making ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download PDF
+          </Button>
+          <Button onClick={onBack}>Back to the mock</Button>
+        </div>
+      </div>
     </div>
   );
 }

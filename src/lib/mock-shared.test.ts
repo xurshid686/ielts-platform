@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   adminStage,
   applyIntegrityEvents,
+  applyWritingViolation,
+  recordAutoSubmit,
+  WRITING_MAX_VIOLATIONS,
   asIntegrity,
   emptyIntegrity,
   integrityVerdict,
@@ -200,5 +203,25 @@ describe("integrity", () => {
     expect(isExamCapableDevice({ ...laptop, screenW: 390, screenH: 844 })).toBe(false);
     expect(isExamCapableDevice({ ...laptop, fullscreenEnabled: false })).toBe(false);
     expect(isExamCapableDevice({ ...laptop, finePointer: false, anyFinePointer: true })).toBe(true);
+  });
+});
+
+describe("writing violations (v3)", () => {
+  it("counts up, records the detail, and marks an auto-submit", () => {
+    const now = "2026-09-15T10:00:00.000Z";
+    let i = applyWritingViolation(emptyIntegrity(), "switch", { ms: 6200 }, now);
+    i = applyWritingViolation(i, "paste", { words: 42, task: 2 }, now);
+    expect(i.counters.writing_violations).toBe(2);
+    expect(i.events.map((e) => e.violation)).toEqual(["switch", "paste"]);
+    expect(i.events[1]).toMatchObject({ words: 42, task: 2, section: "writing" });
+    expect(integrityVerdict({ ...i, device: "x" }).reasons[0]).toMatch(/2 of 3/);
+
+    i = applyWritingViolation(i, "reload", {}, now);
+    expect(i.counters.writing_violations).toBe(WRITING_MAX_VIOLATIONS);
+    i = recordAutoSubmit(i, now);
+    expect(i.counters.writing_auto_submitted).toBe(1);
+    expect(integrityVerdict({ ...i, device: "x" }).reasons[0]).toMatch(/auto-submitted/);
+    // survives a jsonb round trip
+    expect(asIntegrity(JSON.parse(JSON.stringify(i))).counters.writing_violations).toBe(3);
   });
 });

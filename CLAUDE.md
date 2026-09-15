@@ -1095,7 +1095,8 @@ repeated exits → warning + "Review suggested" for the teacher, never automatic
   words, ≥3 rewinds, L/R finished in <25% of the time). Integrity card on
   `/admin/mocks/attempts/[id]`; "Review suggested" chip + badge + CSV columns on
   Results.
-- **Writing paste** is allowed and logged (≥5 words; ≥100 flags).
+- **Writing paste** is allowed and logged (≥5 words; ≥100 flags). Since Writing v3 a paste of
+  more than 10 words is ALSO a violation (see below).
 - **Leak protection:** `getReleasedDetail()` hides the per-question review while
   anyone else still has the mock open (bands and feedback still show); release
   confirmations warn how many are still sitting.
@@ -1234,6 +1235,40 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
   clock never started) stays "in progress" — there is no clock to run out.
 - Overview shows "Continue · N min left" (`current_minutes_left`, computed in
   lib — `Date.now()` in a server component trips the react purity lint).
+
+### Writing v3 — reference layout, 3 violations, prompt parser (owner decisions 2026-09-15)
+
+Modelled on writing-full-test-1.vercel.app. **The one place anything automatic happens:**
+three Writing violations hand the writing in. Listening/Reading keep warn + record.
+
+- **Violations (Writing only):** the page away (window blur or tab hidden) for ≥ 5 s, a paste of
+  > 10 words (the paste still lands), and a **reload** (counted by `startWriting()` on the
+  render). Leaving fullscreen alone is NOT one — ExamGuard hides the test as before.
+- **The server counts.** `addWritingViolation()` (via `reportWritingViolation`) folds
+  `applyWritingViolation` into `integrity` with `mutateIntegrity`, which now RETURNS the record it
+  wrote — use that count, never a re-read (fetch memo). It re-checks the 5 s / 10-word thresholds.
+  At 3 it calls `saveWriting(final)` with the texts the browser sent, then `recordAutoSubmit`
+  (`counters.writing_auto_submitted`, event `auto_submit`). On the reload path the SAVED draft
+  (the pagehide beacon's) is handed in and the payload says `autoSubmitted`. No migration —
+  it all lives in the `integrity` jsonb.
+- **Student screen** (`writing-exam.tsx`): part rubric band, prompt left / textarea right with a
+  pointer-drag divider (25–75 %), Part 1 / Part 2 footer, "Words: N". Violations 1–2 show an
+  in-page "Violation N of 3" box (never a browser dialog). Done screen offers **Download PDF**
+  (`lib/writing-pdf.ts`, jspdf dynamically imported; prompts + picture re-encoded as JPEG +
+  answers; never a band or violations). The rules screen needs a tick before Start.
+- **Prompts are parsed at display time** (`lib/ielts/writing-prompt.ts`, unit-tested). The owner
+  types only the Task 1 topic sentence (+ picture) and the Task 2 question; stored text stays
+  raw, so old mocks and attempt snapshots render the new layout too. `stripBoilerplate` removes
+  pasted standard lines before rebuilding; Task 2 splits on a blank line, else trailing
+  question sentences (`?` or Discuss / To what extent / …). `<WritingPrompt>` is the ONE
+  renderer: student screen, admin preview, admin attempt page.
+- **Admin form:** picture by drop / click / Ctrl+V; on a new mock it first saves the draft
+  (`ensureSaved`) — the form closes and reopens as the edit a moment later. The picture is
+  REQUIRED by `readinessIssues` (saveMock checks the existing row's path; it never writes it).
+- **Admin review:** red "Auto-submitted: 3 violations" card (or "Writing violations: N of 3"),
+  Results chip + CSV columns `writing_violations`, `writing_auto_submitted`.
+- E2E: blur is simulated by dispatching `blur`/`focus` on window; a synthetic paste event
+  (`ClipboardEvent` + `DataTransfer`) fires React's onPaste without inserting text.
 
 # Every test page must be linked — `Discovered - currently not indexed`
 

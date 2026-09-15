@@ -24,8 +24,11 @@ import { cn } from "@/lib/utils";
 //    fullscreen puts an opaque overlay over the content and makes it inert
 //    (no clicks, no typing). The section clock keeps running on the server.
 //    The runner may pause Listening audio through onAway/onReturn.
-//  - NOTHING AUTOMATIC. Departures, hidden-tab time and second tabs are
+//  - NOTHING AUTOMATIC HERE. Departures, hidden-tab time and second tabs are
 //    reported for the teacher's integrity report. No auto-submit, no penalty.
+//    The one exception lives in Writing v3 (writing-exam.tsx, owner's decision):
+//    three Writing violations — another tab/app ≥ 5 s, a paste of > 10 words,
+//    a reload — hand the writing in. Leaving fullscreen is not one of them.
 //
 // A browser cannot see a phone on the desk or a helper in the room; this is a
 // deterrent and a record, not a lock.

@@ -20,6 +20,7 @@ import {
   asIntegrity,
   countWords,
   tashkent,
+  WRITING_MAX_VIOLATIONS,
   type Integrity,
   type IntegrityEvent,
   type IntegrityVerdict,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { ReviewTable } from "@/components/mock/review-table";
 import { MockGradeForm } from "@/components/admin/mock-grade-form";
+import { WritingPrompt } from "@/components/mock/writing-prompt";
 
 export const metadata = { title: "Mock attempt" };
 
@@ -70,6 +72,7 @@ export default async function AdminMockAttemptPage({
     countStillSitting(a.mock_id, a.id),
   ]);
   const stage = adminStage(a);
+  const integrity = asIntegrity(a.integrity);
   const fmt = (b: number | null) => (b == null ? "—" : b.toFixed(1));
 
   return (
@@ -138,7 +141,7 @@ export default async function AdminMockAttemptPage({
       </div>
 
       <IntegrityCard
-        integrity={asIntegrity(a.integrity)}
+        integrity={integrity}
         verdict={verdictFor(a)}
         timings={[
           { label: "Listening", start: a.listening_started_at, end: a.listening_submitted_at, limit: a.listening_minutes },
@@ -153,6 +156,10 @@ export default async function AdminMockAttemptPage({
           result — the student sees their bands — but the question-by-question answers stay hidden until everyone has
           finished.
         </p>
+      )}
+
+      {integrity.counters.writing_violations > 0 && (
+        <WritingViolationsCard integrity={integrity} />
       )}
 
       <Card id="writing" className="scroll-mt-20 space-y-5">
@@ -173,12 +180,16 @@ export default async function AdminMockAttemptPage({
               Task {t.n}
               <span className="text-xs font-normal text-muted">{countWords(t.text)} words</span>
             </h3>
-            {t.prompt && <p className="whitespace-pre-wrap text-xs text-muted">{t.prompt}</p>}
-            {t.n === 1 && detail.task1ImageUrl && (
-              <a href={detail.task1ImageUrl} target="_blank" rel="noreferrer" title="Open full size">
-                {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL from private storage */}
-                <img src={detail.task1ImageUrl} alt="Task 1 visual" className="max-h-80 max-w-full rounded-lg border border-border bg-white" />
-              </a>
+            {(t.prompt || (t.n === 1 && detail.task1ImageUrl)) && (
+              <details className="rounded-lg border border-border bg-white p-3" open={t.n === 2}>
+                <summary className="cursor-pointer text-xs font-medium text-muted">Task {t.n} as the student saw it</summary>
+                <WritingPrompt
+                  task={t.n as 1 | 2}
+                  raw={t.prompt}
+                  imageUrl={t.n === 1 ? detail.task1ImageUrl : null}
+                  className="mt-3 text-sm [&_img]:max-h-80"
+                />
+              </details>
             )}
             <p className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm leading-relaxed">
               {t.text || "(nothing written)"}
@@ -221,7 +232,49 @@ export default async function AdminMockAttemptPage({
   );
 }
 
+const VIOLATION_TEXT: Record<string, (e: IntegrityEvent) => string> = {
+  switch: (e) => `Left for another tab or app for ${Math.max(1, Math.round((e.ms ?? 0) / 1000))} s or more`,
+  paste: (e) => `Pasted ${e.words ?? "?"} words into Task ${e.task ?? 1}`,
+  reload: () => "Reloaded the page",
+};
+
+/** Writing v3: the violations behind (or on the way to) an automatic hand-in. */
+function WritingViolationsCard({ integrity }: { integrity: Integrity }) {
+  const c = integrity.counters;
+  const auto = c.writing_auto_submitted > 0;
+  const list = integrity.events.filter((e) => e.type === "violation" || e.type === "auto_submit");
+  return (
+    <Card className={cn("space-y-3", auto ? "border-danger/50 bg-danger/5" : "border-warning/40 bg-warning/5")}>
+      <h2 className="flex items-center gap-2 font-semibold">
+        <AlertTriangle className={cn("h-4 w-4", auto ? "text-danger" : "text-warning")} />
+        {auto
+          ? `Auto-submitted: ${WRITING_MAX_VIOLATIONS} violations`
+          : `Writing violations: ${c.writing_violations} of ${WRITING_MAX_VIOLATIONS}`}
+      </h2>
+      {auto && (
+        <p className="text-sm text-muted">
+          The writing was handed in automatically, exactly as it stood. The text below is what the student had written.
+        </p>
+      )}
+      <ol className="space-y-1 text-sm">
+        {list.map((e, i) => (
+          <li key={i} className="flex gap-3">
+            <span className="shrink-0 tabular-nums text-muted">{tashkent(e.t)}</span>
+            <span>
+              {e.type === "auto_submit"
+                ? "Writing submitted automatically"
+                : (VIOLATION_TEXT[e.violation ?? ""] ?? (() => "Violation"))(e)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
+}
+
 const EVENT_TEXT: Record<string, (e: IntegrityEvent) => string> = {
+  violation: (e) => `Writing violation — ${(VIOLATION_TEXT[e.violation ?? ""] ?? (() => "unknown"))(e).toLowerCase()}`,
+  auto_submit: () => "Writing submitted automatically after 3 violations",
   device: (e) => `Started on ${e.ua ?? "unknown browser"}${e.screen ? ` (${e.screen})` : ""}`,
   away: (e) =>
     `${e.kind === "hidden" ? "Tab hidden" : "Left fullscreen"} for ${Math.max(1, Math.round((e.ms ?? 0) / 1000))} s`,
