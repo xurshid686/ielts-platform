@@ -8,6 +8,7 @@ import {
   Shield,
   Target,
   Send,
+  ClipboardCheck,
 } from "lucide-react";
 import { CONTACT_TELEGRAM_URL } from "@/lib/site";
 import type { Profile } from "@/types/database";
@@ -55,6 +56,15 @@ export function navItemsFor(
     { href: "/writing", label: "Writing", icon: PenLine },
     { href: "/speaking", label: "Speaking", icon: Mic },
   ];
+
+  // Visible to every signed-in STUDENT, unlike /discipline: a mock is something a
+  // student REQUESTS, so they have to be able to find the page to ask (0050).
+  // Not for admins — they run mocks from /admin/mocks, and a ninth item
+  // overflowed the admin bar at 1280px. The short label keeps a student's bar no
+  // wider than the admin bar already is ("Mock" is narrower than "Admin").
+  if (profile.role !== "admin") {
+    items.push({ href: "/mock", label: "Mock", icon: ClipboardCheck });
+  }
 
   // Invisible to everyone who has not been picked for the challenge — no menu
   // entry, and the page itself redirects. The layout passes `discipline`, which

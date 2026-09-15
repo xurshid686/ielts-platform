@@ -45,7 +45,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
     .filter(Boolean);
   const level = String(formData.get("level") || "").trim() || null;
   const trackRaw = String(formData.get("track") || "regular");
-  const track = ["regular", "pre_ielts", "intro", "discipline"].includes(trackRaw)
+  const track = ["regular", "pre_ielts", "intro", "discipline", "mock"].includes(trackRaw)
     ? trackRaw
     : "regular";
   // Required when the track is 'discipline': the programme is the only way a
@@ -104,6 +104,7 @@ export async function uploadTest(formData: FormData): Promise<ActionResult> {
   if (track === "pre_ielts") revalidatePath("/pre-ielts");
   else if (track === "intro") revalidatePath("/intro");
   else if (track === "discipline") revalidatePath("/discipline");
+  else if (track === "mock") revalidatePath("/admin/mocks");
   return { ok: true };
 }
 

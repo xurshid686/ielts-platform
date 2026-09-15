@@ -2,7 +2,9 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMessage } from "./api";
+import { encodeCb } from "./callback";
 import { escapeHtml, band, num } from "./format";
+import type { InlineKeyboard } from "./types";
 
 // One-way pushes to the owner.
 //
@@ -23,10 +25,10 @@ export function notificationsConfigured(): boolean {
   return Boolean(process.env.TELEGRAM_BOT_TOKEN) && ownerChatId() !== null;
 }
 
-async function push(text: string): Promise<void> {
+async function push(text: string, keyboard?: InlineKeyboard): Promise<void> {
   const chatId = ownerChatId();
   if (!chatId || !process.env.TELEGRAM_BOT_TOKEN) return; // silently disabled
-  const res = await sendMessage(chatId, text);
+  const res = await sendMessage(chatId, text, keyboard);
   if (!res.ok) console.error(`[telegram] notify failed: ${res.error}`);
 }
 
@@ -102,5 +104,72 @@ export async function notifyNewStudent(input: {
     );
   } catch (e) {
     console.error("[telegram] notifyNewStudent failed", e);
+  }
+}
+
+/**
+ * A student asked to sit a mock exam (0050).
+ *
+ * Carries Approve / Reject buttons, like the Cambridge request did: the owner
+ * is the single approver and the answer is yes or no. `mkA:<uuid>` is 40 bytes,
+ * inside encodeCb's 64-byte cap. The buttons call lib/mock.ts, which is plain
+ * TypeScript and therefore callable under the service role — an
+ * is_admin(auth.uid()) RPC would raise here.
+ */
+export async function notifyMockRequest(input: {
+  requestId: string;
+  name: string | null;
+  email: string | null;
+  mockTitle: string;
+  message: string;
+}): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    const { count } = await createAdminClient()
+      .from("mock_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    const lines = [
+      `📝 <b>Mock exam requested</b>`,
+      escapeHtml(input.mockTitle),
+      "",
+      escapeHtml(input.name || "(no name)"),
+      escapeHtml(input.email || "(no email)"),
+    ];
+    if (input.message) lines.push("", `<i>${escapeHtml(input.message)}</i>`);
+    lines.push("", `${num(count ?? 1)} waiting.`);
+
+    await push(lines.join("\n"), [
+      [
+        { text: "✅ Approve", callback_data: encodeCb("mkA", input.requestId) },
+        { text: "🚫 Reject", callback_data: encodeCb("mkR", input.requestId) },
+      ],
+    ]);
+  } catch (e) {
+    console.error("[telegram] notifyMockRequest failed", e);
+  }
+}
+
+/** A student handed in the last section of a mock — writing is ready to grade. */
+export async function notifyMockFinished(input: {
+  name: string | null;
+  email: string | null;
+  mockTitle: string;
+}): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    await push(
+      [
+        `✅ <b>Mock finished</b>`,
+        escapeHtml(input.mockTitle),
+        "",
+        escapeHtml(input.name || input.email || "A student"),
+        "",
+        "Writing is ready to grade in Admin → Mocks → Results.",
+      ].join("\n"),
+    );
+  } catch (e) {
+    console.error("[telegram] notifyMockFinished failed", e);
   }
 }

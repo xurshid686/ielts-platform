@@ -18,7 +18,7 @@ import { extractAnswerKey } from "@/lib/ielts/extract-key";
 export type Skill = "reading" | "listening";
 export type Kind = "single" | "full";
 export type Tier = "free" | "premium";
-export type Track = "regular" | "pre_ielts" | "intro" | "discipline";
+export type Track = "regular" | "pre_ielts" | "intro" | "discipline" | "mock";
 
 export type CreateTestInput = {
   title: string;

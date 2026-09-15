@@ -939,6 +939,80 @@ through four SECURITY DEFINER RPCs (`grant_discipline`, `revoke_discipline`,
 `is_admin(auth.uid())` — which means, as ever, that **the Telegram bot cannot
 call them under the service role**; a bot command would need `_for` variants.
 
+# The Mock exam section
+
+Migration **0050**, applied to Frankfurt on 2026-09-15. A full mock —
+Listening, Reading, Writing, in that order — that a student requests, the owner
+approves, the student sits ONCE, and whose result stays hidden until the owner
+RELEASES it. Every attempt is kept permanently.
+
+## The one rule: no score before release
+
+A student never receives a band, raw mark or correct answer for an unreleased
+attempt. Everything below exists to hold that:
+
+- **Mock scores are NOT in `results`.** `results_select_owner_or_admin` lets a
+  student read their own rows through PostgREST, so a band there leaks the
+  moment they submit. It would also feed rating, XP, leaderboard, dashboard and
+  `times_done`. Scores live only in `mock_attempts`.
+- **The three mock tables have NO grants for anon/authenticated** (RLS on, no
+  policies). Verified: a student JWT gets `permission denied` on read and write.
+  `src/lib/mock.ts` (service role, authorisation-free, gated by its callers) is
+  the only door; student loaders go through `toStudentAttempt()`, which drops
+  scores unless `status = 'released'`. No admin RPCs — like the reverted
+  Cambridge library, plain TypeScript is what lets the Telegram bot's
+  Approve/Reject buttons (`mkA` / `mkR`) call it.
+- **`/api/test-key` refuses `track = 'mock'`** for non-admins. The student IS
+  entitled to the paper mid-section, so the shared gate passes; without this
+  the key would give answers mid-exam and the score on submit. The bridge treats
+  the 403 as "no report", which is the wanted exam behaviour.
+- **`saveResult` refuses a mock paper** and **`TestDetail` 404s one** for
+  everyone. Otherwise the practice page for the same paper would bank it as
+  practice and show the band.
+- `canOpenTrack` → `canOpenMockPaper()`: a paper opens only while it is the
+  section the student is currently on (`nextSection()`); after submit it is a
+  404, which is what makes it one sitting.
+
+## Records survive account deletion
+
+`mock_attempts.user_id` is `on delete set null` with name/email snapshotted, and
+answers are copied into the attempt. `mocks` referenced by an attempt are
+`on delete restrict`; `deleteMock` refuses, unpublish instead. `cancelAttempt`
+only deletes an unstarted place.
+
+## Traps found in the E2E run — do not reintroduce
+
+1. **Fetch memoization in a render.** supabase-js selects are GET fetches and
+   Next memoizes identical GETs for the life of a server render. The writing
+   page reads the attempt, starts the clock, then re-read it — and got the
+   pre-update copy, so every student's FIRST visit to Writing redirected to the
+   overview (a reload worked). `startWriting()` now returns the timestamp from
+   its own PATCH. Any lib function that writes then re-reads during a render has
+   this bug.
+2. **No `revalidatePath` / `router.refresh()` after a section submit.** A
+   revalidating server action re-renders the current route; the section page
+   redirects away from a submitted section, which unmounted the "submitted —
+   continue" screen. All `/mock` pages are dynamic, so nothing is cached anyway.
+3. Uppercase CSS labels: `innerText` returns "RESULT RELEASED", so a
+   case-sensitive text assertion false-fails.
+
+## Flow and where things are
+
+- Papers: upload on /admin/tests with **For = "Mock exam only"** (`track: 'mock'`).
+- Admin: `/admin/mocks` (Requests, Mocks builder incl. Task 1 image in the
+  private `mock-assets` bucket, Results with CSV) and
+  `/admin/mocks/attempts/[id]` (per-question review, essays, grade, Release /
+  Unrelease).
+- Student: `/mock` (nav "Mock", hidden for admins so the admin bar does not
+  overflow at 1280px), `/mock/[id]`, `/mock/[id]/[section]`, `/mock/[id]/result`.
+- Writing clock is enforced server-side in `saveWriting()` (deadline + 60 s
+  grace, then the saved draft is handed in).
+- Bands: `mock-shared.ts` — writing = (T1 + 2×T2)/3, overall = mean of L/R/W,
+  both with IELTS rounding; unit-tested.
+- Telegram: `notifyMockRequest` (with buttons) and `notifyMockFinished`.
+- `src/types/database.ts` carries PENDING overrides for the 0050 tables. Run
+  `npm run types` and delete them.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

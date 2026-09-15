@@ -112,6 +112,14 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
           : "That test isn't available.",
     };
   }
+  // A mock paper is submitted through submitMockSection(), never here: this
+  // path returns the band to the browser and writes a `results` row the student
+  // can read, both before the owner has released the mock (0050). The student
+  // can open the paper during their section, so the access check above passes —
+  // this refusal is what stops a crafted call from banking it as practice.
+  if (access.row.track === "mock") {
+    return { ok: false, error: "This paper belongs to a mock exam. Submit it from the Mock section." };
+  }
   if (access.row.skill === "reading" || access.row.skill === "listening") {
     skill = access.row.skill;
   }

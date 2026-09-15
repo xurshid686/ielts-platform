@@ -8,9 +8,11 @@ import {
   ShieldCheck,
   Crown,
   Target,
+  ClipboardCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { countPendingRequests } from "@/lib/mock";
 import { Card } from "@/components/ui/card";
 import { timeAgo } from "@/lib/utils";
 import type { Profile } from "@/types/database";
@@ -19,11 +21,13 @@ export default async function AdminPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: students }, { count: testCount }, { count: resultCount }] = await Promise.all([
-    supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-    supabase.from("tests").select("id", { count: "exact", head: true }),
-    supabase.from("results").select("id", { count: "exact", head: true }),
-  ]);
+  const [{ data: students }, { count: testCount }, { count: resultCount }, pendingMocks] =
+    await Promise.all([
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("tests").select("id", { count: "exact", head: true }),
+      supabase.from("results").select("id", { count: "exact", head: true }),
+      countPendingRequests(),
+    ]);
 
   const people = (students ?? []) as Profile[];
   const activeStreaks = people.filter((p) => p.streak > 0).length;
@@ -80,6 +84,25 @@ export default async function AdminPage() {
           </div>
           <Link
             href="/admin/discipline"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Card>
+        <Card className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <ClipboardCheck className="h-4 w-4 text-primary" /> Mock exams
+              {pendingMocks > 0 && (
+                <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
+                  {pendingMocks} waiting
+                </span>
+              )}
+            </h2>
+            <p className="text-sm text-muted">Approve places, grade writing, release results.</p>
+          </div>
+          <Link
+            href="/admin/mocks"
             className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
           >
             Open <ArrowRight className="h-4 w-4" />

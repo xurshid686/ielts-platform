@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { verifyWebhookSecret, isOwner } from "@/lib/telegram/auth";
-import { sendMessage, editMessageText, answerCallbackQuery } from "@/lib/telegram/api";
+import { sendMessage, editMessageText, answerCallbackQuery, escapeHtml } from "@/lib/telegram/api";
+import {
+  approveRequest as approveMockRequest,
+  rejectRequest as rejectMockRequest,
+} from "@/lib/mock";
 import { parseCommand } from "@/lib/telegram/router";
 import { decodeCb } from "@/lib/telegram/callback";
 import { claimUpdate, getSession, setSession, clearSession } from "@/lib/telegram/state";
@@ -152,6 +156,30 @@ async function handleCallback(chatId: number, update: TelegramUpdate): Promise<v
   };
 
   switch (verb) {
+    // Mock exam requests (0050), answered from notifyMockRequest's buttons.
+    // They call the same library the admin panel does — legal under the service
+    // role because lib/mock.ts is plain TypeScript, not an is_admin(auth.uid())
+    // RPC, which would raise here. The owner check happened at gate 2 of the
+    // webhook. `adminId` is null: there is no session, and an honest absence
+    // beats a guessed id.
+    case "mkA":
+    case "mkR": {
+      const id = args[0] ?? "";
+      const approve = verb === "mkA";
+      const out = approve ? await approveMockRequest(id, null) : await rejectMockRequest(id, null);
+      const note = out.ok
+        ? approve
+          ? "✅ Approved — they can sit the mock now."
+          : "🚫 Rejected."
+        : `⚠️ ${out.error}`;
+      // Edited in place with the buttons dropped, so an answered request cannot
+      // be tapped twice. Telegram hands back RENDERED text with its entities
+      // stripped, so it is re-escaped before going back out as HTML.
+      const original = escapeHtml(cq.message.text ?? "Mock request");
+      await editMessageText(chatId, messageId, `${original}\n\n<i>${note}</i>`);
+      return;
+    }
+
     case "menu":
       await clearSession(chatId);
       await editMessageText(chatId, messageId, await buildOverview(), mainMenu());

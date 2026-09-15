@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
 import { extractSensitiveLiterals } from "@/lib/ielts/sanitize-test-html";
 
@@ -48,6 +49,20 @@ export async function GET(
     return Response.json({ error: "Sign in to see the answers" }, { status: 401 });
   }
 
+  // Mock papers (0050) NEVER hand their key to the browser. The student is
+  // entitled to the paper while sitting the section, so the shared gate above
+  // passes — and the key would give them the answers mid-exam and their score
+  // the instant they submit, before the owner releases anything. The bridge
+  // handles a refusal by leaving the in-page report hidden, which is exactly
+  // the exam experience wanted. The released breakdown is rendered server-side
+  // on /mock/[id]/result instead. Admins keep it, to check a paper.
+  if (access.row.track === "mock") {
+    const isAdmin = await callerIsAdmin(access.userId);
+    if (!isAdmin) {
+      return Response.json({ error: "Results are released by your teacher" }, { status: 403 });
+    }
+  }
+
   const html = await downloadTestHtml(access.row.file_path!);
   if (html === null) {
     return Response.json({ error: "Upstream error" }, { status: 502 });
@@ -62,4 +77,9 @@ export async function GET(
     { literals },
     { headers: { "Cache-Control": "no-store, must-revalidate" } },
   );
+}
+
+async function callerIsAdmin(userId: string): Promise<boolean> {
+  const { data } = await createAdminClient().from("profiles").select("role").eq("id", userId).maybeSingle();
+  return (data as { role?: string } | null)?.role === "admin";
 }

@@ -19,31 +19,107 @@
 //
 // Regenerate ./supabase.ts after every migration — see its header.
 
-import type { Database as GeneratedDatabase } from "./supabase";
+import type { Database as GeneratedDatabase, Json } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// NO PENDING SCHEMA OVERRIDES.
+// PENDING SCHEMA OVERRIDES — migration 0050 ONLY.
 //
-// There used to be `PendingFunctions` and `PendingTables` here: hand-written
-// stand-ins for objects that a migration had created in the live database but
-// that ./supabase.ts had not yet seen, because regenerating it needs a Supabase
-// personal access token and the machine writing the migrations did not have one.
+// Hand-written stand-ins for the tables migration 0050 (the Mock exam section)
+// creates, which ./supabase.ts has not seen yet because regenerating it needs a
+// Supabase personal access token. 0050 was applied to Frankfurt on 2026-09-15.
 //
-// They were deleted on 2026-09-05, when `npm run types` was finally run against
-// the live Frankfurt project. Everything they declared — the `*_as` RPCs (0042),
-// the `discipline_*` tables and RPCs (0046) and `discipline_days.published`
-// (0047) — is now in the GENERATED types, which are the real ones.
+// ⚠️ TEMPORARY. Run `SUPABASE_ACCESS_TOKEN=<token> npm run types` and DELETE
+// this block. An override that outlives its migration is worse than no
+// override, because it hides the real shape instead of failing the build.
 //
-// If you add a migration and need the app to compile before you can regenerate:
-// bring the pattern back, keep it to the objects that migration adds, and delete
-// it again the moment `npm run types` has run. An override that outlives its
-// migration is worse than no override, because it hides the real signature.
+// The pattern is not new — it covered 0040, 0042, 0046, 0047 until 2026-09-05
+// and 0049 briefly. Keep entries scoped to one migration.
+
+type PendingTable<Row> = {
+  Row: Row;
+  Insert: Partial<Row>;
+  Update: Partial<Row>;
+  Relationships: [];
+};
+
+type PendingTables = {
+  mocks: PendingTable<{
+    id: string;
+    title: string;
+    description: string | null;
+    listening_test_id: string | null;
+    reading_test_id: string | null;
+    writing_task1_prompt: string | null;
+    writing_task1_image_path: string | null;
+    writing_task2_prompt: string | null;
+    writing_minutes: number;
+    published: boolean;
+    created_at: string;
+    updated_at: string;
+  }>;
+  mock_requests: PendingTable<{
+    id: string;
+    user_id: string;
+    mock_id: string;
+    status: string;
+    message: string | null;
+    created_at: string;
+    decided_at: string | null;
+    decided_by: string | null;
+  }>;
+  mock_attempts: PendingTable<{
+    id: string;
+    user_id: string | null;
+    student_name: string | null;
+    student_email: string | null;
+    mock_id: string;
+    request_id: string | null;
+    status: string;
+    approved_at: string;
+    approved_by: string | null;
+    started_at: string | null;
+    listening_test_id: string | null;
+    reading_test_id: string | null;
+    listening_answers: Json | null;
+    listening_raw: number | null;
+    listening_total: number | null;
+    listening_band: number | null;
+    listening_submitted_at: string | null;
+    reading_answers: Json | null;
+    reading_raw: number | null;
+    reading_total: number | null;
+    reading_band: number | null;
+    reading_submitted_at: string | null;
+    writing_task1_prompt: string | null;
+    writing_task2_prompt: string | null;
+    writing_task1: string | null;
+    writing_task2: string | null;
+    writing_started_at: string | null;
+    writing_saved_at: string | null;
+    writing_submitted_at: string | null;
+    writing_task1_band: number | null;
+    writing_task2_band: number | null;
+    writing_band: number | null;
+    writing_feedback: string | null;
+    graded_at: string | null;
+    graded_by: string | null;
+    overall_band: number | null;
+    submitted_at: string | null;
+    released_at: string | null;
+    released_by: string | null;
+    created_at: string;
+  }>;
+};
 
 /** The generated schema, passed to every Supabase client. */
-export type Database = GeneratedDatabase;
+export type Database = Omit<GeneratedDatabase, "public"> & {
+  public: Omit<GeneratedDatabase["public"], "Tables"> & {
+    Tables: GeneratedDatabase["public"]["Tables"] & PendingTables;
+  };
+};
 
-type Tables = GeneratedDatabase["public"]["Tables"];
+type Tables = GeneratedDatabase["public"]["Tables"] & PendingTables;
 type Views = GeneratedDatabase["public"]["Views"];
 
 /** A table's row, exactly as the database returns it. */

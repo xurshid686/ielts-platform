@@ -53,6 +53,13 @@ export async function TestDetail({
   // belongs to: no `profiles.level` is ever 'discipline'. `canOpenTrack` is the
   // same gate /api/test-html uses, so the page and the file agree.
   const viewer = profile ?? { role: "student", level: "regular", premium_until: null };
+
+  // A mock paper is sat ONLY inside /mock/[id], never on this page — for
+  // everyone, admins included. Here it would run the practice TestRunner, whose
+  // saveResult() shows the band on submit and writes a `results` row the
+  // student can read, both before the owner has released anything (0050).
+  if (String(t.track) === "mock") notFound();
+
   const openable = await canOpenTrack({
     supabase,
     viewer,

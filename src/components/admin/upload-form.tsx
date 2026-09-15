@@ -102,6 +102,7 @@ export function UploadForm({ disciplineDays = [] }: { disciplineDays?: UploadDay
             <option value="pre_ielts">Pre-IELTS students only</option>
             <option value="intro">Introduction students only</option>
             <option value="discipline">Discipline challenge only</option>
+            <option value="mock">Mock exam only — never public</option>
           </select>
         </label>
 

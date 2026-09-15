@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
+import { canOpenMockPaper } from "@/lib/mock";
 
 export type TestRow = {
   file_path?: string;
@@ -56,6 +57,16 @@ export async function canOpenTrack({
   track: string | null | undefined;
   testId: string;
 }): Promise<boolean> {
+  // Mock papers (0050): the paper must be the section the student is on RIGHT
+  // NOW in an approved attempt — nothing before, nothing after submitting. The
+  // rule lives in lib/mock.ts next to the attempt state it reads. Admins pass so
+  // they can check a paper.
+  if (track === "mock") {
+    if (viewer.role === "admin") return true;
+    if (!userId) return false;
+    return canOpenMockPaper(userId, testId);
+  }
+
   if ((track ?? "regular") !== "discipline") return canAccessTrack(viewer, track);
 
   if (viewer.role === "admin") return true;
@@ -140,7 +151,9 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
   });
   if (!openable) return { ok: false, status: 404, message: "Not found" };
 
-  if (row.tier === "premium") {
+  // An approved mock place IS the entitlement; a premium gate on top would be a
+  // second lock on the same door (the reasoning the Discipline upload uses).
+  if (row.tier === "premium" && row.track !== "mock") {
     if (
       !canAccessTest(
         { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
