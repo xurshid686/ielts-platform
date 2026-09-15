@@ -1099,7 +1099,20 @@ repeated exits → warning + "Review suggested" for the teacher, never automatic
 Traps found in the E2E run: `MockGradeForm` must not rely on router.refresh()
 or a transition — the action's revalidatePath left `pending` stuck and the
 props never re-keyed the form, so Release stayed disabled after Save. It keeps
-its own `saved`/`liveStatus` state and a plain busy flag. Headless Chromium has
+its own `saved`/`liveStatus` state and a plain busy flag.
+
+**Local `next start` does not reflect deployed refresh behaviour on this page.**
+On localhost:3100 a `router.refresh()` (or an action's revalidatePath) on
+`/admin/mocks/attempts/[id]` often never commits: React parks the transition
+(root lane 512 suspended, no ping), so the header keeps "Needs grading" until a
+reload. `/admin/mocks` refreshes fine locally, and a buffered (route-intercepted)
+response commits fine. On the Vercel dev preview the same flow updates the header,
+Overall and Released time after Save / Release / Unrelease with no reload
+(verified 2026-09-15). So the "header stale after Release" item was a harness
+artifact, not a bug: check refresh-dependent UI on the dev preview, not on
+localhost. Because the form's `key` includes status and graded_at, a real
+revalidation remounts it, and the success message ("Released — the student has
+been notified.") disappears once the page re-renders. Headless Chromium has
 no MP3 codec; the E2E swaps in a generated silent WAV to test audio behaviour.
 
 # Every test page must be linked — `Discovered - currently not indexed`
