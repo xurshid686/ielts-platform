@@ -5,7 +5,7 @@ import { sendMessage, editMessageText, answerCallbackQuery, escapeHtml } from "@
 import {
   approveRequest as approveMockRequest,
   rejectRequest as rejectMockRequest,
-} from "@/lib/mock";
+} from "@/lib/mock-admin";
 import { parseCommand } from "@/lib/telegram/router";
 import { decodeCb } from "@/lib/telegram/callback";
 import { claimUpdate, getSession, setSession, clearSession } from "@/lib/telegram/state";

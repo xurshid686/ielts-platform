@@ -23,7 +23,7 @@ import type { Database as GeneratedDatabase, Json } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// PENDING SCHEMA OVERRIDES — migration 0050 ONLY.
+// PENDING SCHEMA OVERRIDES — migrations 0050 and 0051 ONLY.
 //
 // Hand-written stand-ins for the tables migration 0050 (the Mock exam section)
 // creates, which ./supabase.ts has not seen yet because regenerating it needs a
@@ -109,6 +109,11 @@ type PendingTables = {
     released_at: string | null;
     released_by: string | null;
     created_at: string;
+    // 0051
+    writing_minutes: number | null;
+    writing_task1_image_path: string | null;
+    listening_key: Json | null;
+    reading_key: Json | null;
   }>;
 };
 

@@ -22,6 +22,12 @@ export type NavItem = {
    * is then an absolute URL, so it must never be matched against `pathname`.
    */
   external?: boolean;
+  /**
+   * Sub-pages shown in a dropdown on the bar and listed under the item in the
+   * mobile panel. Used for Admin, so admin sections are reachable from anywhere
+   * without adding a bar item (a ninth item overflowed the bar at 1280px).
+   */
+  children?: { href: string; label: string }[];
 };
 
 /**
@@ -76,7 +82,19 @@ export function navItemsFor(
   items.push({ href: "/leaderboard", label: "Leaderboard", icon: Trophy });
 
   if (profile.role === "admin") {
-    items.push({ href: "/admin", label: "Admin", icon: Shield });
+    items.push({
+      href: "/admin",
+      label: "Admin",
+      icon: Shield,
+      children: [
+        { href: "/admin", label: "Overview" },
+        { href: "/admin/mocks", label: "Mock exams" },
+        { href: "/admin/discipline", label: "Discipline" },
+        { href: "/admin/tests", label: "Tests" },
+        { href: "/admin/members", label: "Members & premium" },
+        ...(profile.is_owner ? [{ href: "/admin/team", label: "Admins" }] : []),
+      ],
+    });
   }
 
   return items;

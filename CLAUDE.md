@@ -999,19 +999,54 @@ only deletes an unstarted place.
 ## Flow and where things are
 
 - Papers: upload on /admin/tests with **For = "Mock exam only"** (`track: 'mock'`).
-- Admin: `/admin/mocks` (Requests, Mocks builder incl. Task 1 image in the
-  private `mock-assets` bucket, Results with CSV) and
-  `/admin/mocks/attempts/[id]` (per-question review, essays, grade, Release /
-  Unrelease).
-- Student: `/mock` (nav "Mock", hidden for admins so the admin bar does not
-  overflow at 1280px), `/mock/[id]`, `/mock/[id]/[section]`, `/mock/[id]/result`.
+- Code is split: `src/lib/mock.ts` (student side + the shared attempt
+  breakdown), `src/lib/mock-admin.ts` (owner side, server-only),
+  `src/lib/mock-shared.ts` (pure: bands, stages, CSV, dates — unit-tested).
+- Admin: `/admin/mocks` — workload counts, a per-mock scope, Requests (bulk
+  approve), Results (stage chips, search, date range, sort, 50/page, bulk
+  release, CSV of every filtered row, phone cards) and the Mocks builder
+  (readiness checklist, Save draft / Save & publish, Duplicate, Unpublish).
+  **Filters live in the URL** (`tab, mock, stage, q, from, to, sort, page`) and
+  attempt links carry `?back=` so Back returns to the same view.
+- `/admin/mocks/attempts/[id]` — grading queue for that mock (oldest submission
+  first, "n of m", Save & next), essays, per-question review, Release.
+- Nav: **Admin is a dropdown** (Overview, Mock exams, Discipline, Tests,
+  Members, Admins for the owner) in the same slot — no extra bar item. The
+  account name next to the avatar is hidden between `lg` and `2xl`: with a long
+  name the admin bar overlapped the header icons at 1280px (this pre-dated
+  mocks; measured in the E2E run). Student nav has "Mock"; admins do not.
+- Student: `/mock`, `/mock/[id]`, `/mock/[id]/[section]`, `/mock/[id]/result`.
 - Writing clock is enforced server-side in `saveWriting()` (deadline + 60 s
   grace, then the saved draft is handed in).
-- Bands: `mock-shared.ts` — writing = (T1 + 2×T2)/3, overall = mean of L/R/W,
-  both with IELTS rounding; unit-tested.
-- Telegram: `notifyMockRequest` (with buttons) and `notifyMockFinished`.
-- `src/types/database.ts` carries PENDING overrides for the 0050 tables. Run
+- Bands: writing = (T1 + 2×T2)/3, overall = mean of L/R/W, IELTS rounding.
+- Telegram: `notifyMockRequest` (Approve/Reject buttons) and `notifyMockFinished`.
+- `src/types/database.ts` carries PENDING overrides for 0050 + 0051. Run
   `npm run types` and delete them.
+
+## Admin-side rules (0051 + the 2026-09-15 Codex review)
+
+- **Readiness is one validator** (`readinessIssues` in mock-admin.ts) used by
+  publish, approve AND direct grant: both papers exist, right skill, Mock
+  track, usable answer key; both prompts; 10–180 min. Drafts save regardless.
+- **Exam content locks once any place exists** (papers, prompts, minutes,
+  image) — enforced in `saveMock` and the image actions, not only the UI.
+  Duplicate to change. Attempts also SNAPSHOT writing minutes + image path at
+  grant and the answer key at grading (0051), so nothing live can re-mark
+  history. Replaced Task 1 images are never deleted from storage for the same
+  reason.
+- **A new place closes the student's pending request in the same transaction**
+  (trigger `mock_attempt_resolves_request`, 0051). Approving a student who
+  already has a place reconciles instead of failing.
+- **Release is conditional and returns the row**; the student is notified only
+  by the call that flipped it, so double/bulk releases cannot double-notify.
+  The grade form disables Release while it has unsaved edits.
+- **Admin loaders throw on DB errors and page with `fetchAll`** — PostgREST
+  caps responses at 1000 rows even without `.limit()`, and an error must never
+  read as "nothing pending".
+- Owner actions are wrapped in `guarded()`: failures come back as messages; the
+  panel disables every action while one runs.
+- CSV cells go through `csvCell` (formula prefixes neutralised — student names
+  are student-controlled) with a UTF-8 BOM.
 
 # Every test page must be linked — `Discovered - currently not indexed`
 

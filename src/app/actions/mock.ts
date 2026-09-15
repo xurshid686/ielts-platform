@@ -4,24 +4,32 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
-  approveRequest,
-  cancelAttempt,
-  deleteMock,
   getMock,
-  grantByEmail,
-  gradeWriting,
-  rejectRequest,
-  releaseAttempt,
-  saveMock,
   saveWriting,
   startAttempt,
   submitRequest,
   submitSection,
-  unreleaseAttempt,
-  uploadTask1Image,
-  type MockInput,
   type WritingSaveResult,
 } from "@/lib/mock";
+import {
+  approveRequest,
+  bulkApprove,
+  bulkRelease,
+  cancelAttempt,
+  deleteMock,
+  duplicateMock,
+  grantByEmail,
+  gradeWriting,
+  rejectRequest,
+  releaseAttempt,
+  removeTask1Image,
+  saveMock,
+  setMockPublished,
+  unreleaseAttempt,
+  uploadTask1Image,
+  type BulkOutcome,
+  type MockInput,
+} from "@/lib/mock-admin";
 import { MAX_REQUEST_MESSAGE } from "@/lib/mock-shared";
 import { notifyMockFinished, notifyMockRequest } from "@/lib/telegram/notify";
 
@@ -152,116 +160,163 @@ export async function saveMockWriting(
 }
 
 // ----------------------------------------------------------------- the owner
+//
+// Every owner action catches its own failures and returns them as an error
+// result, so a network or database failure shows up as a message in the panel
+// instead of an unhandled rejection that loses the owner's edits.
 
-export async function approveMockRequest(requestId: string): Promise<MockActionResult> {
+async function guarded<T extends { ok: boolean }>(
+  label: string,
+  fn: (adminId: string) => Promise<T>,
+): Promise<T | { ok: false; error: string }> {
   const gate = await assertAdmin();
   if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await approveRequest(requestId, gate.user.id);
-  if (res.ok) refreshAdmin();
-  return res;
+  try {
+    return await fn(gate.user.id);
+  } catch (e) {
+    console.error(`[mock action] ${label}`, e);
+    return { ok: false, error: "Something went wrong on the server. Nothing was changed — try again." };
+  }
 }
 
-export async function rejectMockRequest(requestId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await rejectRequest(requestId, gate.user.id);
-  if (res.ok) refreshAdmin();
-  return res;
+export type MockAdminResult = { ok: true; note?: string } | { ok: false; error: string; issues?: string[] };
+
+export async function approveMockRequest(requestId: string): Promise<MockAdminResult> {
+  return guarded("approve", async (adminId) => {
+    const res = await approveRequest(requestId, adminId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
-export async function grantMockByEmail(email: string, mockId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  if (!email.trim()) return { ok: false, error: "Enter an email address." };
-  if (!mockId) return { ok: false, error: "Pick a mock." };
-  const res = await grantByEmail(email, mockId, gate.user.id);
-  if (res.ok) refreshAdmin();
-  return res;
+export async function rejectMockRequest(requestId: string): Promise<MockAdminResult> {
+  return guarded("reject", async (adminId) => {
+    const res = await rejectRequest(requestId, adminId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
-export async function cancelMockAttempt(attemptId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await cancelAttempt(attemptId);
-  if (res.ok) refreshAdmin();
-  return res;
+export async function bulkApproveMockRequests(requestIds: string[]): Promise<{ ok: true; outcome: BulkOutcome } | { ok: false; error: string }> {
+  return guarded("bulk approve", async (adminId) => {
+    const outcome = await bulkApprove(requestIds, adminId);
+    refreshAdmin();
+    return { ok: true as const, outcome };
+  });
+}
+
+export async function grantMockByEmail(email: string, mockId: string): Promise<MockAdminResult> {
+  return guarded("grant", async (adminId) => {
+    if (!email.trim()) return { ok: false, error: "Enter an email address." };
+    if (!mockId) return { ok: false, error: "Pick a mock." };
+    const res = await grantByEmail(email, mockId, adminId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+export async function cancelMockAttempt(attemptId: string): Promise<MockAdminResult> {
+  return guarded("cancel", async () => {
+    const res = await cancelAttempt(attemptId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
 export async function saveMockDefinition(
   input: MockInput,
-): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  // The image path is set only by uploadMockTask1Image, never from the form.
-  const { writing_task1_image_path: _ignored, ...rest } = input;
-  void _ignored;
-  const res = await saveMock(rest);
-  if (res.ok) refreshAdmin();
-  return res;
+): Promise<{ ok: true; id: string; issues: string[] } | { ok: false; error: string; issues?: string[] }> {
+  return guarded("save mock", async () => {
+    const res = await saveMock(input);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
-export async function uploadMockTask1Image(formData: FormData): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const mockId = String(formData.get("mockId") || "");
-  const file = formData.get("file");
-  if (!mockId) return { ok: false, error: "Save the mock first." };
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose an image." };
-  const res = await uploadTask1Image(mockId, file);
-  if (res.ok) refreshAdmin();
-  return res;
+export async function setMockPublishedAction(mockId: string, published: boolean): Promise<MockAdminResult> {
+  return guarded("publish", async () => {
+    const res = await setMockPublished(mockId, published);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
-export async function removeMockTask1Image(mockId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const mock = await getMock(mockId);
-  if (!mock) return { ok: false, error: "That mock no longer exists." };
-  const res = await saveMock({ ...mock, writing_task1_image_path: null });
-  if (res.ok) refreshAdmin();
-  return res.ok ? { ok: true } : res;
+export async function duplicateMockAction(mockId: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  return guarded("duplicate", async () => {
+    const res = await duplicateMock(mockId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
-export async function deleteMockDefinition(mockId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await deleteMock(mockId);
-  if (res.ok) refreshAdmin();
-  return res;
+export async function uploadMockTask1Image(formData: FormData): Promise<MockAdminResult> {
+  return guarded("upload image", async () => {
+    const mockId = String(formData.get("mockId") || "");
+    const file = formData.get("file");
+    if (!mockId) return { ok: false, error: "Save the mock first." };
+    if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose an image." };
+    const res = await uploadTask1Image(mockId, file);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+export async function removeMockTask1Image(mockId: string): Promise<MockAdminResult> {
+  return guarded("remove image", async () => {
+    const res = await removeTask1Image(mockId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+export async function deleteMockDefinition(mockId: string): Promise<MockAdminResult> {
+  return guarded("delete mock", async () => {
+    const res = await deleteMock(mockId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
 }
 
 export async function gradeMockWriting(
   attemptId: string,
   input: { task1: number; task2: number; writing: number | null; feedback: string },
-): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await gradeWriting(attemptId, input, gate.user.id);
-  if (res.ok) {
-    refreshAdmin();
-    revalidatePath(`/admin/mocks/attempts/${attemptId}`);
-  }
-  return res;
+): Promise<MockAdminResult> {
+  return guarded("grade", async (adminId) => {
+    const res = await gradeWriting(attemptId, input, adminId);
+    if (res.ok) {
+      refreshAdmin();
+      revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+    }
+    return res;
+  });
 }
 
-export async function releaseMockAttempt(attemptId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await releaseAttempt(attemptId, gate.user.id);
-  if (res.ok) {
-    refreshAdmin();
-    revalidatePath(`/admin/mocks/attempts/${attemptId}`);
-  }
-  return res;
+export async function releaseMockAttempt(attemptId: string): Promise<MockAdminResult> {
+  return guarded("release", async (adminId) => {
+    const res = await releaseAttempt(attemptId, adminId);
+    if (res.ok) {
+      refreshAdmin();
+      revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+    }
+    return res;
+  });
 }
 
-export async function unreleaseMockAttempt(attemptId: string): Promise<MockActionResult> {
-  const gate = await assertAdmin();
-  if (!gate.ok) return { ok: false, error: gate.error };
-  const res = await unreleaseAttempt(attemptId);
-  if (res.ok) {
+export async function bulkReleaseMockAttempts(attemptIds: string[]): Promise<{ ok: true; outcome: BulkOutcome } | { ok: false; error: string }> {
+  return guarded("bulk release", async (adminId) => {
+    const outcome = await bulkRelease(attemptIds, adminId);
     refreshAdmin();
-    revalidatePath(`/admin/mocks/attempts/${attemptId}`);
-  }
-  return res;
+    return { ok: true as const, outcome };
+  });
+}
+
+export async function unreleaseMockAttempt(attemptId: string): Promise<MockAdminResult> {
+  return guarded("unrelease", async () => {
+    const res = await unreleaseAttempt(attemptId);
+    if (res.ok) {
+      refreshAdmin();
+      revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+    }
+    return res;
+  });
 }

@@ -7,10 +7,7 @@ import { asAnswerKey, asAnswers, gradeAnswers, isAnswerCorrect } from "@/lib/iel
 import {
   MAX_ESSAY_CHARS,
   MAX_REQUEST_MESSAGE,
-  isBand,
   nextSection,
-  overallBand,
-  writingBand,
   type MockAttemptStatus,
   type MockRequestStatus,
 } from "@/lib/mock-shared";
@@ -36,9 +33,10 @@ import {
 
 export type LibResult = { ok: true } | { ok: false; error: string };
 
-const db = () => createAdminClient();
+/** Shared with mock-admin.ts — the service-role client. */
+export const db = () => createAdminClient();
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // -------------------------------------------------------------------- types
 
@@ -57,7 +55,7 @@ export type MockRow = {
   updated_at: string;
 };
 
-const MOCK_COLS =
+export const MOCK_COLS =
   "id, title, description, listening_test_id, reading_test_id, writing_task1_prompt, writing_task1_image_path, writing_task2_prompt, writing_minutes, published, created_at, updated_at";
 
 export type AttemptRow = {
@@ -98,10 +96,15 @@ export type AttemptRow = {
   submitted_at: string | null;
   released_at: string | null;
   created_at: string;
+  // 0051 snapshots — null only on attempts made before that migration.
+  writing_minutes: number | null;
+  writing_task1_image_path: string | null;
+  listening_key: Json | null;
+  reading_key: Json | null;
 };
 
-const ATTEMPT_COLS =
-  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at";
+export const ATTEMPT_COLS =
+  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at, writing_minutes, writing_task1_image_path, listening_key, reading_key";
 
 export type RequestRow = {
   id: string;
@@ -166,7 +169,7 @@ function toStudentAttempt(a: AttemptRow): StudentAttempt {
 }
 
 /** numeric(3,1) arrives from PostgREST as a number, but be strict about it. */
-function num(v: unknown): number | null {
+export function num(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -396,6 +399,9 @@ export async function submitSection(
           listening_total: graded.total,
           listening_band: band,
           listening_submitted_at: now,
+          // The key this section was marked against, so correcting the paper's
+          // key later cannot re-mark a historical review (0051).
+          listening_key: key,
         }
       : {
           reading_answers: answers,
@@ -403,6 +409,7 @@ export async function submitSection(
           reading_total: graded.total,
           reading_band: band,
           reading_submitted_at: now,
+          reading_key: key,
         };
 
   const { data: updated, error } = await db()
@@ -423,7 +430,6 @@ export function writingDeadline(startedAt: string | null, minutes: number): numb
   return startedAt ? new Date(startedAt).getTime() + minutes * 60_000 : null;
 }
 
-/** Starts the writing clock the first time the student opens Writing. */
 /**
  * Starts the writing clock the first time the student opens Writing, and
  * returns the clock's start time.
@@ -502,8 +508,8 @@ export async function saveWriting(
     return { ok: false, error: "Writing isn't open yet." };
   }
 
-  const mock = await getMock(mockId);
-  const deadline = writingDeadline(a.writing_started_at, mock?.writing_minutes ?? 60)!;
+  const minutes = a.writing_minutes ?? (await getMock(mockId))?.writing_minutes ?? 60;
+  const deadline = writingDeadline(a.writing_started_at, minutes)!;
   const expired = Date.now() > deadline + WRITING_GRACE_MS;
   const now = new Date().toISOString();
 
@@ -542,146 +548,17 @@ export async function getWritingDraft(userId: string, mockId: string) {
     savedAt: a.writing_saved_at,
     task1Prompt: a.writing_task1_prompt,
     task2Prompt: a.writing_task2_prompt,
+    /** Snapshots (0051); null only on pre-0051 attempts, where the caller falls back to the mock. */
+    writingMinutes: a.writing_minutes,
+    task1ImagePath: a.writing_task1_image_path,
   };
 }
 
-// --------------------------------------------------------------- admin reads
-
-export type AdminRequest = RequestRow & {
-  name: string | null;
-  email: string | null;
-  mock_title: string;
-};
-
-export async function listRequests(): Promise<AdminRequest[]> {
-  const client = db();
-  const { data } = await client
-    .from("mock_requests")
-    .select("id, user_id, mock_id, status, message, created_at, decided_at")
-    .order("created_at", { ascending: false })
-    .limit(300);
-  const reqs = rows<RequestRow>(data);
-  if (!reqs.length) return [];
-
-  const [profs, mocks] = await Promise.all([
-    client
-      .from("profiles")
-      .select("id, name, email")
-      .in("id", [...new Set(reqs.map((r) => r.user_id))]),
-    client
-      .from("mocks")
-      .select("id, title")
-      .in("id", [...new Set(reqs.map((r) => r.mock_id))]),
-  ]);
-  const who = new Map(
-    rows<{ id: string; name: string | null; email: string | null }>(profs.data).map((p) => [p.id, p]),
-  );
-  const title = new Map(rows<{ id: string; title: string }>(mocks.data).map((m) => [m.id, m.title]));
-
-  return reqs.map((r) => ({
-    ...r,
-    name: who.get(r.user_id)?.name ?? null,
-    email: who.get(r.user_id)?.email ?? null,
-    mock_title: title.get(r.mock_id) ?? "(deleted mock)",
-  }));
-}
-
-export async function countPendingRequests(): Promise<number> {
-  const { count } = await db()
-    .from("mock_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
-  return count ?? 0;
-}
-
-export type AdminMock = MockRow & {
-  listening_title: string | null;
-  reading_title: string | null;
-  attempts: number;
-};
-
-export async function listMocksAdmin(): Promise<AdminMock[]> {
-  const client = db();
-  const [mocksRes, attemptsRes] = await Promise.all([
-    client.from("mocks").select(MOCK_COLS).order("created_at", { ascending: false }),
-    client.from("mock_attempts").select("mock_id"),
-  ]);
-  const mocks = rows<MockRow>(mocksRes.data);
-  const ids = [
-    ...new Set(mocks.flatMap((m) => [m.listening_test_id, m.reading_test_id]).filter(Boolean)),
-  ] as string[];
-  const titles = new Map<string, string>();
-  if (ids.length) {
-    const { data } = await client.from("tests").select("id, title").in("id", ids);
-    for (const t of rows<{ id: string; title: string }>(data)) titles.set(t.id, t.title);
-  }
-  const counts = new Map<string, number>();
-  for (const a of rows<{ mock_id: string }>(attemptsRes.data)) {
-    counts.set(a.mock_id, (counts.get(a.mock_id) ?? 0) + 1);
-  }
-  return mocks.map((m) => ({
-    ...m,
-    listening_title: m.listening_test_id ? (titles.get(m.listening_test_id) ?? null) : null,
-    reading_title: m.reading_test_id ? (titles.get(m.reading_test_id) ?? null) : null,
-    attempts: counts.get(m.id) ?? 0,
-  }));
-}
-
-export type MockPaper = { id: string; title: string; skill: "reading" | "listening"; total: number | null };
-
-/** Papers an admin can put in a mock: everything uploaded on the Mock track. */
-export async function listMockPapers(): Promise<MockPaper[]> {
-  const { data } = await db()
-    .from("tests")
-    .select("id, title, skill, total")
-    .eq("track", "mock")
-    .order("created_at", { ascending: false });
-  return rows<MockPaper>(data);
-}
-
-export type AdminAttemptSummary = Pick<
-  AttemptRow,
-  | "id"
-  | "user_id"
-  | "student_name"
-  | "student_email"
-  | "mock_id"
-  | "status"
-  | "approved_at"
-  | "started_at"
-  | "listening_band"
-  | "reading_band"
-  | "writing_band"
-  | "overall_band"
-  | "listening_submitted_at"
-  | "reading_submitted_at"
-  | "writing_submitted_at"
-  | "submitted_at"
-  | "released_at"
-> & { mock_title: string };
-
-/** Every attempt ever — the permanent record. No limit on purpose. */
-export async function listAttemptsAdmin(): Promise<AdminAttemptSummary[]> {
-  const client = db();
-  const [attemptsRes, mocksRes] = await Promise.all([
-    client
-      .from("mock_attempts")
-      .select(
-        "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_band, reading_band, writing_band, overall_band, listening_submitted_at, reading_submitted_at, writing_submitted_at, submitted_at, released_at",
-      )
-      .order("approved_at", { ascending: false }),
-    client.from("mocks").select("id, title"),
-  ]);
-  const title = new Map(rows<{ id: string; title: string }>(mocksRes.data).map((m) => [m.id, m.title]));
-  return rows<Omit<AdminAttemptSummary, "mock_title">>(attemptsRes.data).map((a) => ({
-    ...a,
-    listening_band: num(a.listening_band),
-    reading_band: num(a.reading_band),
-    writing_band: num(a.writing_band),
-    overall_band: num(a.overall_band),
-    mock_title: title.get(a.mock_id) ?? "(deleted mock)",
-  }));
-}
+// ------------------------------------------------------- attempt breakdown
+//
+// Shared by the admin attempt page and a student's RELEASED result — the only
+// two places a mock's correct answers reach a browser. Everything else admin-
+// only lives in mock-admin.ts.
 
 export type ReviewLine = { q: string; given: string; accepted: string[]; correct: boolean };
 
@@ -695,15 +572,21 @@ export type AttemptDetail = {
   task1ImageUrl: string | null;
 };
 
+/**
+ * Marks a section for display. Uses the key SNAPSHOTTED when the section was
+ * graded (0051), so the breakdown always agrees with the band that was stored;
+ * the live test key is only a fallback for pre-0051 attempts.
+ */
 async function reviewFor(
   testId: string | null,
   answers: Json | null,
+  snapshotKey: Json | null,
   skill: "reading" | "listening",
 ): Promise<{ title: string | null; lines: ReviewLine[] }> {
   if (!testId) return { title: null, lines: [] };
   const { data } = await db().from("tests").select("title, answer_key").eq("id", testId).maybeSingle();
   const row = data as { title?: string; answer_key?: unknown } | null;
-  const key = asAnswerKey(row?.answer_key);
+  const key = asAnswerKey(snapshotKey) ?? asAnswerKey(row?.answer_key);
   const given = asAnswers(answers) ?? {};
   const lines = key
     ? Object.keys(key)
@@ -718,21 +601,22 @@ async function reviewFor(
   return { title: row?.title ?? null, lines };
 }
 
-/** One attempt with the per-question breakdown. For admins, or a released student. */
 export async function getAttemptDetail(attemptId: string): Promise<AttemptDetail | null> {
-  const { data } = await db().from("mock_attempts").select(ATTEMPT_COLS).eq("id", attemptId).maybeSingle();
+  if (!UUID.test(attemptId)) return null;
+  const { data, error } = await db().from("mock_attempts").select(ATTEMPT_COLS).eq("id", attemptId).maybeSingle();
+  if (error) throw new Error(`[mock] attempt load failed: ${error.message}`);
   const attempt = data as AttemptRow | null;
   if (!attempt) return null;
 
   const mock = await getMock(attempt.mock_id);
   const [listening, reading, image] = await Promise.all([
     attempt.listening_submitted_at
-      ? reviewFor(attempt.listening_test_id, attempt.listening_answers, "listening")
+      ? reviewFor(attempt.listening_test_id, attempt.listening_answers, attempt.listening_key, "listening")
       : Promise.resolve({ title: null, lines: [] }),
     attempt.reading_submitted_at
-      ? reviewFor(attempt.reading_test_id, attempt.reading_answers, "reading")
+      ? reviewFor(attempt.reading_test_id, attempt.reading_answers, attempt.reading_key, "reading")
       : Promise.resolve({ title: null, lines: [] }),
-    signedTask1Image(mock?.writing_task1_image_path ?? null),
+    signedTask1Image(attempt.writing_task1_image_path ?? mock?.writing_task1_image_path ?? null),
   ]);
 
   return {
@@ -759,301 +643,4 @@ export async function getReleasedDetail(userId: string, mockId: string): Promise
   const a = await loadAttempt(userId, mockId);
   if (!a || a.status !== "released") return null;
   return getAttemptDetail(a.id);
-}
-
-// -------------------------------------------------------------- admin writes
-
-export type MockInput = {
-  id?: string;
-  title: string;
-  description: string | null;
-  listening_test_id: string | null;
-  reading_test_id: string | null;
-  writing_task1_prompt: string | null;
-  writing_task1_image_path?: string | null;
-  writing_task2_prompt: string | null;
-  writing_minutes: number;
-  published: boolean;
-};
-
-export async function saveMock(input: MockInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const title = input.title.trim();
-  if (!title) return { ok: false, error: "Give the mock a title." };
-  if (input.published) {
-    if (!input.listening_test_id || !input.reading_test_id) {
-      return { ok: false, error: "Pick both a Listening and a Reading paper before publishing." };
-    }
-    if (!input.writing_task1_prompt?.trim() || !input.writing_task2_prompt?.trim()) {
-      return { ok: false, error: "Add both writing prompts before publishing." };
-    }
-  }
-  const minutes = Math.round(Number(input.writing_minutes) || 60);
-  if (minutes < 10 || minutes > 180) return { ok: false, error: "Writing time must be 10–180 minutes." };
-
-  const row: TablesUpdate<"mocks"> = {
-    title,
-    description: input.description?.trim() || null,
-    listening_test_id: input.listening_test_id || null,
-    reading_test_id: input.reading_test_id || null,
-    writing_task1_prompt: input.writing_task1_prompt?.trim() || null,
-    writing_task2_prompt: input.writing_task2_prompt?.trim() || null,
-    writing_minutes: minutes,
-    published: input.published,
-    updated_at: new Date().toISOString(),
-  };
-  if (input.writing_task1_image_path !== undefined) {
-    row.writing_task1_image_path = input.writing_task1_image_path;
-  }
-
-  const client = db();
-  if (input.id) {
-    const { error } = await client.from("mocks").update(row).eq("id", input.id);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, id: input.id };
-  }
-  const { data, error } = await client.from("mocks").insert(row).select("id").single();
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, id: (data as { id: string }).id };
-}
-
-export async function uploadTask1Image(mockId: string, file: File): Promise<LibResult> {
-  if (!file.type.startsWith("image/")) return { ok: false, error: "Task 1 image must be an image file." };
-  if (file.size > 5 * 1024 * 1024) return { ok: false, error: "Keep the image under 5 MB." };
-  const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-  const path = `${mockId}/task1-${Date.now()}.${ext}`;
-
-  const client = db();
-  const { error } = await client.storage
-    .from("mock-assets")
-    .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
-  if (error) return { ok: false, error: error.message };
-
-  const { error: rowErr } = await client
-    .from("mocks")
-    .update({ writing_task1_image_path: path, updated_at: new Date().toISOString() })
-    .eq("id", mockId);
-  if (rowErr) return { ok: false, error: rowErr.message };
-  return { ok: true };
-}
-
-/**
- * Deleting a mock is only allowed while nobody has an attempt on it — the
- * attempts are the permanent record (and 0050's `on delete restrict` would
- * refuse anyway). Unpublish it instead.
- */
-export async function deleteMock(mockId: string): Promise<LibResult> {
-  const { count } = await db()
-    .from("mock_attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("mock_id", mockId);
-  if ((count ?? 0) > 0) {
-    return { ok: false, error: "Students have sat this mock, so it is kept. Unpublish it instead." };
-  }
-  const { error } = await db().from("mocks").delete().eq("id", mockId);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
-}
-
-async function createAttempt(
-  userId: string,
-  mockId: string,
-  requestId: string | null,
-  adminId: string | null,
-): Promise<LibResult> {
-  const client = db();
-  const [mock, profRes] = await Promise.all([
-    getMock(mockId),
-    client.from("profiles").select("name, email").eq("id", userId).maybeSingle(),
-  ]);
-  if (!mock) return { ok: false, error: "That mock no longer exists." };
-  if (!mock.listening_test_id || !mock.reading_test_id) {
-    return { ok: false, error: "This mock is missing a Listening or Reading paper." };
-  }
-  const prof = (profRes.data as { name?: string | null; email?: string | null } | null) ?? {};
-
-  const { error } = await client.from("mock_attempts").insert({
-    user_id: userId,
-    student_name: prof.name ?? null,
-    student_email: prof.email ?? null,
-    mock_id: mockId,
-    request_id: requestId,
-    approved_by: adminId,
-    listening_test_id: mock.listening_test_id,
-    reading_test_id: mock.reading_test_id,
-  });
-  if (error) {
-    if (error.code === "23505") return { ok: false, error: "That student already has a place on this mock." };
-    return { ok: false, error: error.message };
-  }
-
-  const { error: noteErr } = await client.from("notifications").insert({
-    user_id: userId,
-    type: "mock_access",
-    title: "Mock exam approved",
-    body: `You can now sit "${mock.title}". Open the Mock section when you are ready — you get one attempt.`,
-    data: { href: `/mock/${mockId}` },
-  });
-  if (noteErr) console.error("[mock] approval notification failed", noteErr.message);
-  return { ok: true };
-}
-
-/**
- * Approve: create the attempt, stamp the request. One function so the web UI
- * and the Telegram bot cannot drift.
- */
-export async function approveRequest(requestId: string, adminId: string | null): Promise<LibResult> {
-  const client = db();
-  const { data } = await client
-    .from("mock_requests")
-    .select("id, user_id, mock_id, status")
-    .eq("id", requestId)
-    .maybeSingle();
-  const req = data as { id: string; user_id: string; mock_id: string; status: string } | null;
-  if (!req) return { ok: false, error: "That request no longer exists." };
-  if (req.status !== "pending") return { ok: false, error: `That request was already ${req.status}.` };
-
-  const created = await createAttempt(req.user_id, req.mock_id, req.id, adminId);
-  if (!created.ok) return created;
-
-  await client
-    .from("mock_requests")
-    .update({ status: "approved", decided_at: new Date().toISOString(), decided_by: adminId })
-    .eq("id", req.id);
-  return { ok: true };
-}
-
-export async function rejectRequest(requestId: string, adminId: string | null): Promise<LibResult> {
-  const { data, error } = await db()
-    .from("mock_requests")
-    .update({ status: "rejected", decided_at: new Date().toISOString(), decided_by: adminId })
-    .eq("id", requestId)
-    .eq("status", "pending")
-    .select("id");
-  if (error) return { ok: false, error: error.message };
-  if (!data?.length) return { ok: false, error: "That request was already answered." };
-  return { ok: true };
-}
-
-/** The owner giving a student a place directly, without a request. */
-export async function grantByEmail(
-  email: string,
-  mockId: string,
-  adminId: string | null,
-): Promise<LibResult> {
-  const { data } = await db().from("profiles").select("id").ilike("email", email.trim()).maybeSingle();
-  const target = data as { id: string } | null;
-  if (!target) return { ok: false, error: "No user found with that email." };
-  return createAttempt(target.id, mockId, null, adminId);
-}
-
-/**
- * Withdraw a place that has not been used. Once a student has started, the
- * attempt is a record and stays.
- */
-export async function cancelAttempt(attemptId: string): Promise<LibResult> {
-  const { data, error } = await db()
-    .from("mock_attempts")
-    .delete()
-    .eq("id", attemptId)
-    .eq("status", "approved")
-    .is("started_at", null)
-    .select("id");
-  if (error) return { ok: false, error: error.message };
-  if (!data?.length) return { ok: false, error: "That student has already started, so the attempt is kept." };
-  return { ok: true };
-}
-
-export async function gradeWriting(
-  attemptId: string,
-  input: { task1: number; task2: number; writing: number | null; feedback: string },
-  adminId: string | null,
-): Promise<LibResult> {
-  if (!isBand(input.task1) || !isBand(input.task2)) {
-    return { ok: false, error: "Task bands must be 0–9 in half steps." };
-  }
-  const writing = input.writing ?? writingBand(input.task1, input.task2);
-  if (!isBand(writing)) return { ok: false, error: "Writing band must be 0–9 in half steps." };
-
-  const client = db();
-  const { data } = await client
-    .from("mock_attempts")
-    .select("status, listening_band, reading_band, writing_submitted_at")
-    .eq("id", attemptId)
-    .maybeSingle();
-  const a = data as {
-    status: string;
-    listening_band: unknown;
-    reading_band: unknown;
-    writing_submitted_at: string | null;
-  } | null;
-  if (!a) return { ok: false, error: "That attempt no longer exists." };
-  if (!a.writing_submitted_at) return { ok: false, error: "The student hasn't submitted their writing yet." };
-
-  const overall = overallBand({
-    listening: num(a.listening_band),
-    reading: num(a.reading_band),
-    writing,
-  });
-
-  const { error } = await client
-    .from("mock_attempts")
-    .update({
-      writing_task1_band: input.task1,
-      writing_task2_band: input.task2,
-      writing_band: writing,
-      writing_feedback: input.feedback.trim().slice(0, 5000) || null,
-      overall_band: overall,
-      graded_at: new Date().toISOString(),
-      graded_by: adminId,
-    })
-    .eq("id", attemptId);
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
-}
-
-/** Publish the result to the student. Requires a graded, fully submitted attempt. */
-export async function releaseAttempt(attemptId: string, adminId: string | null): Promise<LibResult> {
-  const client = db();
-  const { data } = await client
-    .from("mock_attempts")
-    .select("user_id, mock_id, status, overall_band")
-    .eq("id", attemptId)
-    .maybeSingle();
-  const a = data as { user_id: string | null; mock_id: string; status: string; overall_band: unknown } | null;
-  if (!a) return { ok: false, error: "That attempt no longer exists." };
-  if (a.status === "released") return { ok: false, error: "Already released." };
-  if (a.status !== "submitted") return { ok: false, error: "The student hasn't finished the mock yet." };
-  if (num(a.overall_band) == null) return { ok: false, error: "Grade the writing before releasing." };
-
-  const { error } = await client
-    .from("mock_attempts")
-    .update({ status: "released", released_at: new Date().toISOString(), released_by: adminId })
-    .eq("id", attemptId)
-    .eq("status", "submitted");
-  if (error) return { ok: false, error: error.message };
-
-  if (a.user_id) {
-    const { error: noteErr } = await client.from("notifications").insert({
-      user_id: a.user_id,
-      type: "mock_result",
-      title: "Your mock exam result is ready",
-      body: "Open the Mock section to see your bands and feedback.",
-      data: { href: `/mock/${a.mock_id}/result` },
-    });
-    if (noteErr) console.error("[mock] release notification failed", noteErr.message);
-  }
-  return { ok: true };
-}
-
-/** Take a released result back (e.g. released by mistake). The record is untouched. */
-export async function unreleaseAttempt(attemptId: string): Promise<LibResult> {
-  const { data, error } = await db()
-    .from("mock_attempts")
-    .update({ status: "submitted", released_at: null, released_by: null })
-    .eq("id", attemptId)
-    .eq("status", "released")
-    .select("id");
-  if (error) return { ok: false, error: error.message };
-  if (!data?.length) return { ok: false, error: "That result isn't released." };
-  return { ok: true };
 }

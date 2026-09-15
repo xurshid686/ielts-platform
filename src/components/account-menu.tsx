@@ -65,7 +65,10 @@ export function AccountMenu({ profile }: { profile: Profile }) {
             {initial}
           </span>
         )}
-        <span className="hidden text-sm font-medium sm:block">{profile.name}</span>
+        {/* Hidden while the desktop nav bar is on screen but narrow (lg–2xl): a long
+            name pushed the bar into the header icons at 1280px. It is still in
+            the dropdown. Below lg there is no bar, so it has the room. */}
+        <span className="hidden max-w-[10rem] truncate text-sm font-medium sm:block lg:hidden 2xl:block">{profile.name}</span>
         <ChevronDown className={`h-4 w-4 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 

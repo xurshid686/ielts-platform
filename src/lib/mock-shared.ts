@@ -101,3 +101,82 @@ export const STATUS_LABEL: Record<MockAttemptStatus, string> = {
   submitted: "Submitted — awaiting results",
   released: "Results released",
 };
+
+// ------------------------------------------------------------ admin workflow
+
+/**
+ * Where an attempt sits in the OWNER's workflow — finer than the stored status.
+ * `submitted` in the database covers two very different jobs: essays nobody has
+ * marked yet, and marked results waiting to be released. The admin panel's
+ * counts, filters and row actions all key off this, so they cannot disagree.
+ */
+export type AdminStage =
+  | "not_started"
+  | "listening"
+  | "reading"
+  | "writing"
+  | "needs_grading"
+  | "ready_to_release"
+  | "released";
+
+export function adminStage(a: {
+  status: string;
+  started_at: string | null;
+  listening_submitted_at: string | null;
+  reading_submitted_at: string | null;
+  writing_submitted_at: string | null;
+  writing_band: number | null;
+  overall_band: number | null;
+}): AdminStage {
+  if (a.status === "released") return "released";
+  if (a.status === "submitted") {
+    return a.writing_band != null && a.overall_band != null ? "ready_to_release" : "needs_grading";
+  }
+  if (a.status === "approved" && !a.started_at) return "not_started";
+  return nextSection(a) ?? "writing";
+}
+
+export const STAGE_LABEL: Record<AdminStage, string> = {
+  not_started: "Not started",
+  listening: "On Listening",
+  reading: "On Reading",
+  writing: "On Writing",
+  needs_grading: "Needs grading",
+  ready_to_release: "Ready to release",
+  released: "Released",
+};
+
+/** Stages grouped the way the owner filters: what needs me, what is running, what is done. */
+export const STAGE_GROUPS = {
+  needs_grading: ["needs_grading"],
+  ready_to_release: ["ready_to_release"],
+  in_progress: ["listening", "reading", "writing"],
+  not_started: ["not_started"],
+  released: ["released"],
+} as const satisfies Record<string, readonly AdminStage[]>;
+
+export type StageGroup = keyof typeof STAGE_GROUPS;
+
+/**
+ * Neutralises a CSV cell. Quotes commas, quotes, CR and LF, and prefixes text
+ * that a spreadsheet would run as a formula (=, +, -, @, tab, CR) with an
+ * apostrophe — student names are student-controlled.
+ */
+export function csvCell(v: unknown): string {
+  let s = v == null ? "" : String(v);
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Absolute date-time in the owner's timezone — mock records are read months later. */
+export function tashkent(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    timeZone: "Asia/Tashkent",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

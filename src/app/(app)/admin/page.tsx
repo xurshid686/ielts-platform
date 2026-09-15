@@ -12,21 +12,21 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
-import { countPendingRequests } from "@/lib/mock";
+import { workloadCounts } from "@/lib/mock-admin";
 import { Card } from "@/components/ui/card";
-import { timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import type { Profile } from "@/types/database";
 
 export default async function AdminPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: students }, { count: testCount }, { count: resultCount }, pendingMocks] =
+  const [{ data: students }, { count: testCount }, { count: resultCount }, mockWork] =
     await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("tests").select("id", { count: "exact", head: true }),
       supabase.from("results").select("id", { count: "exact", head: true }),
-      countPendingRequests(),
+      workloadCounts(),
     ]);
 
   const people = (students ?? []) as Profile[];
@@ -45,6 +45,44 @@ export default async function AdminPage() {
         <Stat icon={<CheckCircle2 className="text-success" />} label="Results" value={resultCount ?? 0} />
         <Stat icon={<Flame className="text-warning" />} label="Active streaks" value={activeStreaks} />
       </div>
+
+      {/* First, and full width: it is the one card that carries WORK waiting for
+          the owner, and each count opens the admin panel already filtered to it. */}
+      <Card className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <ClipboardCheck className="h-4 w-4 text-primary" /> Mock exams
+            </h2>
+            <p className="text-sm text-muted">Approve places, grade writing, release results.</p>
+          </div>
+          <Link
+            href="/admin/mocks"
+            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+          >
+            Open <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: "Requests waiting", value: mockWork.pending, href: "/admin/mocks?tab=requests" },
+            { label: "Needs grading", value: mockWork.needsGrading, href: "/admin/mocks?tab=results&stage=needs_grading" },
+            { label: "Ready to release", value: mockWork.readyToRelease, href: "/admin/mocks?tab=results&stage=ready_to_release" },
+          ].map((w) => (
+            <Link
+              key={w.label}
+              href={w.href}
+              className={cn(
+                "rounded-xl border px-3 py-2.5 transition-colors hover:border-primary/40",
+                w.value > 0 ? "border-primary/30 bg-primary/5" : "border-border",
+              )}
+            >
+              <p className="text-2xl font-bold tabular-nums">{w.value}</p>
+              <p className="text-xs text-muted">{w.label}</p>
+            </Link>
+          ))}
+        </div>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="flex items-center justify-between">
@@ -84,25 +122,6 @@ export default async function AdminPage() {
           </div>
           <Link
             href="/admin/discipline"
-            className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
-          >
-            Open <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Card>
-        <Card className="flex items-center justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 font-semibold">
-              <ClipboardCheck className="h-4 w-4 text-primary" /> Mock exams
-              {pendingMocks > 0 && (
-                <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-semibold text-danger">
-                  {pendingMocks} waiting
-                </span>
-              )}
-            </h2>
-            <p className="text-sm text-muted">Approve places, grade writing, release results.</p>
-          </div>
-          <Link
-            href="/admin/mocks"
             className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
           >
             Open <ArrowRight className="h-4 w-4" />

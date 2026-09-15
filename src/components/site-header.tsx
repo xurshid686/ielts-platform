@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Menu, X, Flame, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Menu, X, Flame, Zap, ChevronDown } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
@@ -143,7 +143,73 @@ export function SiteHeader({
   );
 }
 
+/**
+ * A bar item with sub-pages (Admin). The trigger swaps the item's icon for the
+ * chevron, so it is exactly as wide as the plain link it replaced — the bar
+ * does not grow. Closes on outside click, Escape and navigation.
+ */
+function BarDropdown({ item, active }: { item: NavItem; active: boolean }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          "group inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium transition-colors xl:px-3",
+          active ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface-2 hover:text-foreground",
+        )}
+      >
+        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+        {item.label}
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-elevated">
+          {item.children!.map((c) => {
+            const here = c.href === "/admin" ? pathname === "/admin" : pathname === c.href || pathname.startsWith(c.href + "/");
+            return (
+              <Link
+                key={c.href}
+                href={c.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "block px-4 py-2.5 text-sm",
+                  here ? "bg-primary/10 font-medium text-primary" : "hover:bg-surface-2",
+                )}
+              >
+                {c.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BarLink({ item, active }: { item: NavItem; active: boolean }) {
+  if (item.children?.length) return <BarDropdown item={item} active={active} />;
   const { href, label, icon: Icon, external } = item;
   const cls = cn(
     "group inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium transition-colors xl:px-3",
@@ -194,6 +260,27 @@ function PanelLink({
       {label}
     </>
   );
+  if (item.children?.length) {
+    // On a phone there is room for the whole list, so show it flat.
+    return (
+      <div>
+        <p className="flex items-center gap-3 px-3 pb-1 pt-2.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          <Icon className="h-4 w-4" />
+          {label}
+        </p>
+        {item.children.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            onClick={onNavigate}
+            className="flex items-center rounded-lg py-2.5 pl-10 pr-3 text-sm font-medium text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            {c.label}
+          </Link>
+        ))}
+      </div>
+    );
+  }
   return external ? (
     <a href={href} target="_blank" rel="noreferrer" onClick={onNavigate} className={cls}>
       {body}

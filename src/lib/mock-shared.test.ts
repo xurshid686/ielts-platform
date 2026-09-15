@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  adminStage,
+  csvCell,
   countWords,
   isBand,
   nextSection,
@@ -87,5 +89,44 @@ describe("nextSection", () => {
     expect(
       nextSection({ listening_submitted_at: "x", reading_submitted_at: "x", writing_submitted_at: "x" }),
     ).toBeNull();
+  });
+});
+
+describe("adminStage", () => {
+  const base = {
+    status: "approved",
+    started_at: null,
+    listening_submitted_at: null,
+    reading_submitted_at: null,
+    writing_submitted_at: null,
+    writing_band: null,
+    overall_band: null,
+  };
+  it("separates needs grading from ready to release", () => {
+    expect(adminStage({ ...base, status: "submitted" })).toBe("needs_grading");
+    expect(adminStage({ ...base, status: "submitted", writing_band: 6, overall_band: 6.5 })).toBe(
+      "ready_to_release",
+    );
+    expect(adminStage({ ...base, status: "released", writing_band: 6, overall_band: 6.5 })).toBe("released");
+  });
+  it("tracks progress through the sections", () => {
+    expect(adminStage(base)).toBe("not_started");
+    expect(adminStage({ ...base, status: "in_progress", started_at: "x" })).toBe("listening");
+    expect(adminStage({ ...base, status: "in_progress", started_at: "x", listening_submitted_at: "x" })).toBe(
+      "reading",
+    );
+  });
+});
+
+describe("csvCell", () => {
+  it("neutralises formulas and quotes separators", () => {
+    expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(csvCell("+1")).toBe("'+1");
+    expect(csvCell("a,b")).toBe('"a,b"');
+    expect(csvCell('say "hi"')).toBe('"say ""hi"""');
+    expect(csvCell("line\r\nbreak")).toBe('"line\r\nbreak"');
+    expect(csvCell(6.5)).toBe("6.5");
+    expect(csvCell(-1)).toBe("-1");
+    expect(csvCell(null)).toBe("");
   });
 });

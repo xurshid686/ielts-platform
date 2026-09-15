@@ -49,8 +49,9 @@ export default async function MockSectionPage({
     // must come from startWriting's own return value, never from `draft`.
     const [draft, mock] = await Promise.all([getWritingDraft(profile.id, mockId), getMock(mockId)]);
     if (!draft || !mock) redirect(`/mock/${mockId}`);
-    const deadline = writingDeadline(started.startedAt, mock.writing_minutes)!;
-    const image = await signedTask1Image(mock.writing_task1_image_path);
+    // Snapshots (0051) — the time and image this student was given, not the mock's current ones.
+    const deadline = writingDeadline(started.startedAt, draft.writingMinutes ?? mock.writing_minutes)!;
+    const image = await signedTask1Image(draft.task1ImagePath ?? mock.writing_task1_image_path);
 
     return (
       <div className="space-y-4">
