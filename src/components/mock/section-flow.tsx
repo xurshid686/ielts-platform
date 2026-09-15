@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Play } from "lucide-react";
+import { AlertTriangle, LogOut, Loader2, Play } from "lucide-react";
 import { beginMockSection, finishMockVideo, saveMockVideoProgress } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
-import { ExamGuard } from "@/components/mock/exam-guard";
+import { ExamGuard, leaveExamFullscreen } from "@/components/mock/exam-guard";
 import { ExamClock, ExamTopBar, minutesLabel } from "@/components/mock/exam-top-bar";
 import { PaperSection } from "@/components/mock/mock-runner";
 import { WritingSection, type WritingProps } from "@/components/mock/writing-exam";
@@ -68,6 +68,41 @@ export function SectionFlow(props: SectionFlowProps) {
   const [writing, setWriting] = useState<WritingPayload | undefined>(props.writing);
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const wasPlaying = useRef(false);
+  const flushRef = useRef<(() => void) | null>(null);
+  const router = useRouter();
+  const [leaveAsked, setLeaveAsked] = useState(false);
+
+  // Last-moment save whenever the page goes away (reload, close, Leave).
+  useEffect(() => {
+    const onHide = () => flushRef.current?.();
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
+
+  // The browser Back button does not fire beforeunload in a client-side app, so
+  // it would silently drop the student out of the exam. A guard history entry
+  // turns Back into our "Leave the exam?" box.
+  useEffect(() => {
+    window.history.pushState({ mockExamGuard: true }, "");
+    const onPop = () => {
+      window.history.pushState({ mockExamGuard: true }, "");
+      setLeaveAsked(true);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const leave = useCallback(async () => {
+    flushRef.current?.();
+    await leaveExamFullscreen();
+    // A full navigation: nothing of the exam page (clocks, iframe, listeners) survives.
+    window.location.assign(`/mock/${mockId}`);
+  }, [mockId]);
+
+  // Next section: a client navigation, so fullscreen (on the document) carries over.
+  const goNext = useCallback(() => {
+    router.push(props.nextHref);
+  }, [props.nextHref, router]);
 
   const onAway = useCallback(() => {
     const m = mediaRef.current;
@@ -146,16 +181,42 @@ export function SectionFlow(props: SectionFlowProps) {
             section={section}
             testId={paper.testId}
             title={paper.title}
-            nextHref={props.nextHref}
             nextLabel={props.nextLabel}
             deadline={paper.deadline}
             draft={paper.draft}
             audioPos={paper.audioPos}
             mediaRef={mediaRef}
+            flushRef={flushRef}
+            onNext={goNext}
           />
         )}
-        {phase === "active" && section === "writing" && writing && <WritingSection mockId={mockId} {...writing} />}
+        {phase === "active" && section === "writing" && writing && (
+          <WritingSection mockId={mockId} {...writing} flushRef={flushRef} />
+        )}
       </ExamGuard>
+
+      {leaveAsked && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true" aria-label="Leave the exam?">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
+            <h2 className="flex items-center gap-2 font-semibold">
+              <LogOut className="h-5 w-5 text-warning" /> Leave the exam?
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              {phase === "active"
+                ? "The clock keeps running while you are away, and your answers are saved. If time runs out, this section is handed in automatically."
+                : "Your section clock has not started yet. You can come back and continue from here."}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => void leave()}>
+                Leave
+              </Button>
+              <Button onClick={() => setLeaveAsked(false)} autoFocus>
+                Stay in the exam
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { getMockVideos, signedTask1Image } from "@/lib/mock";
 import {
+  finalizeExpiredAttempts,
   listAttemptsAdmin,
   listMockPapers,
   listMocksAdmin,
@@ -20,6 +21,9 @@ export const metadata = { title: "Mock exams" };
 // waiting" (see lib/mock-admin.ts).
 export default async function AdminMocksPage() {
   await requireAdmin();
+  // Close sections whose clock ran out while the student stayed away (v2.1),
+  // before anything below reads the attempts.
+  await finalizeExpiredAttempts();
   const [pending, decisions, mocks, papers, attempts, videoRows] = await Promise.all([
     listPendingRequests(),
     listRecentDecisions(),

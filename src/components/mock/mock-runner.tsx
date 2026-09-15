@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, Loader2, Send } from "lucide-react";
 import { saveMockSectionDraft, submitMockSection } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,6 @@ export type PaperSectionProps = {
   section: "listening" | "reading";
   testId: string;
   title: string;
-  nextHref: string;
   nextLabel: string;
   /** Server deadline, epoch ms. */
   deadline: number;
@@ -37,7 +35,22 @@ export type PaperSectionProps = {
   audioPos: number;
   /** The section flow's handle on whatever is playing, so leaving fullscreen can pause it. */
   mediaRef: React.MutableRefObject<HTMLMediaElement | null>;
+  /** The section flow calls this on pagehide / Leave: a synchronous last save (v2.1). */
+  flushRef: React.MutableRefObject<(() => void) | null>;
+  /** "Continue to <next>" — the section flow keeps fullscreen across the navigation. */
+  onNext: () => void;
 };
+
+/** Best-effort save that survives the page going away (sendBeacon). */
+export function beaconDraft(body: Record<string, unknown>) {
+  try {
+    const blob = new Blob([JSON.stringify(body)], { type: "application/json" });
+    if (typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/mock-draft", blob)) return;
+    void fetch("/api/mock-draft", { method: "POST", body: JSON.stringify(body), keepalive: true, headers: { "Content-Type": "application/json" } });
+  } catch {
+    /* never break the exam */
+  }
+}
 
 /**
  * The CDI paper for ONE Listening/Reading section, inside the section flow's
@@ -63,24 +76,28 @@ export function PaperSection({
   section,
   testId,
   title,
-  nextHref,
   nextLabel,
   deadline,
   draft,
   audioPos,
   mediaRef,
+  flushRef,
+  onNext,
 }: PaperSectionProps) {
-  const router = useRouter();
   const report = useExamReport();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const handled = useRef(false);
   const maxPos = useRef(audioPos);
   const finalizing = useRef<"auto" | "manual" | null>(null);
   const readySeen = useRef(false);
+  // Until the saved answers are back in the paper, an autosave would overwrite
+  // the server draft with a blank page. Nothing to restore = safe from the start.
+  const restoreDone = useRef(Object.keys(draft).length === 0);
   const activated = useRef(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [confirmNote, setConfirmNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,6 +161,7 @@ export function PaperSection({
         if (Object.keys(draft).length) post({ type: "RESTORE", answers: draft });
         else activate();
       } else if (d.type === "RESTORED") {
+        restoreDone.current = true;
         const missing = Array.isArray(payload.missing) ? (payload.missing as number[]) : [];
         setNotice(
           missing.length
@@ -156,7 +174,17 @@ export function PaperSection({
       } else if (d.type === "SNAPSHOT") {
         const answers = parseAnswers(payload.answers);
         if (finalizing.current) void submit(answers, finalizing.current === "auto");
-        else if (!handled.current) void saveMockSectionDraft(mockId, section, answers, section === "listening" ? maxPos.current : null);
+        else if (!handled.current && restoreDone.current) void saveMockSectionDraft(mockId, section, answers, section === "listening" ? maxPos.current : null);
+      } else if (d.type === "REQUEST_SUBMIT") {
+        // The paper's own Submit: confirm in the page, never with a browser dialog (which drops fullscreen).
+        if (handled.current) return;
+        const msg = typeof payload.message === "string" ? payload.message : "";
+        const line = msg.split("\n").find((l) => /unanswered/i.test(l)) ?? null;
+        setConfirmNote(line ? line.trim() : null);
+        setConfirming(true);
+      } else if (d.type === "NOTICE") {
+        const msg = typeof payload.message === "string" ? payload.message.trim() : "";
+        if (msg && !/pdf|clipboard|retake|restart/i.test(msg)) setNotice(msg.split("\n")[0]);
       } else if (d.type === "AUDIO_BLOCKED") {
         setNotice("Your browser blocked the recording from starting by itself. Click “Start the recording” in the test.");
       } else if (d.type === "AUDIO_STARTED") {
@@ -175,6 +203,10 @@ export function PaperSection({
       setLoading(false);
       if (Object.keys(draft).length) post({ type: "RESTORE", answers: draft });
       activate();
+      // No RESTORED either: stop holding autosave back after a further grace.
+      setTimeout(() => {
+        restoreDone.current = true;
+      }, 8000);
     }, READY_TIMEOUT_MS);
     return () => clearTimeout(t);
   }, [activate, draft, post]);
@@ -209,6 +241,25 @@ export function PaperSection({
     }, 1000);
     return () => clearInterval(t);
   }, [deadline, handIn]);
+
+  // The last-moment save the section flow runs on pagehide / Leave.
+  useEffect(() => {
+    flushRef.current = () => {
+      if (handled.current || !restoreDone.current) return;
+      let answers: Answers | null = null;
+      try {
+        const w = iframeRef.current?.contentWindow as (Window & { __IELTS_MOCK_HARVEST__?: () => unknown }) | null;
+        answers = parseAnswers(w?.__IELTS_MOCK_HARVEST__?.());
+      } catch {
+        answers = null;
+      }
+      if (!answers) return;
+      beaconDraft({ mockId, section, answers, audioPos: section === "listening" ? maxPos.current : null });
+    };
+    return () => {
+      flushRef.current = null;
+    };
+  }, [flushRef, mockId, section]);
 
   // Leaving mid-section is a real loss (the recording does not replay): ask first.
   useEffect(() => {
@@ -271,7 +322,15 @@ export function PaperSection({
         title={title}
         center={<ExamClock remainingMs={remaining} />}
         right={
-          <Button size="sm" className="h-9" onClick={() => setConfirming(true)} disabled={saving || done}>
+          <Button
+            size="sm"
+            className="h-9"
+            onClick={() => {
+              setConfirmNote(null);
+              setConfirming(true);
+            }}
+            disabled={saving || done}
+          >
             <Send className="h-4 w-4" /> Submit {label}
           </Button>
         }
@@ -319,11 +378,18 @@ export function PaperSection({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
             <h2 className="font-semibold">Submit {label}?</h2>
-            <p className="mt-1 text-sm text-muted">
+            {confirmNote && <p className="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">{confirmNote}</p>}
+            <p className="mt-2 text-sm text-muted">
               You cannot come back to this section afterwards. Unanswered questions score zero.
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirming(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfirming(false);
+                  setConfirmNote(null);
+                }}
+              >
                 Keep working
               </Button>
               <Button
@@ -351,7 +417,7 @@ export function PaperSection({
               Your answers are saved. Scores are not shown during the mock — your teacher releases the full result once
               everything is marked.
             </p>
-            <Button className="mt-6 w-full" onClick={() => router.push(nextHref)}>
+            <Button className="mt-6 w-full" onClick={onNext}>
               {nextLabel} <ArrowRight className="h-4 w-4" />
             </Button>
           </div>

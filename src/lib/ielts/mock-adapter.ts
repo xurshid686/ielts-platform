@@ -104,6 +104,31 @@ function storageShim(ctx: MockServeContext): string {
   }
   install("localStorage");
   install("sessionStorage");
+
+  // NO BROWSER DIALOGS AND NO FULLSCREEN CALLS FROM THE PAPER (v2.1). Chrome
+  // leaves fullscreen whenever a page opens alert/confirm/prompt, and every CDI
+  // paper asks "Are you sure you want to submit?" with window.confirm — so a
+  // student submitting from the paper was thrown out of fullscreen and told they
+  // had left. confirm() now asks the PLATFORM instead (its in-page box) and
+  // returns false, so the paper never grades itself.
+  var ORIGIN = ${js(ctx.origin)};
+  function tell(type, message) {
+    try { parent.postMessage({ source: "IELTS_CDI_TEST", type: type, payload: { message: String(message == null ? "" : message) } }, ORIGIN); } catch (e) {}
+  }
+  try {
+    window.confirm = function (msg) {
+      tell(/submit|deliver|finish|hand in/i.test(String(msg)) ? "REQUEST_SUBMIT" : "NOTICE", msg);
+      return false;
+    };
+    window.alert = function (msg) { tell("NOTICE", msg); };
+    window.prompt = function () { return null; };
+  } catch (e) {}
+  var resolved = function () { return Promise.resolve(); };
+  try { Element.prototype.requestFullscreen = resolved; } catch (e) {}
+  try { Element.prototype.webkitRequestFullscreen = resolved; } catch (e) {}
+  try { Document.prototype.exitFullscreen = resolved; document.exitFullscreen = resolved; } catch (e) {}
+  try { Document.prototype.webkitExitFullscreen = resolved; document.webkitExitFullscreen = resolved; } catch (e) {}
+
   window.__IELTS_MOCK__ = { section: ${js(ctx.section)}, selftest: ${ctx.selftest ? "true" : "false"} };
 })();
 </script>`;
@@ -140,6 +165,8 @@ ${RESTORE_ANSWERS_JS}
     try { parent.postMessage({ source: "IELTS_CDI_TEST", type: type, payload: payload || {} }, TARGET_ORIGIN); } catch (e) {}
   }
   function noop() {}
+  // Synchronous read for the parent's last-moment save on pagehide / Leave.
+  try { window.__IELTS_MOCK_HARVEST__ = harvestAnswers; } catch (e) {}
   function isFn(name) { try { return typeof window[name] === "function"; } catch (e) { return false; } }
   function byId(id) { return document.getElementById(id); }
 
@@ -182,8 +209,19 @@ ${RESTORE_ANSWERS_JS}
     btn.__mockWrapped = true;
     btn.onclick = function (opts) {
       if (submitted) return;
-      var skip = opts && opts.skipConfirm;
-      if (skip || window.confirm("Submit your Listening answers? You cannot change them afterwards.")) reportSubmit("doSubmit");
+      if (opts && opts.skipConfirm) { reportSubmit("doSubmit"); return; }
+      // The platform's in-page box confirms (a browser dialog would drop fullscreen).
+      var blank = 0;
+      try {
+        var got = harvestAnswers();
+        var qs = document.querySelectorAll("[data-q], [name^='q']");
+        var seen = {};
+        for (var i = 0; i < qs.length; i++) {
+          var q = qs[i].getAttribute("data-q") || (qs[i].name || "").replace(/^q/, "");
+          if (/^\\d+$/.test(q) && !seen[q]) { seen[q] = 1; if (!got[q]) blank++; }
+        }
+      } catch (e) {}
+      post("REQUEST_SUBMIT", { message: blank ? "You still have " + blank + " unanswered question" + (blank > 1 ? "s" : "") + "." : "" });
     };
     neutralized.push("doSubmit");
   }

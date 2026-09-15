@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { countStillSitting, getAttemptDetail } from "@/lib/mock";
-import { gradingQueue, verdictFor } from "@/lib/mock-admin";
+import { finalizeExpiredAttempts, gradingQueue, verdictFor } from "@/lib/mock-admin";
 import {
   STAGE_LABEL,
   adminStage,
@@ -54,6 +54,7 @@ export default async function AdminMockAttemptPage({
   searchParams: Promise<{ back?: string }>;
 }) {
   await requireAdmin();
+  await finalizeExpiredAttempts(); // v2.1: an abandoned section is handed in before it is shown
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const detail = await getAttemptDetail(id);
   if (!detail) notFound();

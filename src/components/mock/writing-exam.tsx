@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Send } from "lucide-react";
 import { saveMockWriting } from "@/app/actions/mock";
-import { useExamReport } from "@/components/mock/exam-guard";
+import { leaveExamFullscreen, useExamReport } from "@/components/mock/exam-guard";
 import { ExamClock, ExamTopBar } from "@/components/mock/exam-top-bar";
+import { beaconDraft } from "@/components/mock/mock-runner";
 import { Button } from "@/components/ui/button";
 import { TASK1_MIN_WORDS, TASK2_MIN_WORDS, countWords } from "@/lib/mock-shared";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,8 @@ export type WritingProps = {
   task1Prompt: string;
   task2Prompt: string;
   task1ImageUrl: string | null;
+  /** The section flow's last-moment save hook (v2.1). */
+  flushRef?: React.MutableRefObject<(() => void) | null>;
 };
 
 /** Writing inside the section flow's ExamGuard (0052; top bar + centered clock since 0054). */
@@ -47,6 +50,7 @@ function WritingBody({
   task1Prompt,
   task2Prompt,
   task1ImageUrl,
+  flushRef,
 }: WritingProps) {
   const router = useRouter();
   const report = useExamReport();
@@ -113,15 +117,25 @@ function WritingBody({
     if (timeUp && !finished.current) void send(true);
   }, [timeUp, send]);
 
-  // Warn before closing the tab with unsaved text.
+  // The section flow's last-moment save on pagehide / Leave (v2.1).
+  useEffect(() => {
+    if (!flushRef) return;
+    flushRef.current = () => {
+      if (finished.current) return;
+      beaconDraft({ mockId, section: "writing", task1: latest.current.task1, task2: latest.current.task2 });
+    };
+    return () => {
+      flushRef.current = null;
+    };
+  }, [flushRef, mockId]);
+
+  // Always ask before a reload or close while the writing is open (owner, v2.1).
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (finished.current) return;
       const { task1: t1, task2: t2 } = latest.current;
-      if (t1 !== lastSent.current.task1 || t2 !== lastSent.current.task2) {
-        void send(false);
-        e.preventDefault();
-      }
+      if (t1 !== lastSent.current.task1 || t2 !== lastSent.current.task2) void send(false);
+      e.preventDefault();
     }
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
@@ -138,7 +152,13 @@ function WritingBody({
           All three sections are in. Your teacher will mark your writing and release your full
           result — you will get a notification when it is ready.
         </p>
-        <Button className="mt-6" onClick={() => router.push(`/mock/${mockId}`)}>
+        <Button
+          className="mt-6"
+          onClick={() => {
+            // The sitting is over: leave fullscreen on purpose before going back.
+            void leaveExamFullscreen().then(() => router.push(`/mock/${mockId}`));
+          }}
+        >
           Back to the mock
         </Button>
       </div>

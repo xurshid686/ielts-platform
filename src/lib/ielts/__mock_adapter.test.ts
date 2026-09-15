@@ -58,6 +58,20 @@ describe("adaptForMock", () => {
     expect(out.indexOf("storage shim")).toBeLessThan(out.indexOf("var a=1"));
   });
 
+  it("replaces browser dialogs and fullscreen calls before any paper script (v2.1)", () => {
+    // Chrome leaves fullscreen when a page opens confirm/alert, and every paper confirms its submit.
+    const out = adaptForMock(paper, ctx);
+    const firstPaperScript = out.indexOf("STORAGE_KEY");
+    for (const marker of ["window.confirm = function", "window.alert = function", "Document.prototype.exitFullscreen", "Element.prototype.requestFullscreen"]) {
+      const at = out.indexOf(marker);
+      expect(at, marker).toBeGreaterThan(-1);
+      expect(at, marker).toBeLessThan(firstPaperScript);
+    }
+    expect(out).toContain('"REQUEST_SUBMIT"');
+    expect(out).not.toMatch(/window\.confirm\("Submit your Listening/);
+    expect(out).toContain("__IELTS_MOCK_HARVEST__");
+  });
+
   it("only exposes self-test hooks when asked", () => {
     expect(adaptForMock(paper, ctx)).toContain("var SELFTEST = false");
     expect(adaptForMock(paper, { ...ctx, selftest: true })).toContain("var SELFTEST = true");

@@ -10,6 +10,8 @@ import {
   MOCK_COLS,
   UUID,
   db,
+  SECTION_GRACE_MS,
+  finalizeExpiredSection,
   getMock,
   getMockVideos,
   num,
@@ -750,6 +752,49 @@ export async function startMockSession(mockId: string, adminId: string | null): 
   return { ok: true };
 }
 
+/**
+ * Hands in every section whose clock ran out while the student was away and
+ * never came back (v2.1: "the clock keeps running"). Students trigger this for
+ * themselves on any mock page; this covers the ones who never return. Called
+ * when the admin opens the mock pages, when a session ends, and by the daily
+ * cron. One step per attempt per call: the next section's clock only starts on
+ * a Start click, so it can never be expired too.
+ *
+ * Attempts whose account was deleted (user_id null) are skipped — they are
+ * rare and the section library is keyed by the student.
+ */
+export async function finalizeExpiredAttempts(mockId?: string): Promise<number> {
+  let q = db()
+    .from("mock_attempts")
+    .select(
+      "id, user_id, mock_id, status, listening_started_at, listening_submitted_at, listening_minutes, reading_started_at, reading_submitted_at, reading_minutes, writing_started_at, writing_submitted_at, writing_minutes",
+    )
+    .eq("status", "in_progress")
+    .not("user_id", "is", null);
+  if (mockId) q = q.eq("mock_id", mockId);
+  const { data, error } = await q;
+  if (error) {
+    console.error("[mock-admin] expiry scan failed", error.message);
+    return 0;
+  }
+  const now = Date.now();
+  let closed = 0;
+  for (const a of rows<Record<string, string | number | null>>(data)) {
+    const section = !a.listening_submitted_at ? "listening" : !a.reading_submitted_at ? "reading" : !a.writing_submitted_at ? "writing" : null;
+    if (!section) continue;
+    const started = a[`${section}_started_at`] as string | null;
+    const fallback = section === "listening" ? 40 : 60;
+    const minutes = Number(a[`${section}_minutes`] ?? fallback) || fallback;
+    if (!started || now <= new Date(started).getTime() + minutes * 60_000 + SECTION_GRACE_MS) continue;
+    try {
+      if (await finalizeExpiredSection(a.user_id as string, a.mock_id as string)) closed++;
+    } catch (e) {
+      console.error("[mock-admin] expiry close failed", a.id, e);
+    }
+  }
+  return closed;
+}
+
 /** End session: nobody new starts; students already inside finish on their own clocks. */
 export async function closeMockSession(mockId: string, adminId: string | null): Promise<LibResult> {
   if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
@@ -762,6 +807,7 @@ export async function closeMockSession(mockId: string, adminId: string | null): 
     .select("id");
   if (error) return { ok: false, error: error.message };
   if (!data?.length) return { ok: false, error: "The session isn't running." };
+  await finalizeExpiredAttempts(mockId);
   return { ok: true };
 }
 

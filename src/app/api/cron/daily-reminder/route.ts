@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { finalizeExpiredAttempts } from "@/lib/mock-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,5 +24,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, notified: (data ?? []).length });
+  // Backstop for mock sections abandoned mid-clock (v2.1); the admin pages do it live.
+  const mockSectionsClosed = await finalizeExpiredAttempts().catch(() => 0);
+
+  return NextResponse.json({ ok: true, notified: (data ?? []).length, mockSectionsClosed });
 }

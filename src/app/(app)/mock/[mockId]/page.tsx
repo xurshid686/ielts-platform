@@ -126,7 +126,7 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
                     href={`/mock/${mockId}/${s.id}`}
                     className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
                   >
-                    {s.id === "writing" && attempt.writing_started_at ? "Continue" : "Open"}{" "}
+                    {attempt.current_minutes_left != null ? `Continue · ${attempt.current_minutes_left} min left` : "Open"}{" "}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 ) : (

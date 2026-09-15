@@ -46,6 +46,22 @@ export function useExamReport() {
 
 const FLUSH_MS = 15_000;
 
+/**
+ * Set while the PLATFORM ends fullscreen on purpose (mock finished, Leave), so
+ * the guard does not show "You left fullscreen" or record a departure.
+ */
+let leavingOnPurpose = false;
+
+/** Ends fullscreen deliberately — the only way exam code should leave it. */
+export async function leaveExamFullscreen(): Promise<void> {
+  leavingOnPurpose = true;
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  } catch {
+    /* already out */
+  }
+}
+
 type Phase = "checking" | "blocked-device" | "second-tab" | "ready" | "active";
 
 export function ExamGuard({
@@ -129,6 +145,7 @@ export function ExamGuard({
 
   // ---- device + second tab (after mount: needs window) ------------------
   useEffect(() => {
+    leavingOnPurpose = false; // a new section screen: any earlier deliberate exit is over
     const capable = isExamCapableDevice({
       finePointer: window.matchMedia("(pointer: fine)").matches,
       anyFinePointer: window.matchMedia("(any-pointer: fine)").matches,
@@ -166,7 +183,9 @@ export function ExamGuard({
       };
       channel.postMessage({ type: "hello", id: me });
     }
-    const t = setTimeout(() => decide("ready"), 350);
+    // Already fullscreen: the student came from the previous section (v2.1 keeps
+    // one fullscreen for the whole sitting), so there is nothing to click.
+    const t = setTimeout(() => decide(document.fullscreenElement ? "active" : "ready"), 350);
     return () => {
       clearTimeout(t);
       channel?.close();
@@ -188,7 +207,8 @@ export function ExamGuard({
     if (phase !== "active") return;
 
     function onFullscreen() {
-      const inside = document.fullscreenElement === containerRef.current;
+      const inside = !!document.fullscreenElement;
+      if (!inside && leavingOnPurpose) return;
       if (!inside && awaySince.current == null) {
         awaySince.current = Date.now();
         setAway(true);
@@ -223,9 +243,12 @@ export function ExamGuard({
 
   const [enterError, setEnterError] = useState<string | null>(null);
   async function enterFullscreen() {
+    leavingOnPurpose = false;
     setEnterError(null);
     try {
-      await containerRef.current?.requestFullscreen({ navigationUI: "hide" });
+      // The DOCUMENT, not this div (v2.1): a client navigation to the next section
+      // unmounts this div, and removing the fullscreen element ends fullscreen.
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" });
       if (phase !== "active") {
         report({ type: "device", ua: navigator.userAgent, screen: `${window.screen.width}x${window.screen.height}` });
         setPhase("active");

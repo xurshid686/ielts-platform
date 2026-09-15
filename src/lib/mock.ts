@@ -162,6 +162,10 @@ export type StudentAttempt = {
   writing_submitted_at: string | null;
   submitted_at: string | null;
   released_at: string | null;
+  /** Epoch ms when the section in progress runs out; null when no section clock is running. */
+  current_deadline: number | null;
+  /** Whole minutes left on that clock at load time (for labels). */
+  current_minutes_left: number | null;
   result: null | {
     listening: { raw: number | null; total: number | null; band: number | null };
     reading: { raw: number | null; total: number | null; band: number | null };
@@ -187,6 +191,8 @@ function toStudentAttempt(a: AttemptRow): StudentAttempt {
     writing_submitted_at: a.writing_submitted_at,
     submitted_at: a.submitted_at,
     released_at: a.released_at,
+    current_deadline: currentDeadline(a),
+    current_minutes_left: minutesLeft(currentDeadline(a)),
     result: released
       ? {
           listening: { raw: a.listening_raw, total: a.listening_total, band: num(a.listening_band) },
@@ -201,6 +207,18 @@ function toStudentAttempt(a: AttemptRow): StudentAttempt {
         }
       : null,
   };
+}
+
+function currentDeadline(a: AttemptRow): number | null {
+  const section = nextSection(a);
+  if (!section) return null;
+  const started = section === "listening" ? a.listening_started_at : section === "reading" ? a.reading_started_at : a.writing_started_at;
+  const minutes = section === "listening" ? (a.listening_minutes ?? 40) : section === "reading" ? (a.reading_minutes ?? 60) : (a.writing_minutes ?? 60);
+  return started ? new Date(started).getTime() + minutes * 60_000 : null;
+}
+
+function minutesLeft(deadline: number | null): number | null {
+  return deadline == null ? null : Math.max(0, Math.ceil((deadline - Date.now()) / 60_000));
 }
 
 /** numeric(3,1) arrives from PostgREST as a number, but be strict about it. */
@@ -730,7 +748,11 @@ export async function saveSectionDraft(
   if (!startedAt) return { ok: false, error: "This section hasn't started." };
   if (isExpired(startedAt, sectionMinutes(a, null, section))) return { ok: false, error: "Time is up for this section." };
 
-  const answers = asAnswers(answersInput) ?? {};
+  // MERGED onto the previous draft (v2.1): after a reload, drag-and-drop answers
+  // the page could not restore must not be wiped by the next autosave. Same trade
+  // submitSection already makes — a cleared answer survives from the draft.
+  const previous = asAnswers(section === "listening" ? a.listening_draft : a.reading_draft) ?? {};
+  const answers = { ...previous, ...(asAnswers(answersInput) ?? {}) };
   const patch: TablesUpdate<"mock_attempts"> =
     section === "listening" ? { listening_draft: answers } : { reading_draft: answers };
   if (section === "listening") {

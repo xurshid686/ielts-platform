@@ -1199,6 +1199,42 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
 - `src/types/database.ts` PENDING overrides now cover 0050–0054 (including three
   `tests` columns via `PatchedGenTables`).
 
+### v2.1 — submit, leaving and refresh (owner decisions 2026-09-15)
+
+- **No browser dialogs inside a mock paper.** Chrome leaves fullscreen whenever
+  a page opens `confirm`/`alert`/`prompt`, and every CDI paper confirms its
+  submit with `window.confirm` — students were thrown out of fullscreen and told
+  "You left fullscreen". The storage shim replaces `confirm` (→ `REQUEST_SUBMIT`
+  or `NOTICE`, returns false so the paper never grades itself), `alert`
+  (→ `NOTICE`), `prompt`, and makes the paper's `requestFullscreen` /
+  `exitFullscreen` no-ops. `PaperSection` answers `REQUEST_SUBMIT` with its
+  in-page confirm box. NEVER use a browser dialog anywhere in the exam flow.
+  (Note: reading shells' `doSubmit()` has no confirm — the student path is
+  `finalSubmitFromReview()`, which does.)
+- **One fullscreen for the whole sitting:** ExamGuard fullscreens
+  `document.documentElement`, not its div (removing the fullscreen element on a
+  client navigation ends fullscreen). A guard that mounts already-fullscreen
+  goes straight to active, so "Continue to Reading" lands on the video with no
+  click. The platform leaves fullscreen only via `leaveExamFullscreen()`
+  (sets a flag so the guard shows no overlay and records no departure).
+- **Back button:** SectionFlow pushes a guard history entry; `popstate` opens
+  "Leave the exam?" (Stay / Leave). Leave = last-moment save, leave fullscreen,
+  full navigation to `/mock/<id>`. Refresh/close keeps `beforeunload` (Writing
+  now always warns while open).
+- **Last-moment save:** `POST /api/mock-draft` (sendBeacon) on pagehide and
+  Leave — Listening/Reading read answers synchronously through
+  `window.__IELTS_MOCK_HARVEST__` in the paper; Writing sends both texts.
+  Section drafts now MERGE onto the previous draft (drag answers the paper
+  could not restore after a reload are not wiped), and autosave/beacon are held
+  back until RESTORED so a fresh page can't blank the draft.
+- **Abandoned sections close on time:** `finalizeExpiredAttempts()` runs when
+  the admin opens `/admin/mocks` or an attempt, when a session ends, and in the
+  daily cron. Students still close their own on any mock page. Attempts whose
+  account was deleted are skipped. A student who stops BETWEEN sections (next
+  clock never started) stays "in progress" — there is no clock to run out.
+- Overview shows "Continue · N min left" (`current_minutes_left`, computed in
+  lib — `Date.now()` in a server component trips the react purity lint).
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**
