@@ -505,6 +505,22 @@ export class SanitizeIncompleteError extends Error {
 }
 
 /**
+ * The strip WITHOUT a bridge: key/explanations/evidence blanked (fail-closed),
+ * download tools removed, video pointed at the gated route. The practice path
+ * adds the sanitized bridge on top (sanitizeTestHtml); a mock sitting adds the
+ * mock adapter instead (lib/ielts/mock-adapter.ts).
+ *
+ * THROWS SanitizeIncompleteError, exactly like sanitizeTestHtml.
+ */
+export function stripTestHtml(html: string, origin: string, testId: string): string {
+  let out = stripSensitiveLiterals(html);
+  const leftover = findUnstrippedLiterals(out);
+  if (leftover.length) throw new SanitizeIncompleteError(leftover);
+  out = stripDownloadTools(out);
+  return pointVideoAtGatedRoute(out, origin, testId);
+}
+
+/**
  * Full sanitization pipeline: strip the key/explanations/evidence, remove the
  * download tools, then inject the bridge before </body>.
  *
@@ -519,11 +535,7 @@ export class SanitizeIncompleteError extends Error {
  * prevent. See findUnstrippedLiterals() for how the strip can fail.
  */
 export function sanitizeTestHtml(html: string, origin: string, testId: string): string {
-  let out = stripSensitiveLiterals(html);
-  const leftover = findUnstrippedLiterals(out);
-  if (leftover.length) throw new SanitizeIncompleteError(leftover);
-  out = stripDownloadTools(out);
-  out = pointVideoAtGatedRoute(out, origin, testId);
+  const out = stripTestHtml(html, origin, testId);
   const bridge = SANITIZED_BRIDGE.replace("__ORIGIN__", origin).replace(
     "__TEST_ID__",
     encodeURIComponent(testId),

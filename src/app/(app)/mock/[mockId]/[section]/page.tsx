@@ -6,14 +6,14 @@ import {
   getMock,
   getStudentAttempt,
   getWritingDraft,
+  sectionView,
   signedTask1Image,
   startSection,
   startWriting,
   writingDeadline,
 } from "@/lib/mock";
 import { nextSection } from "@/lib/mock-shared";
-import { MockRunner } from "@/components/mock/mock-runner";
-import { WritingExam } from "@/components/mock/writing-exam";
+import { SectionFlow } from "@/components/mock/section-flow";
 
 export const metadata = { title: "Mock exam" };
 
@@ -25,9 +25,10 @@ export const metadata = { title: "Mock exam" };
  * overview. The paper itself is independently gated in canOpenTrack(), so a
  * student who guesses /api/test-html/<id> gets the same answer.
  *
- * Every section has a SERVER clock (0052): opening it stamps the start once,
- * a reload resumes the same clock (and is recorded), and a clock that has run
- * out is closed from the saved draft before anything renders.
+ * 0054: rendering this page never starts a clock. It shows the instruction
+ * video, then the Start button (beginMockSection starts the clock), and only a
+ * section whose clock is ALREADY running is resumed here — which the server
+ * records as a reload, as before.
  */
 export default async function MockSectionPage({
   params,
@@ -45,10 +46,33 @@ export default async function MockSectionPage({
 
   const found = await getStudentAttempt(profile.id, mockId);
   if (!found) redirect("/mock");
-  const { attempt } = found;
+  const { attempt, mock } = found;
 
   if (attempt.status === "released") redirect(`/mock/${mockId}/result`);
+  // "Start the mock" on the overview comes first (it is gated on the session too).
   if (attempt.status === "approved" || nextSection(attempt) !== section) redirect(`/mock/${mockId}`);
+
+  const view = await sectionView(profile.id, mockId, section);
+  if (!view.ok) redirect(`/mock/${mockId}`);
+
+  const nextHref = section === "listening" ? `/mock/${mockId}/reading` : section === "reading" ? `/mock/${mockId}/writing` : `/mock/${mockId}`;
+  const nextLabel = section === "listening" ? "Continue to Reading" : "Continue to Writing";
+  const common = {
+    mockId,
+    attemptId: attempt.id,
+    section,
+    mockTitle: mock.title,
+    minutes: view.minutes,
+    video: view.video ? { url: view.video.url, duration: view.video.duration } : null,
+    videoPos: view.videoPos,
+    blocked: view.blocked,
+    nextHref,
+    nextLabel,
+  } as const;
+
+  if (view.phase !== "active") {
+    return <SectionFlow {...common} phase={view.phase} reloaded={false} initialLongAway={0} />;
+  }
 
   if (section === "writing") {
     const started = await startWriting(profile.id, mockId);
@@ -56,25 +80,26 @@ export default async function MockSectionPage({
     // The drafts may come back from this render's fetch memo (see startWriting),
     // which is fine for the text — it did not change in this render. The CLOCK
     // must come from startWriting's own return value, never from `draft`.
-    const [draft, mock] = await Promise.all([getWritingDraft(profile.id, mockId), getMock(mockId)]);
-    if (!draft || !mock) redirect(`/mock/${mockId}`);
+    const [draft, fresh] = await Promise.all([getWritingDraft(profile.id, mockId), getMock(mockId)]);
+    if (!draft || !fresh) redirect(`/mock/${mockId}`);
     // Snapshots (0051) — the time and image this student was given, not the mock's current ones.
-    const deadline = writingDeadline(started.startedAt, draft.writingMinutes ?? mock.writing_minutes)!;
-    const image = await signedTask1Image(draft.task1ImagePath ?? mock.writing_task1_image_path);
-
+    const deadline = writingDeadline(started.startedAt, draft.writingMinutes ?? fresh.writing_minutes)!;
+    const image = await signedTask1Image(draft.task1ImagePath ?? fresh.writing_task1_image_path);
     return (
-      <WritingExam
-        mockId={mockId}
-        attemptId={attempt.id}
-        title={mock.title}
-        deadline={deadline}
-        initialTask1={draft.task1}
-        initialTask2={draft.task2}
-        task1Prompt={draft.task1Prompt ?? mock.writing_task1_prompt ?? ""}
-        task2Prompt={draft.task2Prompt ?? mock.writing_task2_prompt ?? ""}
-        task1ImageUrl={image}
-        reloaded={started.reloaded}
+      <SectionFlow
+        {...common}
+        phase="active"
+        reloaded
         initialLongAway={started.longAway}
+        writing={{
+          title: fresh.title,
+          deadline,
+          initialTask1: draft.task1,
+          initialTask2: draft.task2,
+          task1Prompt: draft.task1Prompt ?? fresh.writing_task1_prompt ?? "",
+          task2Prompt: draft.task2Prompt ?? fresh.writing_task2_prompt ?? "",
+          task1ImageUrl: image,
+        }}
       />
     );
   }
@@ -97,19 +122,18 @@ export default async function MockSectionPage({
   const { data: test } = await admin.from("tests").select("title").eq("id", testId).single();
 
   return (
-    <MockRunner
-      mockId={mockId}
-      attemptId={attempt.id}
-      section={section}
-      testId={testId}
-      title={(test as { title?: string } | null)?.title ?? (section === "listening" ? "Listening" : "Reading")}
-      nextHref={section === "listening" ? `/mock/${mockId}/reading` : `/mock/${mockId}/writing`}
-      nextLabel={section === "listening" ? "Continue to Reading" : "Continue to Writing"}
-      deadline={writingDeadline(started.startedAt, started.minutes)!}
-      draft={started.draft}
-      audioPos={started.audioPos}
-      reloaded={started.reloaded}
+    <SectionFlow
+      {...common}
+      phase="active"
+      reloaded
       initialLongAway={started.longAway}
+      paper={{
+        deadline: writingDeadline(started.startedAt, started.minutes)!,
+        draft: started.draft,
+        audioPos: started.audioPos,
+        testId,
+        title: (test as { title?: string } | null)?.title ?? (section === "listening" ? "Listening" : "Reading"),
+      }}
     />
   );
 }

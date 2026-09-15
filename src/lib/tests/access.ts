@@ -92,7 +92,7 @@ export async function canOpenTrack({
 }
 
 export type AccessResult =
-  | { ok: true; row: TestRow; userId: string | null }
+  | { ok: true; row: TestRow; userId: string | null; isAdmin: boolean }
   | { ok: false; status: 403 | 404 | 502; message: string };
 
 /**
@@ -128,7 +128,7 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
     if ((row.track ?? "regular") !== "regular") {
       return { ok: false, status: 404, message: "Not found" };
     }
-    return { ok: true, row, userId: null };
+    return { ok: true, row, userId: null, isAdmin: false };
   }
 
   const profRes = await supabase
@@ -164,7 +164,7 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
     }
   }
 
-  return { ok: true, row, userId: user.id };
+  return { ok: true, row, userId: user.id, isAdmin: profile.role === "admin" };
 }
 
 /** Downloads a test's HTML from the private bucket with the service-role client. */

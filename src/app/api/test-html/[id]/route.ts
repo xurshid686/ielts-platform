@@ -1,5 +1,7 @@
 import { injectScoringBridge } from "@/lib/ielts/scoring-bridge";
-import { sanitizeTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-test-html";
+import { sanitizeTestHtml, stripTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-test-html";
+import { adaptForMock, type MockServeContext } from "@/lib/ielts/mock-adapter";
+import { findMockSitting } from "@/lib/mock";
 import { publicOrigin } from "@/lib/public-origin";
 import { asAnswerKey } from "@/lib/ielts/grade";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
@@ -18,6 +20,33 @@ export async function GET(
   // who may have a given test.
   const access = await resolveTestAccess(id);
   if (!access.ok) return new Response(access.message, { status: access.status });
+
+  // A MOCK paper (0054) is served through the mock adapter, never the practice
+  // bridge: storage namespaced to the sitting (the "Done" bug), the paper's own
+  // start screen, timer and results switched off. A student needs the attempt
+  // the runner put in the URL, and that attempt must be sitting this paper
+  // with its clock running. An admin gets the adapter only for the upload
+  // self-test (?selftest=<nonce>); otherwise the plain preview below.
+  let mock: MockServeContext | null = null;
+  if (access.row.track === "mock") {
+    const url = new URL(req.url);
+    const selftest = url.searchParams.get("selftest");
+    const attemptParam = url.searchParams.get("mock");
+    const skill = access.row.skill === "listening" ? "listening" : "reading";
+    if (access.isAdmin && selftest) {
+      if (!/^[a-z0-9]{6,40}$/i.test(selftest)) return new Response("Not found", { status: 404 });
+      mock = { namespace: `selftest:${selftest}:`, section: skill, origin: publicOrigin(req), selftest: true };
+    } else if (!access.isAdmin || attemptParam) {
+      const sitting = access.userId && attemptParam ? await findMockSitting(access.userId, id, attemptParam) : null;
+      if (!sitting) return new Response("Not found", { status: 404 });
+      mock = {
+        namespace: `mock:${sitting.attemptId}:${sitting.section}:`,
+        section: sitting.section,
+        origin: publicOrigin(req),
+        selftest: false,
+      };
+    }
+  }
 
   // The bucket is private and this is the only path that reads it, so a leaked
   // storage URL is useless and the gate above cannot be bypassed.
@@ -51,9 +80,13 @@ export async function GET(
   const hasKey = !!asAnswerKey(access.row.answer_key);
   let html: string;
   try {
-    html = hasKey
-      ? sanitizeTestHtml(raw, publicOrigin(req), id)
-      : injectScoringBridge(raw);
+    if (mock) {
+      // No key, no mock: grading is server-side and a keyless paper never passes readiness.
+      if (!hasKey) return new Response("This paper has no answer key.", { status: 502 });
+      html = adaptForMock(stripTestHtml(raw, publicOrigin(req), id), mock);
+    } else {
+      html = hasKey ? sanitizeTestHtml(raw, publicOrigin(req), id) : injectScoringBridge(raw);
+    }
   } catch (e) {
     if (e instanceof SanitizeIncompleteError) {
       console.error(`[test-html] refusing to serve ${id}: ${e.message}`);

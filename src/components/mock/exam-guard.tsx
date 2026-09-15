@@ -57,6 +57,7 @@ export function ExamGuard({
   initialLongAway,
   onAway,
   onReturn,
+  readyText,
   className,
   children,
 }: {
@@ -70,6 +71,8 @@ export function ExamGuard({
   initialLongAway: number;
   onAway?: () => void;
   onReturn?: () => void;
+  /** Overrides the enter-fullscreen screen's wording (0054: the video comes first). */
+  readyText?: { title: string; body: string; button: string };
   className?: string;
   children: React.ReactNode;
 }) {
@@ -261,14 +264,19 @@ export function ExamGuard({
       )}
 
       {phase === "ready" && (
-        <Screen icon={<Maximize className="h-7 w-7" />} title={reloaded ? `Continue ${sectionLabel}` : `Start ${sectionLabel}`}>
+        <Screen
+          icon={<Maximize className="h-7 w-7" />}
+          title={readyText?.title ?? (reloaded ? `Continue ${sectionLabel}` : `Start ${sectionLabel}`)}
+        >
           <span className="block">
-            {reloaded
-              ? "The clock for this section has been running since you first opened it. Enter fullscreen to continue."
-              : "This section runs in fullscreen. Leaving fullscreen hides the test until you return — the exam clock keeps running."}
+            {readyText?.body ??
+              (reloaded
+                ? "The clock for this section has been running since you first opened it. Enter fullscreen to continue."
+                : "This section runs in fullscreen. Leaving fullscreen hides the test until you return — the exam clock keeps running.")}
           </span>
           <Button className="mt-5 h-11 w-full text-base" onClick={enterFullscreen}>
-            <Maximize className="h-5 w-5" /> {reloaded ? "Return to fullscreen & continue" : "Enter fullscreen & begin"}
+            <Maximize className="h-5 w-5" />{" "}
+            {readyText?.button ?? (reloaded ? "Return to fullscreen & continue" : "Enter fullscreen & begin")}
           </Button>
           {enterError && <span className="mt-3 block text-sm text-danger">{enterError}</span>}
         </Screen>
@@ -290,6 +298,7 @@ export function ExamGuard({
                 <p className="mt-2 text-sm text-muted">
                   The test is hidden until you return. <b className="text-foreground">The exam clock is still running.</b>
                   {section === "listening" && " The recording is paused and continues when you return."}
+                  {" "}Any instruction video pauses too.
                 </p>
                 <p className={cn("mt-3 rounded-lg px-3 py-2 text-sm", longAway >= 1 ? "bg-warning/10 text-warning" : "bg-surface-2 text-muted")}>
                   {warning}

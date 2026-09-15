@@ -19,11 +19,15 @@ import {
   Loader2,
   Lock,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Send,
+  ShieldCheck,
+  Square,
   Trash2,
   Upload,
+  Video,
   X,
 } from "lucide-react";
 import {
@@ -31,17 +35,35 @@ import {
   bulkApproveMockRequests,
   bulkReleaseMockAttempts,
   cancelMockAttempt,
+  closeMockSessionAction,
   deleteMockDefinition,
   duplicateMockAction,
   grantMockByEmail,
+  recordMockSelfTestAction,
   rejectMockRequest,
   removeMockTask1Image,
+  reprofileMockPaperAction,
   saveMockDefinition,
+  setMockPaperMinutesAction,
   setMockPublishedAction,
+  setMockVideoAction,
+  startMockSessionAction,
+  uploadMockPaperAction,
   uploadMockTask1Image,
 } from "@/app/actions/mock";
 import type { AdminAttemptSummary, AdminMock, AdminRequest, MockPaper } from "@/lib/mock-admin";
-import { STAGE_GROUPS, STAGE_LABEL, csvCell, tashkent, type AdminStage, type StageGroup } from "@/lib/mock-shared";
+import {
+  SECTION_ORDER,
+  SESSION_LABEL,
+  STAGE_GROUPS,
+  STAGE_LABEL,
+  csvCell,
+  tashkent,
+  type AdminStage,
+  type MockSection,
+  type StageGroup,
+} from "@/lib/mock-shared";
+import { runPaperSelfTest } from "@/components/admin/paper-self-test";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,6 +72,7 @@ import { cn, timeAgo } from "@/lib/utils";
 // ------------------------------------------------------------------- shared
 
 type Msg = { ok: boolean; text: string; details?: string[] } | null;
+type Videos = Partial<Record<MockSection, { url: string; duration: number }>>;
 type Tab = "requests" | "mocks" | "results";
 type ActionResult = { ok: true; note?: string } | { ok: false; error: string; issues?: string[] };
 
@@ -144,6 +167,7 @@ export function AdminMocks({
   papers,
   attempts,
   images,
+  videos,
 }: {
   pending: AdminRequest[];
   decisions: AdminRequest[];
@@ -151,6 +175,7 @@ export function AdminMocks({
   papers: MockPaper[];
   attempts: AdminAttemptSummary[];
   images: Record<string, string>;
+  videos: Videos;
 }) {
   const url = useUrlState();
   const router = useRouter();
@@ -315,6 +340,7 @@ export function AdminMocks({
           mocks={mocks}
           papers={papers}
           images={images}
+          videos={videos}
           onMsg={setMsg}
           onDirty={(d) => (dirtyRef.current = d)}
           openResults={(id) => go({ tab: "results", mock: id, stage: null })}
@@ -1092,6 +1118,7 @@ function Mocks({
   mocks,
   papers,
   images,
+  videos,
   onMsg,
   onDirty,
   openResults,
@@ -1099,6 +1126,7 @@ function Mocks({
   mocks: AdminMock[];
   papers: MockPaper[];
   images: Record<string, string>;
+  videos: Videos;
   onMsg: (m: Msg) => void;
   onDirty: (dirty: boolean) => void;
   openResults: (mockId: string) => void;
@@ -1115,15 +1143,17 @@ function Mocks({
     <div className="space-y-4">
       <Card className="space-y-1 text-sm text-muted">
         <p>
-          <span className="font-medium text-foreground">Papers:</span> upload Listening and Reading HTML on{" "}
-          <Link href="/admin/tests" className="underline">Manage tests</Link> with <span className="font-medium">For</span> = “Mock exam only”.
-          They never appear in the public catalogue. {papers.length} mock paper{papers.length === 1 ? "" : "s"} uploaded
-          {papers.some((p) => !p.hasKey) && <span className="text-danger"> — {papers.filter((p) => !p.hasKey).length} without an answer key</span>}.
+          <span className="font-medium text-foreground">How a mock runs:</span> build it (upload the Listening and Reading HTML right in
+          the form — each paper is parsed and live-checked), approve places, then click <b>Start session</b>. Nobody can start
+          before that. <b>End session</b> stops new starts; students already inside finish. {papers.length} mock paper
+          {papers.length === 1 ? "" : "s"} on file.
         </p>
       </Card>
 
+      <InstructionVideos videos={videos} onMsg={onMsg} />
+
       {editing === "new" ? (
-        <MockForm papers={papers} onMsg={onMsg} onDirty={onDirty} onSaved={(id) => setEditing(id)} onClose={close} />
+        <MockForm papers={papers} videos={videos} onMsg={onMsg} onDirty={onDirty} onSaved={(id) => setEditing(id)} onClose={close} />
       ) : (
         <Button className="h-10" onClick={() => setEditing("new")} disabled={editing !== null}>
           <Plus className="h-4 w-4" /> New mock
@@ -1144,7 +1174,7 @@ function Mocks({
 
       {mocks.map((m) =>
         editing === m.id ? (
-          <MockForm key={m.id} mock={m} image={images[m.id] ?? null} papers={papers} onMsg={onMsg} onDirty={onDirty} onSaved={() => {}} onClose={close} />
+          <MockForm key={m.id} mock={m} image={images[m.id] ?? null} papers={papers} videos={videos} onMsg={onMsg} onDirty={onDirty} onSaved={() => {}} onClose={close} />
         ) : (
           <Card key={m.id} className="space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1154,16 +1184,68 @@ function Mocks({
                   <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", m.published ? "bg-success/10 text-success" : m.issues.length ? "bg-warning/10 text-warning" : "bg-surface-2 text-muted")}>
                     {m.published ? "Published" : m.issues.length ? `Incomplete (${m.issues.length})` : "Ready, unpublished"}
                   </span>
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-xs font-medium",
+                      m.session_state === "running" ? "bg-primary/10 text-primary" : m.session_state === "closed" ? "bg-surface-2 text-muted" : "bg-warning/10 text-warning",
+                    )}
+                  >
+                    {SESSION_LABEL[m.session_state]}
+                  </span>
                   {m.locked && (
-                    <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" title="Students have places, so exam content is locked">
+                    <span className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs text-muted" title="The session has started, so exam content is locked">
                       <Lock className="h-3 w-3" /> Locked
                     </span>
                   )}
                 </p>
                 <p className="text-xs text-muted">Listening: {m.listening_title ?? "—"} · Reading: {m.reading_title ?? "—"}</p>
                 <p className="text-xs text-muted">Times: L {m.listening_minutes} · R {m.reading_minutes} · W {m.writing_minutes} min{m.writing_task1_image_path ? " · Task 1 image" : ""}</p>
+                {m.session_started_at && (
+                  <p className="text-xs text-muted">
+                    Started {tashkent(m.session_started_at)}
+                    {m.session_closed_at && m.session_state === "closed" ? ` · ended ${tashkent(m.session_closed_at)}` : ""}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
+                {m.session_state === "waiting" && (
+                  <Button
+                    size="sm"
+                    className="h-10"
+                    disabled={busy || m.issues.length > 0}
+                    title={m.issues.length ? "Fix the checklist below first" : "Admit every approved student"}
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `Start the session for "${m.title}"?\n\n${m.counts.total} approved student${m.counts.total === 1 ? "" : "s"} can start straight away (they are notified). Late approvals can start too, until you end the session.\n\nPapers, prompts and times lock.`,
+                        )
+                      )
+                        return;
+                      run(() => startMockSessionAction(m.id), `${m.title}: session started.`);
+                    }}
+                  >
+                    <Play className="h-4 w-4" /> Start session
+                  </Button>
+                )}
+                {m.session_state === "running" && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="h-10"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `End the session for "${m.title}"?\n\nStudents who haven't started can no longer start. Students in the middle of the mock finish normally.`,
+                        )
+                      )
+                        return;
+                      run(() => closeMockSessionAction(m.id), `${m.title}: session ended.`);
+                    }}
+                  >
+                    <Square className="h-4 w-4" /> End session
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="h-10" disabled={busy || editing !== null} onClick={() => setEditing(m.id)}>
                   <Pencil className="h-4 w-4" /> Edit
                 </Button>
@@ -1194,7 +1276,7 @@ function Mocks({
                 >
                   <Copy className="h-4 w-4" /> Duplicate
                 </Button>
-                {!m.locked && (
+                {m.counts.total === 0 && m.session_state !== "running" && (
                   <Button
                     size="sm"
                     variant="danger"
@@ -1212,7 +1294,7 @@ function Mocks({
               </div>
             </div>
 
-            {!m.published && m.issues.length > 0 && (
+            {m.session_state === "waiting" && m.issues.length > 0 && (
               <ul className="list-disc space-y-0.5 rounded-lg bg-warning/5 py-2 pl-8 pr-3 text-xs text-warning">
                 {m.issues.map((i) => <li key={i}>{i}</li>)}
               </ul>
@@ -1246,7 +1328,8 @@ function Mocks({
 function MockForm({
   mock,
   image,
-  papers,
+  papers: serverPapers,
+  videos,
   onMsg,
   onDirty,
   onSaved,
@@ -1255,6 +1338,7 @@ function MockForm({
   mock?: AdminMock;
   image?: string | null;
   papers: MockPaper[];
+  videos: Videos;
   onMsg: (m: Msg) => void;
   onDirty: (dirty: boolean) => void;
   onSaved: (id: string) => void;
@@ -1289,15 +1373,28 @@ function MockForm({
   }, [dirty, onDirty]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // Papers uploaded or re-checked in this form, ahead of the refresh that brings them from the server.
+  const [touched, setTouched] = useState<Record<string, MockPaper>>({});
+  const papers = useMemo(() => {
+    const map = new Map(serverPapers.map((p) => [p.id, p]));
+    for (const p of Object.values(touched)) map.set(p.id, p);
+    return [...map.values()].sort((a, b) => a.title.localeCompare(b.title));
+  }, [serverPapers, touched]);
+  const updatePaper = (p: MockPaper) => setTouched((t) => ({ ...t, [p.id]: p }));
   const byId = new Map(papers.map((p) => [p.id, p]));
   const listening = papers.filter((p) => p.skill === "listening");
   const reading = papers.filter((p) => p.skill === "reading");
+  const paperReady = (id: string) => {
+    const p = byId.get(id);
+    return !!p?.hasKey && !!p.profile?.ok && !!p.selftest?.passed && p.selftest.hash === p.profile.hash;
+  };
 
-  // Live checklist; the server re-validates with the same rules on save/publish.
+  // Live checklist; the server re-validates with the same rules on save/publish/start.
   const checks = [
     { ok: !!form.title.trim(), label: "Title" },
-    { ok: !!byId.get(form.listening_test_id)?.hasKey, label: "Listening paper with an answer key" },
-    { ok: !!byId.get(form.reading_test_id)?.hasKey, label: "Reading paper with an answer key" },
+    { ok: paperReady(form.listening_test_id), label: "Listening paper parsed + live check passed" },
+    { ok: paperReady(form.reading_test_id), label: "Reading paper parsed + live check passed" },
+    { ok: SECTION_ORDER.every((s) => !!videos[s]), label: "Three instruction videos" },
     { ok: !!form.writing_task1_prompt.trim(), label: "Writing Task 1 prompt" },
     { ok: !!form.writing_task2_prompt.trim(), label: "Writing Task 2 prompt" },
     {
@@ -1352,7 +1449,7 @@ function MockForm({
       {locked && (
         <p className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 p-3 text-sm">
           <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-          Students have places on this mock, so its papers, prompts, writing time and image are locked — changing them would alter an exam already under way or rewrite old results. Title and description can still change. Use <b>Duplicate</b> to make a changed version.
+          The session has started, so papers, prompts, times and the image are locked — changing them would alter an exam already under way or rewrite old results. Title and description can still change. Use <b>Duplicate</b> to make a changed version.
         </p>
       )}
 
@@ -1365,26 +1462,29 @@ function MockForm({
         <input className="admin-input h-10" value={form.description} onChange={(e) => set("description", e.target.value)} />
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(
-          [
-            ["listening_test_id", "Listening paper", listening],
-            ["reading_test_id", "Reading paper", reading],
-          ] as const
-        ).map(([key, label, list]) => (
-          <label key={key} className="block space-y-1.5">
-            <span className="text-sm font-medium">{label}</span>
-            <select className="admin-input h-10" value={form[key]} disabled={locked} onChange={(e) => set(key, e.target.value)}>
-              <option value="">{list.length ? "Choose…" : "No mock papers uploaded"}</option>
-              {list.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                  {p.hasKey ? "" : " — NO ANSWER KEY"}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <PaperSlot
+          skill="listening"
+          value={form.listening_test_id}
+          papers={listening}
+          minutes={form.listening_minutes}
+          locked={locked}
+          onChange={(id, mins) => setForm((f) => ({ ...f, listening_test_id: id, listening_minutes: mins ?? f.listening_minutes }))}
+          onMinutes={(m) => set("listening_minutes", m)}
+          onPaper={updatePaper}
+          onMsg={onMsg}
+        />
+        <PaperSlot
+          skill="reading"
+          value={form.reading_test_id}
+          papers={reading}
+          minutes={form.reading_minutes}
+          locked={locked}
+          onChange={(id, mins) => setForm((f) => ({ ...f, reading_test_id: id, reading_minutes: mins ?? f.reading_minutes }))}
+          onMinutes={(m) => set("reading_minutes", m)}
+          onPaper={updatePaper}
+          onMsg={onMsg}
+        />
       </div>
 
       <label className="block space-y-1.5">
@@ -1428,29 +1528,19 @@ function MockForm({
         />
       </label>
 
-      {/* Server-enforced section clocks (0052). Listening should cover the recording plus transfer time. */}
-      <div className="flex flex-wrap gap-4">
-        {(
-          [
-            ["listening_minutes", "Listening time (min)"],
-            ["reading_minutes", "Reading time (min)"],
-            ["writing_minutes", "Writing time (min)"],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="block space-y-1.5">
-            <span className="text-sm font-medium">{label}</span>
-            <input
-              type="number"
-              min={10}
-              max={180}
-              disabled={locked}
-              className="admin-input h-10 w-28"
-              value={form[key]}
-              onChange={(e) => set(key, Number(e.target.value))}
-            />
-          </label>
-        ))}
-      </div>
+      {/* Server-enforced section clock (0052). Listening and Reading times sit with their papers above. */}
+      <label className="block space-y-1.5">
+        <span className="text-sm font-medium">Writing time (min)</span>
+        <input
+          type="number"
+          min={10}
+          max={180}
+          disabled={locked}
+          className="admin-input h-10 w-28"
+          value={form.writing_minutes}
+          onChange={(e) => set("writing_minutes", Number(e.target.value))}
+        />
+      </label>
 
       <div className="rounded-lg bg-surface-2 p-3">
         <p className="mb-1.5 text-sm font-medium">{ready ? "Ready to publish" : "Before publishing"}</p>
@@ -1485,6 +1575,307 @@ function MockForm({
           </Button>
         )}
       </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------- papers (0054)
+
+function PaperSlot({
+  skill,
+  value,
+  papers,
+  minutes,
+  locked,
+  onChange,
+  onMinutes,
+  onPaper,
+  onMsg,
+}: {
+  skill: "listening" | "reading";
+  value: string;
+  papers: MockPaper[];
+  minutes: number;
+  locked: boolean;
+  onChange: (id: string, minutes: number | null) => void;
+  onMinutes: (m: number) => void;
+  onPaper: (p: MockPaper) => void;
+  onMsg: (m: Msg) => void;
+}) {
+  const label = skill === "listening" ? "Listening" : "Reading";
+  const paper = papers.find((p) => p.id === value) ?? null;
+  const [busy, setBusy] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const profile = paper?.profile ?? null;
+  const st = paper?.selftest && profile && paper.selftest.hash === profile.hash ? paper.selftest : null;
+
+  async function check(p: MockPaper) {
+    if (!p.profile) return;
+    setBusy("Starting the live check…");
+    try {
+      const checks = await runPaperSelfTest(p.id, p.profile, (step) => setBusy(step));
+      const res = await recordMockSelfTestAction(p.id, checks);
+      if (!res.ok) {
+        onMsg({ ok: false, text: res.error });
+        return;
+      }
+      onPaper(res.paper);
+      onMsg(
+        res.paper.selftest?.passed
+          ? { ok: true, text: `${res.paper.title}: live check passed.` }
+          : { ok: false, text: `${res.paper.title}: live check failed.`, details: checks.filter((c) => !c.ok).map((c) => `${c.label} — ${c.detail ?? ""}`) },
+      );
+    } catch {
+      onMsg({ ok: false, text: "The live check couldn't run. Check your connection and try again." });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function upload(file: File) {
+    setBusy("Uploading and parsing…");
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("skill", skill);
+      const res = await uploadMockPaperAction(fd);
+      if (!res.ok) {
+        onMsg({ ok: false, text: res.error });
+        return;
+      }
+      onPaper(res.paper);
+      onChange(res.paper.id, res.paper.defaultMinutes);
+      if (res.paper.profile?.ok) await check(res.paper);
+      else onMsg({ ok: false, text: `${res.paper.title}: parsing found problems.`, details: res.paper.profile?.errors });
+    } catch {
+      onMsg({ ok: false, text: "Upload failed — check your connection and try again." });
+    } finally {
+      setBusy(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function reparse(p: MockPaper) {
+    setBusy("Parsing the paper…");
+    try {
+      const res = await reprofileMockPaperAction(p.id);
+      if (!res.ok) {
+        onMsg({ ok: false, text: res.error });
+        return;
+      }
+      onPaper(res.paper);
+      if (res.paper.profile?.ok) await check(res.paper);
+      else onMsg({ ok: false, text: `${res.paper.title}: parsing found problems.`, details: res.paper.profile?.errors });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">{label} paper</span>
+        {!locked && (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".html,.htm,text/html"
+              className="hidden"
+              aria-label={`Upload ${label} HTML`}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void upload(f);
+              }}
+            />
+            <Button size="sm" variant="outline" className="h-9" disabled={!!busy} onClick={() => fileRef.current?.click()}>
+              <Upload className="h-4 w-4" /> Upload HTML
+            </Button>
+          </>
+        )}
+      </div>
+
+      <select
+        className="admin-input h-10"
+        value={value}
+        disabled={locked || !!busy}
+        aria-label={`${label} paper`}
+        onChange={(e) => {
+          const next = papers.find((p) => p.id === e.target.value);
+          onChange(e.target.value, next?.defaultMinutes ?? null);
+        }}
+      >
+        <option value="">{papers.length ? "Choose an uploaded paper…" : "Upload a paper"}</option>
+        {papers.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.title}
+            {!p.hasKey ? " — NO ANSWER KEY" : p.selftest?.passed && p.profile && p.selftest.hash === p.profile.hash ? " ✓" : ""}
+          </option>
+        ))}
+      </select>
+
+      {busy && (
+        <p className="flex items-center gap-2 text-xs text-muted">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> {busy}
+        </p>
+      )}
+
+      {paper && (
+        <div className="space-y-1.5 rounded-md bg-surface-2/60 p-2 text-xs">
+          {profile ? (
+            <>
+              <p className={cn("flex items-center gap-1.5 font-medium", profile.ok ? "text-success" : "text-danger")}>
+                {profile.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {profile.ok ? "Parsed" : "Parsing found problems"} · {profile.family ?? "unknown player"} · {profile.keyQuestions.length} questions
+                {profile.parts.length ? ` · ${profile.parts.length} parts` : ""}
+                {skill === "listening" ? ` · audio ${profile.audioReachable === false ? "unreachable" : profile.audioSrc ? "found" : "missing"}` : ""}
+              </p>
+              {profile.errors.map((e) => (
+                <p key={e} className="text-danger">• {e}</p>
+              ))}
+              {profile.warnings.map((w) => (
+                <p key={w} className="text-warning">• {w}</p>
+              ))}
+              {st ? (
+                <div className="space-y-0.5 pt-1">
+                  <p className={cn("flex items-center gap-1.5 font-medium", st.passed ? "text-success" : "text-danger")}>
+                    <ShieldCheck className="h-3.5 w-3.5" /> Live check {st.passed ? "passed" : "failed"} · {tashkent(st.ranAt)}
+                  </p>
+                  {st.checks.map((c) => (
+                    <p key={c.id} className={c.ok ? "text-muted" : "text-danger"}>
+                      {c.ok ? "✓" : "✗"} {c.label}
+                      {c.detail ? ` — ${c.detail}` : ""}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-warning">Live check not run for this file yet.</p>
+              )}
+              {!locked && profile.ok && (
+                <Button size="sm" variant="outline" className="h-8" disabled={!!busy} onClick={() => void check(paper)}>
+                  <ShieldCheck className="h-3.5 w-3.5" /> {st ? "Run the live check again" : "Check paper"}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-warning">Uploaded before papers were parsed.</p>
+              {!locked && (
+                <Button size="sm" variant="outline" className="h-8" disabled={!!busy} onClick={() => void reparse(paper)}>
+                  <ShieldCheck className="h-3.5 w-3.5" /> Check paper
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <label className="flex items-center gap-2 text-sm">
+        <span className="font-medium">{label} time</span>
+        <input
+          type="number"
+          min={10}
+          max={180}
+          disabled={locked}
+          className="admin-input h-9 w-24"
+          value={minutes}
+          onChange={(e) => onMinutes(Number(e.target.value))}
+          onBlur={(e) => {
+            const m = Number(e.target.value);
+            // Remember it as this paper's default for the next mock that uses it.
+            if (paper && m >= 10 && m <= 180 && m !== paper.defaultMinutes) void setMockPaperMinutesAction(paper.id, m);
+          }}
+        />
+        <span className="text-muted">min</span>
+      </label>
+    </div>
+  );
+}
+
+// ------------------------------------------------------- instruction videos (0054)
+
+function InstructionVideos({ videos, onMsg }: { videos: Videos; onMsg: (m: Msg) => void }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(!SECTION_ORDER.every((s) => videos[s]));
+  const [editing, setEditing] = useState<MockSection | null>(null);
+  const [url, setUrl] = useState("");
+  const [pending, start] = useTransition();
+
+  function save(section: MockSection) {
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    probe.muted = true;
+    start(async () => {
+      const duration = await new Promise<number>((resolve) => {
+        const t = setTimeout(() => resolve(NaN), 15_000);
+        probe.onloadedmetadata = () => {
+          clearTimeout(t);
+          resolve(probe.duration);
+        };
+        probe.onerror = () => {
+          clearTimeout(t);
+          resolve(NaN);
+        };
+        probe.src = url.trim();
+      });
+      const res = await setMockVideoAction(section, url, duration);
+      if (!res.ok) {
+        onMsg({ ok: false, text: res.error });
+        return;
+      }
+      onMsg({ ok: true, text: `${section} instruction video updated. It plays from the next section a student opens.` });
+      setEditing(null);
+      setUrl("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card className="space-y-3">
+      <button className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="flex items-center gap-2 font-semibold">
+          <Video className="h-4 w-4" /> Instruction videos
+          <span className="text-xs font-normal text-muted">
+            {SECTION_ORDER.filter((s) => videos[s]).length}/3 set · played before every section, no skip
+          </span>
+        </span>
+        {open ? <ChevronLeft className="h-4 w-4 -rotate-90" /> : <ChevronRight className="h-4 w-4 rotate-90" />}
+      </button>
+      {open && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {SECTION_ORDER.map((s) => {
+            const v = videos[s];
+            return (
+              <div key={s} className="space-y-2 rounded-lg border border-border p-2">
+                <p className="text-sm font-medium capitalize">
+                  {s}
+                  {v ? <span className="ml-1 text-xs font-normal text-muted">· {Math.round(v.duration)} s</span> : <span className="ml-1 text-xs text-danger">not set</span>}
+                </p>
+                {v && (
+                  <video src={v.url} controls preload="metadata" className="aspect-video w-full rounded bg-black" />
+                )}
+                {editing === s ? (
+                  <div className="space-y-2">
+                    <input className="admin-input h-9" placeholder="https://…/video.mp4" value={url} onChange={(e) => setUrl(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-8" disabled={pending || !url.trim()} onClick={() => save(s)}>
+                        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8" disabled={pending} onClick={() => setEditing(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-8" onClick={() => { setEditing(s); setUrl(v?.url ?? ""); }}>
+                    {v ? "Replace" : "Set video"}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }

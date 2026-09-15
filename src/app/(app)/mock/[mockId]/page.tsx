@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Headphones, Lock, PenLine } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Clock, Headphones, Lock, PenLine } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { finalizeExpiredSection, getStudentAttempt } from "@/lib/mock";
-import { nextSection, STATUS_LABEL, type MockSection } from "@/lib/mock-shared";
+import { admissionError, nextSection, STATUS_LABEL, type MockSection } from "@/lib/mock-shared";
 import { Card } from "@/components/ui/card";
-import { BeginMockButton } from "@/components/mock/mock-actions";
+import { AutoRefresh, BeginMockButton } from "@/components/mock/mock-actions";
 import { DeviceNotice } from "@/components/mock/device-notice";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Mock exam" };
 
 const SECTIONS: { id: MockSection; label: string; icon: typeof Headphones; note: string }[] = [
-  { id: "listening", label: "Listening", icon: Headphones, note: "Timed on our server. The recording plays once and does not restart if you reload." },
-  { id: "reading", label: "Reading", icon: BookOpen, note: "Timed on our server. 40 questions; answers autosave." },
-  { id: "writing", label: "Writing", icon: PenLine, note: "Task 1 and Task 2 on one clock." },
+  { id: "listening", label: "Listening", icon: Headphones, note: "A short instruction video, then the recording. It plays once." },
+  { id: "reading", label: "Reading", icon: BookOpen, note: "A short instruction video, then the paper. Answers autosave." },
+  { id: "writing", label: "Writing", icon: PenLine, note: "A short instruction video, then Task 1 and Task 2 on one clock." },
 ];
 
 export default async function MockOverviewPage({ params }: { params: Promise<{ mockId: string }> }) {
@@ -37,6 +37,8 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
     writing: attempt.writing_submitted_at,
   };
   if (!mock) notFound();
+  // Can this student start something new right now? (Owner's Start/End session, 0054.)
+  const refused = admissionError(mock.session_state, attempt.status);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -52,11 +54,30 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
         {mock.description && <p className="mt-1 text-sm text-muted">{mock.description}</p>}
       </header>
 
-      {attempt.status === "approved" && (
+      {attempt.status === "approved" && mock.session_state === "waiting" && (
+        <Card className="flex items-start gap-3 border-warning/40 bg-warning/5">
+          <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div className="text-sm">
+            <p className="font-semibold">Waiting for your teacher to start the session</p>
+            <p className="mt-1 text-muted">
+              Your place is approved. The mock opens for everyone when your teacher starts the session — this page updates by
+              itself.
+            </p>
+          </div>
+          <AutoRefresh />
+        </Card>
+      )}
+
+      {attempt.status === "approved" && mock.session_state === "closed" && (
+        <Card className="text-sm text-muted">This mock session has ended, so it can no longer be started. Ask your teacher about the next sitting.</Card>
+      )}
+
+      {attempt.status === "approved" && mock.session_state === "running" && (
         <Card className="space-y-3 border-primary/25 bg-primary/5">
           <h2 className="font-semibold">Before you start</h2>
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
             <li>You get ONE attempt. A submitted section cannot be reopened.</li>
+            <li>Each section begins with a short <b>instruction video</b>. It cannot be skipped; the section clock starts when you click Start after it.</li>
             <li>The sections go in exam order: Listening, Reading, then Writing.</li>
             <li>Use a <b>laptop or desktop computer</b> (phones are not supported), headphones and a quiet room.</li>
             <li>Each section runs in <b>fullscreen</b>. Leaving fullscreen hides the test; <b>the clock keeps running</b> (Listening audio pauses until you return).</li>
@@ -98,7 +119,7 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
                     <p className="text-xs text-muted">{done ? "Submitted" : s.note}</p>
                   </div>
                 </div>
-                {isCurrent ? (
+                {isCurrent && !refused ? (
                   <Link
                     // Never prefetch: rendering a section page starts its clock / records a reload.
                     prefetch={false}

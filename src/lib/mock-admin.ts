@@ -1,13 +1,17 @@
 import "server-only";
 
-import { rows, type TablesUpdate } from "@/types/database";
+import { rows, type Json, type TablesUpdate } from "@/types/database";
 import { asAnswerKey } from "@/lib/ielts/grade";
+import { profileMockPaper, type MockPaperProfile, type SelfTestResult } from "@/lib/ielts/mock-profile";
+import { createTestFromHtml } from "@/lib/tests/create";
+import { downloadTestHtml } from "@/lib/tests/access";
 import {
   ATTEMPT_COLS,
   MOCK_COLS,
   UUID,
   db,
   getMock,
+  getMockVideos,
   num,
   type AttemptRow,
   type LibResult,
@@ -15,8 +19,10 @@ import {
   type RequestRow,
 } from "@/lib/mock";
 import {
+  SECTION_ORDER,
   adminStage,
   asIntegrity,
+  asSessionState,
   integrityVerdict,
   isBand,
   overallBand,
@@ -153,18 +159,55 @@ export type MockPaper = {
   total: number | null;
   track: string;
   hasKey: boolean;
+  /** Upload-time parse (0054); null for a paper uploaded before it existed. */
+  profile: MockPaperProfile | null;
+  /** The live check the admin's browser ran; counts only for the profile's file hash. */
+  selftest: SelfTestResult | null;
+  defaultMinutes: number | null;
 };
 
+function asProfile(v: unknown): MockPaperProfile | null {
+  const p = v as MockPaperProfile | null;
+  return p && typeof p === "object" && typeof p.hash === "string" && Array.isArray(p.errors) ? p : null;
+}
+
+function asSelfTest(v: unknown): SelfTestResult | null {
+  const r = v as SelfTestResult | null;
+  return r && typeof r === "object" && typeof r.hash === "string" && Array.isArray(r.checks) ? r : null;
+}
+
+/** The self-test result, only if it was run against the paper's current file. */
+export function currentSelfTest(p: Pick<MockPaper, "profile" | "selftest">): SelfTestResult | null {
+  return p.profile && p.selftest && p.selftest.hash === p.profile.hash ? p.selftest : null;
+}
+
 async function loadPapers(ids?: string[]): Promise<MockPaper[]> {
-  const list = await fetchAll<{ id: string; title: string; skill: "reading" | "listening"; total: number | null; track: string; answer_key: unknown }>(
-    "papers",
-    (from, to) => {
-      let q = db().from("tests").select("id, title, skill, total, track, answer_key").order("id").range(from, to);
-      q = ids ? q.in("id", ids) : q.eq("track", "mock");
-      return q;
-    },
-  );
-  return list.map(({ answer_key, ...t }) => ({ ...t, hasKey: !!asAnswerKey(answer_key) }));
+  const list = await fetchAll<{
+    id: string;
+    title: string;
+    skill: "reading" | "listening";
+    total: number | null;
+    track: string;
+    answer_key: unknown;
+    mock_profile: unknown;
+    mock_selftest: unknown;
+    default_minutes: number | null;
+  }>("papers", (from, to) => {
+    let q = db()
+      .from("tests")
+      .select("id, title, skill, total, track, answer_key, mock_profile, mock_selftest, default_minutes")
+      .order("id")
+      .range(from, to);
+    q = ids ? q.in("id", ids) : q.eq("track", "mock");
+    return q;
+  });
+  return list.map(({ answer_key, mock_profile, mock_selftest, default_minutes, ...t }) => ({
+    ...t,
+    hasKey: !!asAnswerKey(answer_key),
+    profile: asProfile(mock_profile),
+    selftest: asSelfTest(mock_selftest),
+    defaultMinutes: default_minutes,
+  }));
 }
 
 /** Papers an admin can put in a mock: everything uploaded on the Mock track. */
@@ -191,6 +234,7 @@ function readinessIssues(
     | "reading_minutes"
   >,
   papers: Map<string, MockPaper>,
+  videos: Partial<Record<string, unknown>> | null = null,
 ): string[] {
   const issues: string[] = [];
   const check = (id: string | null, skill: "listening" | "reading", label: string) => {
@@ -200,6 +244,11 @@ function readinessIssues(
     if (p.skill !== skill) return issues.push(`The ${label} paper is a ${p.skill} test.`);
     if (p.track !== "mock") return issues.push(`The ${label} paper is not on the Mock track, so it is public.`);
     if (!p.hasKey) return issues.push(`The ${label} paper has no answer key, so it cannot be marked.`);
+    if (!p.profile) return issues.push(`Check the ${label} paper: it was uploaded before papers were parsed. Open the mock and click "Check paper".`);
+    if (!p.profile.ok) return issues.push(`The ${label} paper failed parsing: ${p.profile.errors[0]}`);
+    const st = currentSelfTest(p);
+    if (!st) return issues.push(`Run the live check on the ${label} paper (open the mock, click "Check paper").`);
+    if (!st.passed) return issues.push(`The ${label} paper failed its live check: ${st.checks.find((c) => !c.ok)?.label ?? "see the report"}.`);
   };
   check(mock.listening_test_id, "listening", "Listening");
   check(mock.reading_test_id, "reading", "Reading");
@@ -209,20 +258,23 @@ function readinessIssues(
   if (!inRange(mock.listening_minutes)) issues.push("Listening time must be 10–180 minutes.");
   if (!inRange(mock.reading_minutes)) issues.push("Reading time must be 10–180 minutes.");
   if (!inRange(mock.writing_minutes)) issues.push("Writing time must be 10–180 minutes.");
+  if (videos) {
+    for (const s of SECTION_ORDER) if (!videos[s]) issues.push(`Set the ${s} instruction video.`);
+  }
   return issues;
 }
 
 async function issuesFor(mock: MockRow): Promise<string[]> {
   const ids = [mock.listening_test_id, mock.reading_test_id].filter(Boolean) as string[];
-  const papers = new Map((ids.length ? await loadPapers(ids) : []).map((p) => [p.id, p]));
-  return readinessIssues(mock, papers);
+  const [list, videos] = await Promise.all([ids.length ? loadPapers(ids) : Promise.resolve([]), getMockVideos()]);
+  return readinessIssues(mock, new Map(list.map((p) => [p.id, p])), videos);
 }
 
 export type AdminMock = MockRow & {
   listening_title: string | null;
   reading_title: string | null;
   issues: string[];
-  /** Places exist, so papers, prompts, timing and image are locked. */
+  /** The session has started (or ended), so papers, prompts, timing and image are locked. */
   locked: boolean;
   counts: Record<AdminStage, number> & { total: number; pending: number };
 };
@@ -253,7 +305,8 @@ export async function listMocksAdmin(): Promise<AdminMock[]> {
   ]);
 
   const ids = [...new Set(mocks.flatMap((m) => [m.listening_test_id, m.reading_test_id]).filter(Boolean))] as string[];
-  const papers = new Map((ids.length ? await loadPapers(ids) : []).map((p) => [p.id, p]));
+  const [paperList, videos] = await Promise.all([ids.length ? loadPapers(ids) : Promise.resolve([]), getMockVideos()]);
+  const papers = new Map(paperList.map((p) => [p.id, p]));
 
   const counts = new Map<string, AdminMock["counts"]>();
   const bump = (id: string) => {
@@ -269,12 +322,14 @@ export async function listMocksAdmin(): Promise<AdminMock[]> {
 
   return mocks.map((m) => {
     const c = counts.get(m.id) ?? emptyCounts();
+    const session_state = asSessionState(m.session_state);
     return {
       ...m,
+      session_state,
       listening_title: m.listening_test_id ? (papers.get(m.listening_test_id)?.title ?? null) : null,
       reading_title: m.reading_test_id ? (papers.get(m.reading_test_id)?.title ?? null) : null,
-      issues: readinessIssues(m, papers),
-      locked: c.total > 0,
+      issues: readinessIssues(m, papers, videos),
+      locked: session_state !== "waiting",
       counts: c,
     };
   });
@@ -462,17 +517,25 @@ async function attemptCount(mockId: string): Promise<number> {
 }
 
 const LOCKED_MESSAGE =
-  "Students already have places on this mock, so its papers, prompts, writing time and image are locked. Duplicate it to make a changed version.";
+  "This mock's session has started, so its papers, prompts, times and image are locked. Duplicate it to make a changed version.";
+
+/** Exam content is editable only while the session is waiting (0054). */
+async function isLocked(mockId: string): Promise<boolean> {
+  const m = await getMock(mockId);
+  return !m || m.session_state !== "waiting";
+}
 
 const norm = (s: string | null | undefined) => (s ?? "").trim();
 
 /**
  * Create or edit a mock.
  *
- * EXAM CONTENT LOCKS once any place exists: papers, prompts, writing time and
+ * EXAM CONTENT LOCKS once the session starts (0054): papers, prompts, times and
  * the Task 1 image. Changing them under a student who is mid-exam moved their
  * deadline, and changing them afterwards made old reviews show the wrong
- * material. Title, description and publication stay editable.
+ * material. While the session waits they stay editable even with places
+ * approved — Start session re-snapshots every unstarted place. Title,
+ * description and publication stay editable always.
  */
 export async function saveMock(
   input: MockInput,
@@ -493,8 +556,8 @@ export async function saveMock(
   };
 
   const ids = [candidate.listening_test_id, candidate.reading_test_id].filter(Boolean) as string[];
-  const papers = new Map((ids.length ? await loadPapers(ids) : []).map((p) => [p.id, p]));
-  const issues = readinessIssues(candidate, papers);
+  const [paperList, videos] = await Promise.all([ids.length ? loadPapers(ids) : Promise.resolve([]), getMockVideos()]);
+  const issues = readinessIssues(candidate, new Map(paperList.map((p) => [p.id, p])), videos);
   for (const [label, m] of [
     ["Listening", candidate.listening_minutes],
     ["Reading", candidate.reading_minutes],
@@ -518,7 +581,7 @@ export async function saveMock(
   if (input.id) {
     const current = await getMock(input.id);
     if (!current) return { ok: false, error: "That mock no longer exists." };
-    if ((await attemptCount(input.id)) > 0) {
+    if (current.session_state !== "waiting") {
       const changed =
         current.listening_test_id !== candidate.listening_test_id ||
         current.reading_test_id !== candidate.reading_test_id ||
@@ -586,7 +649,7 @@ export async function uploadTask1Image(mockId: string, file: File): Promise<LibR
   if (!file.type.startsWith("image/")) return { ok: false, error: "Task 1 image must be an image file." };
   if (file.size > 5 * 1024 * 1024) return { ok: false, error: "Keep the image under 5 MB." };
   if (!(await getMock(mockId))) return { ok: false, error: "That mock no longer exists." };
-  if ((await attemptCount(mockId)) > 0) return { ok: false, error: LOCKED_MESSAGE };
+  if (await isLocked(mockId)) return { ok: false, error: LOCKED_MESSAGE };
 
   const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
   // A fresh path per upload, and old objects are KEPT: attempts snapshot the
@@ -608,7 +671,7 @@ export async function uploadTask1Image(mockId: string, file: File): Promise<LibR
 }
 
 export async function removeTask1Image(mockId: string): Promise<LibResult> {
-  if ((await attemptCount(mockId)) > 0) return { ok: false, error: LOCKED_MESSAGE };
+  if (await isLocked(mockId)) return { ok: false, error: LOCKED_MESSAGE };
   const { error } = await db()
     .from("mocks")
     .update({ writing_task1_image_path: null, updated_at: new Date().toISOString() })
@@ -623,6 +686,225 @@ export async function deleteMock(mockId: string): Promise<LibResult> {
     return { ok: false, error: "Students have places on this mock, so it is kept. Unpublish it instead." };
   }
   const { error } = await db().from("mocks").delete().eq("id", mockId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ------------------------------------------------------------- sessions (0054)
+
+/**
+ * Start session: the button that makes a mock valid. Refused unless the mock
+ * is ready by the same validator publish and approval use. Every place approved
+ * while the session waited is re-snapshotted to the mock as it is NOW — the
+ * owner may have changed papers or times since approving.
+ */
+export async function startMockSession(mockId: string, adminId: string | null): Promise<LibResult & { issues?: string[] }> {
+  if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
+  const mock = await getMock(mockId);
+  if (!mock) return { ok: false, error: "That mock no longer exists." };
+  if (mock.session_state === "running") return { ok: false, error: "The session is already running." };
+  if (mock.session_state === "closed") return { ok: false, error: "This session has ended. Duplicate the mock to run another sitting." };
+  const issues = await issuesFor(mock);
+  if (issues.length) return { ok: false, error: "This mock isn't ready to start.", issues };
+
+  const client = db();
+  const now = new Date().toISOString();
+  const { data: flipped, error } = await client
+    .from("mocks")
+    .update({ session_state: "running", session_started_at: now, session_started_by: adminId, updated_at: now })
+    .eq("id", mockId)
+    .eq("session_state", "waiting")
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!flipped?.length) return { ok: false, error: "The session was already started." };
+
+  const { error: snapErr } = await client
+    .from("mock_attempts")
+    .update({
+      listening_test_id: mock.listening_test_id,
+      reading_test_id: mock.reading_test_id,
+      writing_minutes: mock.writing_minutes,
+      listening_minutes: mock.listening_minutes,
+      reading_minutes: mock.reading_minutes,
+      writing_task1_image_path: mock.writing_task1_image_path,
+    })
+    .eq("mock_id", mockId)
+    .eq("status", "approved")
+    .is("started_at", null);
+  if (snapErr) console.error("[mock-admin] session snapshot failed", snapErr.message);
+
+  const { data: places } = await client.from("mock_attempts").select("user_id").eq("mock_id", mockId).eq("status", "approved");
+  const users = rows<{ user_id: string | null }>(places).map((p) => p.user_id).filter(Boolean) as string[];
+  if (users.length) {
+    const { error: noteErr } = await client.from("notifications").insert(
+      users.map((user_id) => ({
+        user_id,
+        type: "mock_access",
+        title: "Your mock exam has started",
+        body: `"${mock.title}" is open. Start it on a laptop in fullscreen when you are ready.`,
+        data: { href: `/mock/${mockId}` },
+      })),
+    );
+    if (noteErr) console.error("[mock-admin] session notifications failed", noteErr.message);
+  }
+  return { ok: true };
+}
+
+/** End session: nobody new starts; students already inside finish on their own clocks. */
+export async function closeMockSession(mockId: string, adminId: string | null): Promise<LibResult> {
+  if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
+  const now = new Date().toISOString();
+  const { data, error } = await db()
+    .from("mocks")
+    .update({ session_state: "closed", session_closed_at: now, session_closed_by: adminId, updated_at: now })
+    .eq("id", mockId)
+    .eq("session_state", "running")
+    .select("id");
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) return { ok: false, error: "The session isn't running." };
+  return { ok: true };
+}
+
+// ------------------------------------------------------------ papers (0054)
+
+async function headOk(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: "HEAD", cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (res.ok) return true;
+    // Some hosts refuse HEAD; a one-byte ranged GET answers the same question.
+    const get = await fetch(url, { headers: { Range: "bytes=0-0" }, cache: "no-store", signal: AbortSignal.timeout(8000) });
+    return get.ok || get.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+async function profileAndStore(testId: string, html: string, skill: "reading" | "listening", key: unknown): Promise<MockPaperProfile> {
+  const profile = profileMockPaper(html, skill, asAnswerKey(key));
+  if (profile.audioSrc && /^https:\/\//i.test(profile.audioSrc)) {
+    profile.audioReachable = await headOk(profile.audioSrc);
+    if (!profile.audioReachable) {
+      profile.errors.push("The recording's URL did not answer. Check the audio link in the file.");
+      profile.ok = false;
+    }
+  }
+  const { data: cur } = await db().from("tests").select("default_minutes").eq("id", testId).maybeSingle();
+  const patch: TablesUpdate<"tests"> = { mock_profile: profile as unknown as Json };
+  if ((cur as { default_minutes?: number | null } | null)?.default_minutes == null) patch.default_minutes = profile.suggestedMinutes;
+  const { error } = await db().from("tests").update(patch).eq("id", testId);
+  if (error) throw new Error(`[mock-admin] profile save failed: ${error.message}`);
+  return profile;
+}
+
+export type PaperUploadResult =
+  | { ok: true; paper: MockPaper }
+  | { ok: false; error: string };
+
+/** Upload a Listening/Reading HTML straight from the mock form, parse it, and return the paper. */
+export async function uploadMockPaper(input: {
+  html: string;
+  fileName: string;
+  skill: "reading" | "listening";
+  title: string;
+  adminId: string;
+}): Promise<PaperUploadResult> {
+  const base =
+    input.title.trim() ||
+    /<title[^>]*>([^<]{1,140})<\/title>/i.exec(input.html)?.[1]?.trim() ||
+    input.fileName.replace(/\.html?$/i, "");
+  let created: Awaited<ReturnType<typeof createTestFromHtml>> | null = null;
+  // Titles are unique per skill; a re-upload of the same file gets a suffix rather than an error.
+  for (let n = 0; n < 5; n++) {
+    const title = n === 0 ? `${base} (mock)` : `${base} (mock ${n + 1})`;
+    created = await createTestFromHtml({
+      title,
+      skill: input.skill,
+      kind: "full",
+      tier: "free",
+      track: "mock",
+      questionTypes: [],
+      level: null,
+      passage: null,
+      html: input.html,
+      createdBy: input.adminId,
+    });
+    if (created.ok || !/already called/.test(created.error)) break;
+  }
+  if (!created || !created.ok) return { ok: false, error: created?.error ?? "Upload failed." };
+  const { data: row } = await db().from("tests").select("answer_key").eq("id", created.id).maybeSingle();
+  await profileAndStore(created.id, input.html, input.skill, (row as { answer_key?: unknown } | null)?.answer_key);
+  const [paper] = await loadPapers([created.id]);
+  return paper ? { ok: true, paper } : { ok: false, error: "Uploaded, but the paper could not be read back." };
+}
+
+/** Parse (or re-parse) a paper already in storage — for papers uploaded before 0054. */
+export async function reprofilePaper(testId: string): Promise<PaperUploadResult> {
+  if (!UUID.test(testId)) return { ok: false, error: "That paper no longer exists." };
+  const { data } = await db().from("tests").select("file_path, skill, track, answer_key").eq("id", testId).maybeSingle();
+  const t = data as { file_path: string | null; skill: "reading" | "listening"; track: string; answer_key: unknown } | null;
+  if (!t?.file_path) return { ok: false, error: "That paper no longer exists." };
+  if (t.track !== "mock") return { ok: false, error: "Only Mock-track papers can be checked here." };
+  const html = await downloadTestHtml(t.file_path);
+  if (html == null) return { ok: false, error: "Couldn't download the paper from storage." };
+  await profileAndStore(testId, html, t.skill, t.answer_key);
+  const [paper] = await loadPapers([testId]);
+  return paper ? { ok: true, paper } : { ok: false, error: "Couldn't read the paper back." };
+}
+
+/**
+ * Stores the admin browser's live check. The result is stamped with the file
+ * hash of the CURRENT profile, so it can never vouch for a different file.
+ */
+export async function recordSelfTest(
+  testId: string,
+  checks: { id: string; label: string; ok: boolean; detail?: string }[],
+): Promise<PaperUploadResult> {
+  if (!UUID.test(testId)) return { ok: false, error: "That paper no longer exists." };
+  const [paper] = await loadPapers([testId]);
+  if (!paper?.profile) return { ok: false, error: "Parse the paper first." };
+  const clean = checks.slice(0, 40).map((c) => ({
+    id: String(c.id).slice(0, 40),
+    label: String(c.label).slice(0, 200),
+    ok: !!c.ok,
+    ...(c.detail ? { detail: String(c.detail).slice(0, 600) } : {}),
+  }));
+  const result: SelfTestResult = {
+    hash: paper.profile.hash,
+    passed: clean.length > 0 && clean.every((c) => c.ok),
+    ranAt: new Date().toISOString(),
+    checks: clean,
+  };
+  const { error } = await db().from("tests").update({ mock_selftest: result as unknown as Json }).eq("id", testId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, paper: { ...paper, selftest: result } };
+}
+
+export async function setPaperDefaultMinutes(testId: string, minutes: number): Promise<LibResult> {
+  const m = Math.round(Number(minutes));
+  if (!UUID.test(testId)) return { ok: false, error: "That paper no longer exists." };
+  if (!(m >= 10 && m <= 180)) return { ok: false, error: "Time must be 10–180 minutes." };
+  const { error } = await db().from("tests").update({ default_minutes: m }).eq("id", testId).eq("track", "mock");
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ------------------------------------------------------------ videos (0054)
+
+export async function setMockVideo(
+  section: string,
+  url: string,
+  durationS: number,
+  adminId: string | null,
+): Promise<LibResult> {
+  if (!(SECTION_ORDER as string[]).includes(section)) return { ok: false, error: "Unknown section." };
+  const u = url.trim();
+  if (!/^https:\/\/[^\s]+$/i.test(u)) return { ok: false, error: "Use an https link to an MP4 file." };
+  const d = Number(durationS);
+  if (!(d > 0 && d < 3600)) return { ok: false, error: "Couldn't read the video's length — check that the link plays." };
+  if (!(await headOk(u))) return { ok: false, error: "That link didn't answer. Check it opens in a browser." };
+  const { error } = await db()
+    .from("mock_videos")
+    .upsert({ section, url: u, duration_s: Math.round(d * 100) / 100, updated_at: new Date().toISOString(), updated_by: adminId });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -652,6 +934,9 @@ async function createAttempt(
     client.from("profiles").select("name, email").eq("id", userId).maybeSingle(),
   ]);
   if (!mock) return { ok: false, error: "That mock no longer exists." };
+  if (mock.session_state === "closed") {
+    return { ok: false, error: "This mock's session has ended. Duplicate it to run another sitting." };
+  }
   const issues = await issuesFor(mock);
   if (issues.length) return { ok: false, error: `This mock isn't ready: ${issues.join(" ")}` };
   const prof = (profRes.data as { name?: string | null; email?: string | null } | null) ?? {};

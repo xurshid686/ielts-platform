@@ -23,7 +23,7 @@ import type { Database as GeneratedDatabase, Json } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// PENDING SCHEMA OVERRIDES — migrations 0050–0053 ONLY.
+// PENDING SCHEMA OVERRIDES — migrations 0050–0054 ONLY.
 //
 // Hand-written stand-ins for the tables migration 0050 (the Mock exam section)
 // creates, which ./supabase.ts has not seen yet because regenerating it needs a
@@ -59,6 +59,12 @@ type PendingTables = {
     published: boolean;
     created_at: string;
     updated_at: string;
+    // 0054
+    session_state: string;
+    session_started_at: string | null;
+    session_started_by: string | null;
+    session_closed_at: string | null;
+    session_closed_by: string | null;
   }>;
   mock_requests: PendingTable<{
     id: string;
@@ -127,17 +133,52 @@ type PendingTables = {
     integrity: Json;
     // 0053
     integrity_rev: number;
+    // 0054
+    listening_video_pos: number | null;
+    listening_video_started_at: string | null;
+    listening_video_done_at: string | null;
+    reading_video_pos: number | null;
+    reading_video_started_at: string | null;
+    reading_video_done_at: string | null;
+    writing_video_pos: number | null;
+    writing_video_started_at: string | null;
+    writing_video_done_at: string | null;
+  }>;
+  // 0054
+  mock_videos: PendingTable<{
+    section: string;
+    url: string;
+    duration_s: number;
+    updated_at: string;
+    updated_by: string | null;
   }>;
 };
 
+/** 0054 columns added to the generated `tests` table. */
+type PendingTestsColumns = {
+  mock_profile: Json | null;
+  mock_selftest: Json | null;
+  default_minutes: number | null;
+};
+
 /** The generated schema, passed to every Supabase client. */
-export type Database = Omit<GeneratedDatabase, "public"> & {
-  public: Omit<GeneratedDatabase["public"], "Tables"> & {
-    Tables: GeneratedDatabase["public"]["Tables"] & PendingTables;
+type GenTables = GeneratedDatabase["public"]["Tables"];
+type PatchedGenTables = Omit<GenTables, "tests"> & {
+  tests: {
+    Row: GenTables["tests"]["Row"] & PendingTestsColumns;
+    Insert: GenTables["tests"]["Insert"] & Partial<PendingTestsColumns>;
+    Update: GenTables["tests"]["Update"] & Partial<PendingTestsColumns>;
+    Relationships: GenTables["tests"]["Relationships"];
   };
 };
 
-type Tables = GeneratedDatabase["public"]["Tables"] & PendingTables;
+export type Database = Omit<GeneratedDatabase, "public"> & {
+  public: Omit<GeneratedDatabase["public"], "Tables"> & {
+    Tables: PatchedGenTables & PendingTables;
+  };
+};
+
+type Tables = PatchedGenTables & PendingTables;
 type Views = GeneratedDatabase["public"]["Views"];
 
 /** A table's row, exactly as the database returns it. */

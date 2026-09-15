@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -129,4 +129,14 @@ export function BeginMockButton({ mockId, href, label }: { mockId: string; href:
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
+}
+
+/** Re-renders the page every `everyMs` — used while a student waits for the session to start (0054). */
+export function AutoRefresh({ everyMs = 20_000 }: { everyMs?: number }) {
+  const router = useRouter();
+  useEffect(() => {
+    const t = setInterval(() => router.refresh(), everyMs);
+    return () => clearInterval(t);
+  }, [everyMs, router]);
+  return null;
 }

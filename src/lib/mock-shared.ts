@@ -13,6 +13,44 @@ export type MockSection = "listening" | "reading" | "writing";
 /** The real exam's order. A section opens only once the one before it is submitted. */
 export const SECTION_ORDER: MockSection[] = ["listening", "reading", "writing"];
 
+/**
+ * A mock's sitting (0054). `waiting`: places can be approved, nobody can start.
+ * `running`: every approved student may start. `closed`: nobody new starts;
+ * students already inside finish.
+ */
+export type SessionState = "waiting" | "running" | "closed";
+
+export const SESSION_LABEL: Record<SessionState, string> = {
+  waiting: "Waiting to start",
+  running: "Session running",
+  closed: "Session ended",
+};
+
+export function asSessionState(v: unknown): SessionState {
+  return v === "running" || v === "closed" ? v : "waiting";
+}
+
+/**
+ * May this attempt START something new (the mock, a section, a video)?
+ * Null = yes; otherwise the reason, in the student's words.
+ *
+ * The owner's rule: a running session admits everyone approved; a closed one
+ * lets a student who is already inside (status in_progress) finish.
+ */
+export function admissionError(sessionState: SessionState, attemptStatus: string): string | null {
+  if (sessionState === "running") return null;
+  if (sessionState === "closed" && attemptStatus === "in_progress") return null;
+  return sessionState === "waiting"
+    ? "Your teacher hasn't started the session yet. This page will open it as soon as they do."
+    : "This mock session has ended.";
+}
+
+/** The watched-enough rule for an instruction video: server time since it first played. */
+export function videoWatchedEnough(startedAtMs: number | null, durationS: number, nowMs: number): boolean {
+  if (startedAtMs == null || !Number.isFinite(durationS) || durationS <= 0) return false;
+  return (nowMs - startedAtMs) / 1000 >= durationS * 0.9 - 2;
+}
+
 export const MAX_REQUEST_MESSAGE = 300;
 /** A generous cap: a Task 2 essay is ~250–400 words, about 2–3 KB. */
 export const MAX_ESSAY_CHARS = 20_000;

@@ -4,12 +4,18 @@ import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
+  beginSection,
+  beginWriting,
   getMock,
+  markVideoDone,
   saveSectionDraft,
+  saveVideoProgress,
   saveWriting,
   startAttempt,
   submitRequest,
   submitSection,
+  type BeginSectionResult,
+  type BeginWritingResult,
   type WritingSaveResult,
 } from "@/lib/mock";
 import {
@@ -17,21 +23,29 @@ import {
   bulkApprove,
   bulkRelease,
   cancelAttempt,
+  closeMockSession,
   deleteMock,
   duplicateMock,
   grantByEmail,
   gradeWriting,
+  recordSelfTest,
   rejectRequest,
   releaseAttempt,
   removeTask1Image,
+  reprofilePaper,
   saveMock,
   setMockPublished,
+  setMockVideo,
+  setPaperDefaultMinutes,
+  startMockSession,
+  uploadMockPaper,
   unreleaseAttempt,
   uploadTask1Image,
   type BulkOutcome,
   type MockInput,
+  type PaperUploadResult,
 } from "@/lib/mock-admin";
-import { MAX_REQUEST_MESSAGE } from "@/lib/mock-shared";
+import { MAX_REQUEST_MESSAGE, SECTION_ORDER, type MockSection } from "@/lib/mock-shared";
 import { notifyMockFinished, notifyMockRequest } from "@/lib/telegram/notify";
 
 // Server actions for the Mock exam section (migration 0050).
@@ -114,6 +128,42 @@ export async function beginMock(mockId: string): Promise<MockActionResult> {
   const res = await startAttempt(user.id, mockId);
   if (res.ok) refreshStudent(mockId);
   return res;
+}
+
+const isSection = (s: unknown): s is MockSection => (SECTION_ORDER as unknown[]).includes(s);
+
+/**
+ * Instruction video progress (0054). No revalidatePath on any of these: the
+ * section page must not re-render under the student (a render of an active
+ * section records a reload).
+ */
+export async function saveMockVideoProgress(
+  mockId: string,
+  section: MockSection,
+  pos: number,
+): Promise<{ ok: true; pos: number } | { ok: false; error: string }> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  if (!isSection(section)) return { ok: false, error: "Unknown section." };
+  return saveVideoProgress(user.id, mockId, section, pos);
+}
+
+export async function finishMockVideo(mockId: string, section: MockSection): Promise<MockActionResult> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  if (!isSection(section)) return { ok: false, error: "Unknown section." };
+  return markVideoDone(user.id, mockId, section);
+}
+
+/** The "Start <section>" click after the video: starts the section clock. */
+export async function beginMockSection(
+  mockId: string,
+  section: MockSection,
+): Promise<BeginSectionResult | BeginWritingResult> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  if (!isSection(section)) return { ok: false, error: "Unknown section." };
+  return section === "writing" ? beginWriting(user.id, mockId) : beginSection(user.id, mockId, section);
 }
 
 /** Listening or Reading answers from the CDI player. Returns no score, by design. */
@@ -289,6 +339,84 @@ export async function removeMockTask1Image(mockId: string): Promise<MockAdminRes
 export async function deleteMockDefinition(mockId: string): Promise<MockAdminResult> {
   return guarded("delete mock", async () => {
     const res = await deleteMock(mockId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+// ----------------------------------------------------- sessions, papers, videos (0054)
+
+export async function startMockSessionAction(mockId: string): Promise<MockAdminResult> {
+  return guarded("start session", async (adminId) => {
+    const res = await startMockSession(mockId, adminId);
+    if (res.ok) {
+      refreshAdmin();
+      refreshStudent(mockId);
+    }
+    return res;
+  });
+}
+
+export async function closeMockSessionAction(mockId: string): Promise<MockAdminResult> {
+  return guarded("end session", async (adminId) => {
+    const res = await closeMockSession(mockId, adminId);
+    if (res.ok) {
+      refreshAdmin();
+      refreshStudent(mockId);
+    }
+    return res;
+  });
+}
+
+/** Upload a paper from the mock form. FormData: file, skill, title (optional). */
+export async function uploadMockPaperAction(formData: FormData): Promise<PaperUploadResult> {
+  return guarded("upload paper", async (adminId) => {
+    const file = formData.get("file");
+    const skill = String(formData.get("skill") || "");
+    if (skill !== "reading" && skill !== "listening") return { ok: false as const, error: "Pick Listening or Reading." };
+    if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Choose an HTML file." };
+    if (!/\.html?$/i.test(file.name) && file.type !== "text/html") return { ok: false as const, error: "The paper must be an .html file." };
+    const res = await uploadMockPaper({
+      html: await file.text(),
+      fileName: file.name,
+      skill,
+      title: String(formData.get("title") || ""),
+      adminId,
+    });
+    if (res.ok) {
+      refreshAdmin();
+      revalidatePath("/admin/tests");
+    }
+    return res;
+  });
+}
+
+export async function reprofileMockPaperAction(testId: string): Promise<PaperUploadResult> {
+  return guarded("reprofile paper", async () => {
+    const res = await reprofilePaper(testId);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+export async function recordMockSelfTestAction(
+  testId: string,
+  checks: { id: string; label: string; ok: boolean; detail?: string }[],
+): Promise<PaperUploadResult> {
+  return guarded("self-test", async () => {
+    const res = await recordSelfTest(testId, Array.isArray(checks) ? checks : []);
+    if (res.ok) refreshAdmin();
+    return res;
+  });
+}
+
+export async function setMockPaperMinutesAction(testId: string, minutes: number): Promise<MockAdminResult> {
+  return guarded("paper minutes", async () => setPaperDefaultMinutes(testId, minutes));
+}
+
+export async function setMockVideoAction(section: string, url: string, durationS: number): Promise<MockAdminResult> {
+  return guarded("set video", async (adminId) => {
+    const res = await setMockVideo(section, url, durationS, adminId);
     if (res.ok) refreshAdmin();
     return res;
   });

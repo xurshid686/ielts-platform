@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { signedTask1Image } from "@/lib/mock";
+import { getMockVideos, signedTask1Image } from "@/lib/mock";
 import {
   listAttemptsAdmin,
   listMockPapers,
@@ -20,13 +20,15 @@ export const metadata = { title: "Mock exams" };
 // waiting" (see lib/mock-admin.ts).
 export default async function AdminMocksPage() {
   await requireAdmin();
-  const [pending, decisions, mocks, papers, attempts] = await Promise.all([
+  const [pending, decisions, mocks, papers, attempts, videoRows] = await Promise.all([
     listPendingRequests(),
     listRecentDecisions(),
     listMocksAdmin(),
     listMockPapers(),
     listAttemptsAdmin(),
+    getMockVideos(),
   ]);
+  const videos = Object.fromEntries(Object.entries(videoRows).map(([k, v]) => [k, { url: v!.url, duration: v!.duration }]));
 
   const images: Record<string, string> = {};
   await Promise.all(
@@ -53,6 +55,7 @@ export default async function AdminMocksPage() {
         papers={papers}
         attempts={attempts}
         images={images}
+        videos={videos}
       />
     </div>
   );

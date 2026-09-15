@@ -998,7 +998,9 @@ only deletes an unstarted place.
 
 ## Flow and where things are
 
-- Papers: upload on /admin/tests with **For = "Mock exam only"** (`track: 'mock'`).
+- Papers: upload **inside the mock form** (0054 — parsed + live-checked there);
+  /admin/tests with **For = "Mock exam only"** still works but skips the check
+  until "Check paper" is clicked in the form.
 - Code is split: `src/lib/mock.ts` (student side + the shared attempt
   breakdown), `src/lib/mock-admin.ts` (owner side, server-only),
   `src/lib/mock-shared.ts` (pure: bands, stages, CSV, dates — unit-tested).
@@ -1020,7 +1022,7 @@ only deletes an unstarted place.
   grace, then the saved draft is handed in).
 - Bands: writing = (T1 + 2×T2)/3, overall = mean of L/R/W, IELTS rounding.
 - Telegram: `notifyMockRequest` (Approve/Reject buttons) and `notifyMockFinished`.
-- `src/types/database.ts` carries PENDING overrides for 0050 + 0051. Run
+- `src/types/database.ts` carries PENDING overrides for 0050–0054. Run
   `npm run types` and delete them.
 
 ## Admin-side rules (0051 + the 2026-09-15 Codex review)
@@ -1028,8 +1030,9 @@ only deletes an unstarted place.
 - **Readiness is one validator** (`readinessIssues` in mock-admin.ts) used by
   publish, approve AND direct grant: both papers exist, right skill, Mock
   track, usable answer key; both prompts; 10–180 min. Drafts save regardless.
-- **Exam content locks once any place exists** (papers, prompts, minutes,
-  image) — enforced in `saveMock` and the image actions, not only the UI.
+- **Exam content locks once the session starts** (0054; before that: once any
+  place existed) — papers, prompts, minutes, image — enforced in `saveMock` and
+  the image actions, not only the UI.
   Duplicate to change. Attempts also SNAPSHOT writing minutes + image path at
   grant and the answer key at grading (0051), so nothing live can re-mark
   history. Replaced Task 1 images are never deleted from storage for the same
@@ -1060,8 +1063,9 @@ of a signal.
 fullscreen covers the test, **the clock keeps running, Listening audio pauses**;
 repeated exits → warning + "Review suggested" for the teacher, never automatic.
 
-- **Server clocks for every section.** `startSection()` / `startWriting()` stamp
-  the start once and RETURN it (fetch-memo trap). Minutes are snapshotted
+- **Server clocks for every section.** Since 0054 `beginSection()` /
+  `beginWriting()` stamp the start once (the Start click) and RETURN it
+  (fetch-memo trap); `startSection()`/`startWriting()` only resume. Minutes are snapshotted
   (`listening_minutes`/`reading_minutes`/`writing_minutes`, 40/60/60 default).
   After deadline + 60 s grace only the saved draft counts; `finalizeExpiredSection()`
   closes an expired section when the student lands on any mock page — ONE step
@@ -1078,8 +1082,8 @@ repeated exits → warning + "Review suggested" for the teacher, never automatic
   (user gesture; content not mounted before), opaque overlay + `inert` on exit,
   hidden-tab ≥ 2 s logged, escalating warning copy. `DeviceNotice` stops a phone
   BEFORE "Start the mock" starts the clock.
-- **Section links use `prefetch={false}`** — rendering a section page starts its
-  clock or records a reload.
+- **Section links use `prefetch={false}`** — rendering an active section page
+  records a reload.
 - **Events** go to `POST /api/mock-events` (route, so `sendBeacon` works on
   pagehide), session-identified, validated/clamped/capped by the pure
   `applyIntegrityEvents()`; reloads and timeouts are recorded server-side.
@@ -1112,8 +1116,88 @@ Overall and Released time after Save / Release / Unrelease with no reload
 artifact, not a bug: check refresh-dependent UI on the dev preview, not on
 localhost. Because the form's `key` includes status and graded_at, a real
 revalidation remounts it, and the success message ("Released — the student has
-been notified.") disappears once the page re-renders. Headless Chromium has
-no MP3 codec; the E2E swaps in a generated silent WAV to test audio behaviour.
+been notified.") disappears once the page re-renders.
+
+Headless Chromium has no MP3/H.264 codec: the 0052 E2E swapped in a generated
+silent WAV; the 0054 E2E launches Playwright with `channel: "msedge"`, which
+plays the real MP3 recordings and MP4 instruction videos.
+
+## Sessions, instruction videos, the mock adapter (0054)
+
+Owner decisions (2026-09-15): an approved place is NOT enough to start — the
+owner clicks **Start session** (`mocks.session_state` waiting → running), which
+admits every approved student, late approvals included, until **End session**
+(→ closed: nobody new starts; students already `in_progress` finish). Each
+section begins with a section-specific **instruction video** (fullscreen, no
+skip, no seek); the **section clock starts at the "Start <section>" click after
+it**, never on page open. Mock mode is automatic and the CDI paper's own start
+screen, timer and results never show — only the platform clock, centred in the
+top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
+
+- **The rule lives in `admissionError()`** (mock-shared.ts), used by
+  `startAttempt`, `sectionView`, the video actions and `beginSection` /
+  `beginWriting`. Existing mocks were backfilled to `closed` once (inside the
+  same DO block that adds the column, so re-running 0054 closes nothing).
+- **Minutes/papers are editable while `waiting`, even with places approved**;
+  `startMockSession` re-snapshots every unstarted place to the mock as it is at
+  Start. Locked once running/closed (`isLocked`). A closed mock takes no new
+  places — duplicate it for another sitting.
+- **Section lifecycle:** `sectionView()` (read-only) → phase `video` | `ready` |
+  `active`. `startSection()`/`startWriting()` now only RESUME a running clock
+  (and record the reload); they never stamp. `beginSection()`/`beginWriting()`
+  stamp and return the runner payload so the client swaps to the paper WITHOUT a
+  navigation (a render of an active section records a reload). Writing prompts
+  reach the browser only in `beginWriting`'s result, never during the video.
+  `submitSection` no longer invents a start stamp.
+- **Video progress:** `saveVideoProgress` is forward-only and capped at the
+  server's own elapsed time since the first save + 3 s; `markVideoDone` needs
+  `videoWatchedEnough` (elapsed ≥ 90% of duration − 2 s). A reload asks via
+  `beforeunload` (browser wording) and resumes from `*_video_pos`. The three MP4s
+  are on R2 `cdi-videos` under `mock/<section>-instructions-v1.mp4`; rows in
+  `mock_videos` (no client grants). Admin "Instruction videos" card replaces a
+  video by URL (duration read in the browser, HEAD-checked on the server).
+- **`components/mock/section-flow.tsx`** owns the ExamGuard for the whole
+  section (video → Start → paper/writing) and a shared `mediaRef` so leaving
+  fullscreen pauses the video or the recording. `ExamTopBar`/`ExamClock` is the
+  one top bar (clock centred). `PaperSection` (mock-runner.tsx) and
+  `WritingSection` render inside it.
+- **THE "DONE" BUG:** CDI files store state under hard-coded localStorage keys
+  and the mock iframe is same-origin, so a student who had finished the paper in
+  practice saw "Done" and no Submit in the mock. Fix = `lib/ielts/mock-adapter.ts`:
+  a **storage shim injected as the first script in `<head>`** that proxies
+  local/sessionStorage into `mock:<attemptId>:<section>:` (practice keys are
+  never read or written). The practice bridge could not fix it — it runs after
+  the paper's `loadState()`.
+- **Mock papers are served through `adaptForMock`, not the practice bridge.**
+  `/api/test-html/<id>?mock=<attemptId>` → `findMockSitting()` (the student's
+  attempt, this paper, section clock running, not expired) else 404 — a mock
+  paper without that context is refused to students. The adapter: hides start
+  screen/`.header__center`/`#examTimer`/results; replaces `autoSubmit`,
+  `autoSubmitMock` (and the listening player's `startTimer`/`startCountdown`)
+  with no-ops — paper functions are classic-script globals, so replacing
+  `window.X` reaches the paper's own bare-name calls; starts the paper via
+  `startWithMode('mock')` / `beginTest('mock')` / `#startTestBtn`, or the
+  listening mock card; reports a native submit once via `showResults`/`#doSubmit`
+  wrappers. Handshake: `READY → RESTORE → RESTORED → ACTIVATE` (Listening: click
+  Play; a blocked autoplay shows an in-paper "Start the recording" gate), plus
+  `SNAPSHOT`, `SUBMIT`, `LOCK`. The top bar's **Submit <section>** hands in from
+  a fresh snapshot (4 s fallback to the server draft).
+- **Three player families** cover all 208 library papers (survey 2026-09-15):
+  `reading-classic` (#startTestBtn, count-up timer), `reading-modes`
+  (beginTest/startWithMode, countdown + autoSubmit), `listening-player`
+  (#playOverlay mode cards, #playBtn, #doSubmit). A file with none of their
+  hooks is rejected at upload — add an adapter, don't loosen the check.
+- **Parsing = `lib/ielts/mock-profile.ts` (static, never runs the file) + a live
+  self-test in the admin's browser** (`components/admin/paper-self-test.tsx`,
+  `/api/test-html/<id>?selftest=<nonce>`, admin only, throwaway namespace):
+  ready, own-timer can't hand in, every answer reads back, every key question
+  has a box, answers survive a reload (drag answers reported, not failed),
+  Listening audio loads. `recordSelfTest` stamps the result with the profile's
+  file hash; `readinessIssues` requires a passing check for the CURRENT hash
+  plus all three videos. Papers uploaded before 0054 get "Check paper"
+  (`reprofilePaper`).
+- `src/types/database.ts` PENDING overrides now cover 0050–0054 (including three
+  `tests` columns via `PatchedGenTables`).
 
 # Every test page must be linked — `Discovered - currently not indexed`
 

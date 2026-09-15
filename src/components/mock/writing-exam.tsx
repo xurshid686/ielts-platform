@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Clock, Loader2, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Send } from "lucide-react";
 import { saveMockWriting } from "@/app/actions/mock";
-import { ExamGuard, useExamReport } from "@/components/mock/exam-guard";
+import { useExamReport } from "@/components/mock/exam-guard";
+import { ExamClock, ExamTopBar } from "@/components/mock/exam-top-bar";
 import { Button } from "@/components/ui/button";
 import { TASK1_MIN_WORDS, TASK2_MIN_WORDS, countWords } from "@/lib/mock-shared";
 import { cn } from "@/lib/utils";
@@ -20,9 +21,8 @@ const AUTOSAVE_MS = 20_000;
  * handing in the moment it reaches zero — so closing the tab and coming back
  * later resumes the same clock rather than a fresh one.
  */
-type WritingProps = {
+export type WritingProps = {
   mockId: string;
-  attemptId: string;
   title: string;
   /** Epoch ms. */
   deadline: number;
@@ -31,34 +31,16 @@ type WritingProps = {
   task1Prompt: string;
   task2Prompt: string;
   task1ImageUrl: string | null;
-  reloaded: boolean;
-  initialLongAway: number;
 };
 
-/** Writing inside the exam shell: fullscreen, overlay on exit, integrity reporting (0052). */
-export function WritingExam(props: WritingProps) {
-  return (
-    <div className="fixed inset-0 z-50 bg-background">
-      <ExamGuard
-        mockId={props.mockId}
-        attemptId={props.attemptId}
-        section="writing"
-        sectionLabel="Writing"
-        reloaded={props.reloaded}
-        initialLongAway={props.initialLongAway}
-        className="h-full"
-      >
-        <div className="mx-auto max-w-6xl space-y-4 px-4 py-4">
-          <h1 className="text-xl font-bold">{props.title} — Writing</h1>
-          <WritingBody {...props} />
-        </div>
-      </ExamGuard>
-    </div>
-  );
+/** Writing inside the section flow's ExamGuard (0052; top bar + centered clock since 0054). */
+export function WritingSection(props: WritingProps) {
+  return <WritingBody {...props} />;
 }
 
 function WritingBody({
   mockId,
+  title,
   deadline,
   initialTask1,
   initialTask2,
@@ -147,7 +129,7 @@ function WritingBody({
 
   if (submitted) {
     return (
-      <div className="mx-auto max-w-md py-16 text-center">
+      <div className="mx-auto max-w-md px-4 py-16 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
           <CheckCircle2 className="h-7 w-7" />
         </div>
@@ -163,13 +145,22 @@ function WritingBody({
     );
   }
 
-  const mins = Math.floor(remaining / 60_000);
-  const secs = Math.floor((remaining % 60_000) / 1000);
   const words1 = countWords(task1);
   const words2 = countWords(task2);
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col">
+      <ExamTopBar
+        label="Writing"
+        title={title}
+        center={<ExamClock remainingMs={remaining} />}
+        right={
+          <Button size="sm" className="h-9" onClick={() => setConfirming(true)} disabled={pending || timeUp}>
+            <Send className="h-4 w-4" /> Submit writing
+          </Button>
+        }
+      />
+    <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 overflow-y-auto px-4 py-4">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/95 px-4 py-3 shadow-soft backdrop-blur">
         <div className="flex items-center gap-1.5">
           {([1, 2] as const).map((n) => (
@@ -188,23 +179,9 @@ function WritingBody({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted">
-            {pending ? "Submitting…" : savedAt ? "Saved" : "Autosaves every 20 s"}
-          </span>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-sm font-semibold tabular-nums",
-              remaining < 5 * 60_000 ? "bg-danger/10 text-danger" : "bg-surface-2",
-            )}
-          >
-            <Clock className="h-4 w-4" />
-            {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
-          </span>
-          <Button size="sm" onClick={() => setConfirming(true)} disabled={pending || timeUp}>
-            <Send className="h-4 w-4" /> Submit writing
-          </Button>
-        </div>
+        <span className="text-xs text-muted">
+          {pending ? "Submitting…" : savedAt ? "Saved" : "Autosaves every 20 s"}
+        </span>
       </div>
 
       {error && (
@@ -296,6 +273,7 @@ function WritingBody({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

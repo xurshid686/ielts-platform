@@ -74,7 +74,11 @@ export default async function MockListPage() {
                             : "bg-primary/10 text-primary",
                       )}
                     >
-                      {STATUS_LABEL[attempt.status]}
+                      {attempt.status === "approved" && mock.session_state === "waiting"
+                        ? "Approved — waiting for the session"
+                        : attempt.status === "approved" && mock.session_state === "closed"
+                          ? "Session ended"
+                          : STATUS_LABEL[attempt.status]}
                       {attempt.status === "submitted" && attempt.submitted_at
                         ? ` · ${timeAgo(attempt.submitted_at)}`
                         : ""}
