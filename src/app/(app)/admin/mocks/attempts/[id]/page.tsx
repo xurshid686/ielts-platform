@@ -1,10 +1,30 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, Headphones, PenLine } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Headphones,
+  PenLine,
+  ShieldCheck,
+  ShieldQuestion,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
-import { getAttemptDetail } from "@/lib/mock";
-import { gradingQueue } from "@/lib/mock-admin";
-import { STAGE_LABEL, adminStage, countWords, tashkent } from "@/lib/mock-shared";
+import { countStillSitting, getAttemptDetail } from "@/lib/mock";
+import { gradingQueue, verdictFor } from "@/lib/mock-admin";
+import {
+  STAGE_LABEL,
+  adminStage,
+  asIntegrity,
+  countWords,
+  tashkent,
+  type Integrity,
+  type IntegrityEvent,
+  type IntegrityVerdict,
+} from "@/lib/mock-shared";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { ReviewTable } from "@/components/mock/review-table";
 import { MockGradeForm } from "@/components/admin/mock-grade-form";
@@ -44,7 +64,10 @@ export default async function AdminMockAttemptPage({
   const withBack = (attemptId: string) =>
     `/admin/mocks/attempts/${attemptId}${back ? `?back=${encodeURIComponent(back)}` : ""}`;
 
-  const queue = await gradingQueue(a.id, a.mock_id);
+  const [queue, stillSitting] = await Promise.all([
+    gradingQueue(a.id, a.mock_id),
+    countStillSitting(a.mock_id, a.id),
+  ]);
   const stage = adminStage(a);
   const fmt = (b: number | null) => (b == null ? "—" : b.toFixed(1));
 
@@ -113,6 +136,24 @@ export default async function AdminMockAttemptPage({
           sub={a.writing_submitted_at ? (a.writing_band == null ? "to grade" : "graded") : "not submitted"} href="#writing" />
       </div>
 
+      <IntegrityCard
+        integrity={asIntegrity(a.integrity)}
+        verdict={verdictFor(a)}
+        timings={[
+          { label: "Listening", start: a.listening_started_at, end: a.listening_submitted_at, limit: a.listening_minutes },
+          { label: "Reading", start: a.reading_started_at, end: a.reading_submitted_at, limit: a.reading_minutes },
+          { label: "Writing", start: a.writing_started_at, end: a.writing_submitted_at, limit: a.writing_minutes },
+        ]}
+      />
+
+      {stillSitting > 0 && a.status !== "released" && (
+        <p className="rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-sm">
+          {stillSitting} other student{stillSitting === 1 ? " is" : "s are"} still sitting this mock. You can release this
+          result — the student sees their bands — but the question-by-question answers stay hidden until everyone has
+          finished.
+        </p>
+      )}
+
       <Card id="writing" className="scroll-mt-20 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold">Writing</h2>
@@ -176,6 +217,117 @@ export default async function AdminMockAttemptPage({
         <ReviewTable lines={detail.readingReview} />
       </Card>
     </div>
+  );
+}
+
+const EVENT_TEXT: Record<string, (e: IntegrityEvent) => string> = {
+  device: (e) => `Started on ${e.ua ?? "unknown browser"}${e.screen ? ` (${e.screen})` : ""}`,
+  away: (e) =>
+    `${e.kind === "hidden" ? "Tab hidden" : "Left fullscreen"} for ${Math.max(1, Math.round((e.ms ?? 0) / 1000))} s`,
+  reload: () => "Reloaded the page",
+  second_tab: () => "Opened the exam in a second tab",
+  paste: (e) => `Pasted ${e.words} words into Task ${e.task ?? 1}`,
+  seek_back: () => "Tried to rewind the recording",
+  timeout: () => "Time ran out — handed in automatically from the saved draft",
+};
+
+/**
+ * The integrity report (0052). Evidence for the teacher's judgement: nothing on
+ * it has changed the score, and "review suggested" is a prompt to look — the
+ * browser cannot see a second device or a helper in the room.
+ */
+function IntegrityCard({
+  integrity,
+  verdict,
+  timings,
+}: {
+  integrity: Integrity;
+  verdict: IntegrityVerdict;
+  timings: { label: string; start: string | null; end: string | null; limit: number | null }[];
+}) {
+  const c = integrity.counters;
+  const tone =
+    verdict.level === "review"
+      ? "border-warning/40 bg-warning/5"
+      : verdict.level === "incomplete"
+        ? "border-border bg-surface-2/50"
+        : "border-success/30 bg-success/5";
+  return (
+    <Card className={cn("space-y-4", tone)}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 font-semibold">
+            {verdict.level === "review" ? (
+              <AlertTriangle className="h-4 w-4 text-warning" />
+            ) : verdict.level === "clear" ? (
+              <ShieldCheck className="h-4 w-4 text-success" />
+            ) : (
+              <ShieldQuestion className="h-4 w-4 text-muted" />
+            )}
+            Integrity —{" "}
+            {verdict.level === "review" ? "review suggested" : verdict.level === "clear" ? "no notable signals" : "monitoring incomplete"}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Signals from the browser, for your judgement. They cannot see a second device or another person.
+          </p>
+        </div>
+      </div>
+
+      {verdict.reasons.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-sm">
+          {verdict.reasons.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-2 text-sm sm:grid-cols-2">
+        <p className="break-all sm:col-span-2">
+          <span className="text-muted">Device:</span> {integrity.device ?? "—"}
+        </p>
+        {timings.map((t) => (
+          <p key={t.label}>
+            <span className="text-muted">{t.label}:</span>{" "}
+            {t.start && t.end
+              ? `${Math.max(1, Math.round((new Date(t.end).getTime() - new Date(t.start).getTime()) / 60_000))} of ${t.limit ?? "?"} min`
+              : t.start
+                ? "in progress"
+                : "not started"}
+          </p>
+        ))}
+        <p>
+          <span className="text-muted">Left fullscreen / tab:</span> {c.away} ({c.long_away} over 3 s) ·{" "}
+          {Math.round(c.away_ms / 1000)} s away
+        </p>
+        <p>
+          <span className="text-muted">Reloads:</span> {c.reloads}
+          {c.listening_reloads ? ` (${c.listening_reloads} in Listening)` : ""}
+        </p>
+        <p>
+          <span className="text-muted">Second tab:</span> {c.second_tab} · <span className="text-muted">Rewinds:</span>{" "}
+          {c.seek_back}
+        </p>
+        <p>
+          <span className="text-muted">Writing pastes:</span> {c.pastes}
+          {c.pastes ? ` · largest ${c.largest_paste_words} words` : ""}
+        </p>
+      </div>
+
+      {integrity.events.length > 0 && (
+        <details className="rounded-lg border border-border bg-surface p-3">
+          <summary className="cursor-pointer text-sm font-medium">Timeline ({integrity.events.length} events)</summary>
+          <ol className="mt-2 max-h-72 space-y-1 overflow-y-auto text-xs">
+            {integrity.events.map((e, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="shrink-0 tabular-nums text-muted">{tashkent(e.t)}</span>
+                <span className="shrink-0 capitalize text-muted">{e.section}</span>
+                <span>{(EVENT_TEXT[e.type] ?? (() => e.type))(e)}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </Card>
   );
 }
 

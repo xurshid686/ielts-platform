@@ -2,10 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  finalizeExpiredSection,
+  getMock,
   getStudentAttempt,
   getWritingDraft,
-  getMock,
   signedTask1Image,
+  startSection,
   startWriting,
   writingDeadline,
 } from "@/lib/mock";
@@ -22,6 +24,10 @@ export const metadata = { title: "Mock exam" };
  * section — one already submitted, or one not open yet — sends them back to the
  * overview. The paper itself is independently gated in canOpenTrack(), so a
  * student who guesses /api/test-html/<id> gets the same answer.
+ *
+ * Every section has a SERVER clock (0052): opening it stamps the start once,
+ * a reload resumes the same clock (and is recorded), and a clock that has run
+ * out is closed from the saved draft before anything renders.
  */
 export default async function MockSectionPage({
   params,
@@ -32,6 +38,11 @@ export default async function MockSectionPage({
   if (section !== "listening" && section !== "reading" && section !== "writing") notFound();
 
   const profile = await requireProfile();
+
+  // Close an expired section FIRST, then start over with a fresh request: this
+  // render's GETs are memoized, so nothing read after that write would be current.
+  if (await finalizeExpiredSection(profile.id, mockId)) redirect(`/mock/${mockId}`);
+
   const found = await getStudentAttempt(profile.id, mockId);
   if (!found) redirect("/mock");
   const { attempt } = found;
@@ -40,8 +51,6 @@ export default async function MockSectionPage({
   if (attempt.status === "approved" || nextSection(attempt) !== section) redirect(`/mock/${mockId}`);
 
   if (section === "writing") {
-    // Starting the clock is a write, and this is the one moment it should
-    // happen: the student has actually opened Writing.
     const started = await startWriting(profile.id, mockId);
     if (!started.ok) redirect(`/mock/${mockId}`);
     // The drafts may come back from this render's fetch memo (see startWriting),
@@ -54,24 +63,29 @@ export default async function MockSectionPage({
     const image = await signedTask1Image(draft.task1ImagePath ?? mock.writing_task1_image_path);
 
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-bold">{mock.title} — Writing</h1>
-        <WritingExam
-          mockId={mockId}
-          deadline={deadline}
-          initialTask1={draft.task1}
-          initialTask2={draft.task2}
-          task1Prompt={draft.task1Prompt ?? mock.writing_task1_prompt ?? ""}
-          task2Prompt={draft.task2Prompt ?? mock.writing_task2_prompt ?? ""}
-          task1ImageUrl={image}
-        />
-      </div>
+      <WritingExam
+        mockId={mockId}
+        attemptId={attempt.id}
+        title={mock.title}
+        deadline={deadline}
+        initialTask1={draft.task1}
+        initialTask2={draft.task2}
+        task1Prompt={draft.task1Prompt ?? mock.writing_task1_prompt ?? ""}
+        task2Prompt={draft.task2Prompt ?? mock.writing_task2_prompt ?? ""}
+        task1ImageUrl={image}
+        reloaded={started.reloaded}
+        initialLongAway={started.longAway}
+      />
     );
   }
 
+  const started = await startSection(profile.id, mockId, section);
+  if (!started.ok) redirect(`/mock/${mockId}`);
+
   // The attempt carries the paper ids it was approved with — read them with the
   // service role, since the student-facing attempt shape does not expose them.
-  const { data } = await createAdminClient()
+  const admin = createAdminClient();
+  const { data } = await admin
     .from("mock_attempts")
     .select("listening_test_id, reading_test_id")
     .eq("id", attempt.id)
@@ -80,16 +94,22 @@ export default async function MockSectionPage({
   const testId = section === "listening" ? ids?.listening_test_id : ids?.reading_test_id;
   if (!testId) redirect(`/mock/${mockId}`);
 
-  const { data: test } = await createAdminClient().from("tests").select("title").eq("id", testId).single();
+  const { data: test } = await admin.from("tests").select("title").eq("id", testId).single();
 
   return (
     <MockRunner
       mockId={mockId}
+      attemptId={attempt.id}
       section={section}
       testId={testId}
       title={(test as { title?: string } | null)?.title ?? (section === "listening" ? "Listening" : "Reading")}
       nextHref={section === "listening" ? `/mock/${mockId}/reading` : `/mock/${mockId}/writing`}
       nextLabel={section === "listening" ? "Continue to Reading" : "Continue to Writing"}
+      deadline={writingDeadline(started.startedAt, started.minutes)!}
+      draft={started.draft}
+      audioPos={started.audioPos}
+      reloaded={started.reloaded}
+      initialLongAway={started.longAway}
     />
   );
 }

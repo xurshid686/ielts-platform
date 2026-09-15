@@ -608,6 +608,16 @@ function Results({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [q, setQ] = useState(url.get("q"));
+  const integrityOnly = url.get("integrity") === "review";
+  const reviewCount = attempts.filter((a) => a.integrity.level === "review").length;
+  // Students still sitting each mock — releasing now lets answers reach them (0052).
+  const sittingByMock = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of attempts) {
+      if (["not_started", "listening", "reading", "writing"].includes(a.stage)) m.set(a.mock_title, (m.get(a.mock_title) ?? 0) + 1);
+    }
+    return m;
+  }, [attempts]);
 
   const stage = (Object.keys(STAGE_GROUPS) as StageGroup[]).includes(url.get("stage") as StageGroup)
     ? (url.get("stage") as StageGroup)
@@ -630,6 +640,7 @@ function Results({
     const toT = to ? new Date(`${to}T23:59:59+05:00`).getTime() : null;
     const list = attempts.filter((a) => {
       if (stage && !(STAGE_GROUPS[stage] as readonly AdminStage[]).includes(a.stage)) return false;
+      if (integrityOnly && a.integrity.level !== "review") return false;
       if (needle && ![a.student_name, a.student_email, a.mock_title].some((v) => v?.toLowerCase().includes(needle))) return false;
       const when = new Date(a.submitted_at ?? a.approved_at).getTime();
       if (fromT != null && when < fromT) return false;
@@ -643,7 +654,7 @@ function Results({
       if (sort === "name") return (a.student_name ?? a.student_email ?? "").localeCompare(b.student_name ?? b.student_email ?? "");
       return key(b).localeCompare(key(a));
     });
-  }, [attempts, stage, from, to, sort, url]);
+  }, [attempts, stage, integrityOnly, from, to, sort, url]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((Math.min(page, pages) - 1) * PAGE_SIZE, Math.min(page, pages) * PAGE_SIZE);
@@ -653,9 +664,9 @@ function Results({
   const back = encodeURIComponent(url.query);
 
   function exportCsv() {
-    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released"];
+    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons"];
     const lines = filtered.map((a) =>
-      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at]
+      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; ")]
         .map(csvCell)
         .join(","),
     );
@@ -691,6 +702,19 @@ function Results({
               {c.label}
             </button>
           ))}
+          {reviewCount > 0 && (
+            <button
+              onClick={() => url.set({ integrity: integrityOnly ? null : "review" })}
+              aria-pressed={integrityOnly}
+              title="Attempts whose integrity report suggests a closer look. Evidence, not proof."
+              className={cn(
+                "inline-flex h-9 items-center gap-1 rounded-full border px-3 text-xs font-medium",
+                integrityOnly ? "border-warning bg-warning/10 text-warning" : "border-warning/40 text-warning hover:bg-warning/5",
+              )}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" /> Review suggested ({reviewCount})
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -718,8 +742,8 @@ function Results({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted">
             {filtered.length} of {allCount} attempt{allCount === 1 ? "" : "s"}
-            {(stage || url.get("q") || from || to) && (
-              <button className="ml-2 underline" onClick={() => { setQ(""); url.set({ stage: null, q: null, from: null, to: null }); }}>
+            {(stage || integrityOnly || url.get("q") || from || to) && (
+              <button className="ml-2 underline" onClick={() => { setQ(""); url.set({ stage: null, integrity: null, q: null, from: null, to: null }); }}>
                 Clear filters
               </button>
             )}
@@ -750,7 +774,7 @@ function Results({
           icon={<Inbox className="h-5 w-5" />}
           title="Nothing matches"
           desc="No attempt fits these filters."
-          action={<Button variant="outline" onClick={() => { setQ(""); url.set({ stage: null, q: null, from: null, to: null }); }}>Clear filters</Button>}
+          action={<Button variant="outline" onClick={() => { setQ(""); url.set({ stage: null, integrity: null, q: null, from: null, to: null }); }}>Clear filters</Button>}
         />
       ) : (
         <>
@@ -887,6 +911,7 @@ function Results({
       {confirming && (
         <ReleaseConfirm
           rows={filtered.filter((a) => selected.has(a.id) && a.stage === "ready_to_release")}
+          sittingByMock={sittingByMock}
           busy={busy}
           onClose={() => setConfirming(false)}
           onConfirm={(ids) => {
@@ -944,6 +969,14 @@ function StageCell({ a }: { a: AdminAttemptSummary }) {
   return (
     <div>
       <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", stageTone[a.stage])}>{STAGE_LABEL[a.stage]}</span>
+      {a.integrity.level === "review" && (
+        <span
+          title={a.integrity.reasons.join(" · ")}
+          className="ml-1 inline-flex items-center gap-0.5 rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
+        >
+          <AlertTriangle className="h-3 w-3" /> Review
+        </span>
+      )}
       <p className="mt-0.5 text-xs text-muted" title={when ? timeAgo(when) : undefined}>
         {verb} {tashkent(when)}
       </p>
@@ -999,16 +1032,19 @@ function RowAction({
 
 function ReleaseConfirm({
   rows,
+  sittingByMock,
   busy,
   onClose,
   onConfirm,
 }: {
   rows: AdminAttemptSummary[];
+  sittingByMock: Map<string, number>;
   busy: boolean;
   onClose: () => void;
   onConfirm: (ids: string[]) => void;
 }) {
   const byMock = Object.entries(rows.reduce<Record<string, number>>((acc, r) => ((acc[r.mock_title] = (acc[r.mock_title] ?? 0) + 1), acc), {}));
+  const stillSitting = byMock.map(([title]) => [title, sittingByMock.get(title) ?? 0] as const).filter(([, n]) => n > 0);
   return (
     <Modal title={`Release ${rows.length} result${rows.length === 1 ? "" : "s"}?`} onClose={onClose}>
       <ul className="space-y-1 text-sm">
@@ -1030,6 +1066,15 @@ function ReleaseConfirm({
           </tbody>
         </table>
       </div>
+      {stillSitting.length > 0 && (
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <span>
+            {stillSitting.map(([t, n]) => `${n} student${n === 1 ? " is" : "s are"} still sitting ${t}`).join("; ")}. Released students see
+            their bands now, but the question-by-question answers stay hidden until everyone has finished.
+          </span>
+        </p>
+      )}
       <p className="mt-2 text-xs text-muted">Each student is notified and sees these bands immediately. The server re-checks each one; anything not ready is skipped.</p>
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -1116,7 +1161,7 @@ function Mocks({
                   )}
                 </p>
                 <p className="text-xs text-muted">Listening: {m.listening_title ?? "—"} · Reading: {m.reading_title ?? "—"}</p>
-                <p className="text-xs text-muted">Writing: {m.writing_minutes} min{m.writing_task1_image_path ? " · Task 1 image" : ""}</p>
+                <p className="text-xs text-muted">Times: L {m.listening_minutes} · R {m.reading_minutes} · W {m.writing_minutes} min{m.writing_task1_image_path ? " · Task 1 image" : ""}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="h-10" disabled={busy || editing !== null} onClick={() => setEditing(m.id)}>
@@ -1226,6 +1271,8 @@ function MockForm({
       writing_task1_prompt: mock?.writing_task1_prompt ?? "",
       writing_task2_prompt: mock?.writing_task2_prompt ?? "",
       writing_minutes: mock?.writing_minutes ?? 60,
+      listening_minutes: mock?.listening_minutes ?? 40,
+      reading_minutes: mock?.reading_minutes ?? 60,
     }),
     [mock],
   );
@@ -1253,7 +1300,10 @@ function MockForm({
     { ok: !!byId.get(form.reading_test_id)?.hasKey, label: "Reading paper with an answer key" },
     { ok: !!form.writing_task1_prompt.trim(), label: "Writing Task 1 prompt" },
     { ok: !!form.writing_task2_prompt.trim(), label: "Writing Task 2 prompt" },
-    { ok: form.writing_minutes >= 10 && form.writing_minutes <= 180, label: "Writing time 10–180 min" },
+    {
+      ok: [form.listening_minutes, form.reading_minutes, form.writing_minutes].every((m) => m >= 10 && m <= 180),
+      label: "Section times 10–180 min",
+    },
   ];
   const ready = checks.every((c) => c.ok);
 
@@ -1269,6 +1319,8 @@ function MockForm({
           writing_task1_prompt: form.writing_task1_prompt,
           writing_task2_prompt: form.writing_task2_prompt,
           writing_minutes: Number(form.writing_minutes),
+          listening_minutes: Number(form.listening_minutes),
+          reading_minutes: Number(form.reading_minutes),
           published: publish ?? mock?.published ?? false,
         });
         if (!res.ok) {
@@ -1376,10 +1428,29 @@ function MockForm({
         />
       </label>
 
-      <label className="block space-y-1.5">
-        <span className="text-sm font-medium">Writing time (minutes)</span>
-        <input type="number" min={10} max={180} disabled={locked} className="admin-input h-10 w-28" value={form.writing_minutes} onChange={(e) => set("writing_minutes", Number(e.target.value))} />
-      </label>
+      {/* Server-enforced section clocks (0052). Listening should cover the recording plus transfer time. */}
+      <div className="flex flex-wrap gap-4">
+        {(
+          [
+            ["listening_minutes", "Listening time (min)"],
+            ["reading_minutes", "Reading time (min)"],
+            ["writing_minutes", "Writing time (min)"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="block space-y-1.5">
+            <span className="text-sm font-medium">{label}</span>
+            <input
+              type="number"
+              min={10}
+              max={180}
+              disabled={locked}
+              className="admin-input h-10 w-28"
+              value={form[key]}
+              onChange={(e) => set(key, Number(e.target.value))}
+            />
+          </label>
+        ))}
+      </div>
 
       <div className="rounded-lg bg-surface-2 p-3">
         <p className="mb-1.5 text-sm font-medium">{ready ? "Ready to publish" : "Before publishing"}</p>

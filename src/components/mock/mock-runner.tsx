@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, Loader2, Maximize, Minimize } from "lucide-react";
-import { submitMockSection } from "@/app/actions/mock";
+import { ArrowRight, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { saveMockSectionDraft, submitMockSection } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
+import { ExamGuard, useExamReport } from "@/components/mock/exam-guard";
+import { cn } from "@/lib/utils";
 
 type Answers = Record<string, string>;
 
@@ -17,127 +19,266 @@ function parseAnswers(value: unknown): Answers {
   return out;
 }
 
+const SNAPSHOT_MS = 15_000;
+
+type Props = {
+  mockId: string;
+  attemptId: string;
+  section: "listening" | "reading";
+  testId: string;
+  title: string;
+  nextHref: string;
+  nextLabel: string;
+  /** Server deadline, epoch ms. The CDI file's own timer restarts on reload; this one does not. */
+  deadline: number;
+  draft: Answers;
+  audioPos: number;
+  reloaded: boolean;
+  initialLongAway: number;
+};
+
 /**
- * The CDI player for ONE section of a mock exam.
+ * The CDI player for ONE section of a mock exam, inside the ExamGuard shell.
  *
- * Deliberately a separate component from TestRunner rather than a mode of it.
- * TestRunner's whole job after submit is to SHOW things — the band, the rating
- * delta, the streak, a link to the review — and every one of those is wrong
- * here. This one sends the answers to submitMockSection(), which grades and
- * stores them and returns no score, and then shows only "submitted".
+ * Separate from TestRunner on purpose: TestRunner's job after submit is to SHOW
+ * things (band, rating, streak, review), every one of which is wrong here.
  *
- * The file itself cannot reveal the score either: its answer key was stripped
- * when served, and /api/test-key refuses mock papers, so the bridge's key fetch
- * fails and the in-page report stays hidden (see that route).
- *
- * Only the "SUBMIT" message is accepted. "RESULT" comes from a keyless file that
- * scores itself; a mock paper always has a key (upload refuses one without).
+ * On top of the guard (fullscreen, overlay, reporting) this owns the parts that
+ * need the iframe (0052):
+ *  - autosave: asks the bridge for a SNAPSHOT every 15 s → saveMockSectionDraft
+ *  - restore:  after a reload, sends the draft back to the bridge (RESTORE)
+ *  - audio:    pauses Listening while the student is away (owner's decision),
+ *              resumes from the furthest point reached, snaps rewinds forward
+ *  - the official clock from the server deadline, auto-handing-in at zero
  */
-export function MockRunner({
+export function MockRunner(props: Props) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wasPlaying = useRef(false);
+
+  const onAway = useCallback(() => {
+    const a = audioRef.current;
+    wasPlaying.current = !!a && !a.paused && !a.ended;
+    if (wasPlaying.current) a!.pause();
+  }, []);
+  const onReturn = useCallback(() => {
+    if (wasPlaying.current) void audioRef.current?.play().catch(() => {});
+    wasPlaying.current = false;
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background">
+      <ExamGuard
+        mockId={props.mockId}
+        attemptId={props.attemptId}
+        section={props.section}
+        sectionLabel={props.section === "listening" ? "Listening" : "Reading"}
+        reloaded={props.reloaded}
+        initialLongAway={props.initialLongAway}
+        onAway={props.section === "listening" ? onAway : undefined}
+        onReturn={props.section === "listening" ? onReturn : undefined}
+        className="h-full"
+      >
+        <RunnerBody {...props} audioRef={audioRef} />
+      </ExamGuard>
+    </div>
+  );
+}
+
+function RunnerBody({
   mockId,
   section,
   testId,
   title,
   nextHref,
   nextLabel,
-}: {
-  mockId: string;
-  section: "listening" | "reading";
-  testId: string;
-  title: string;
-  nextHref: string;
-  nextLabel: string;
-}) {
+  deadline,
+  draft,
+  audioPos,
+  audioRef,
+}: Props & { audioRef: React.MutableRefObject<HTMLAudioElement | null> }) {
   const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const report = useExamReport();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const handled = useRef(false);
+  const maxPos = useRef(audioPos);
+  const finalizing = useRef(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFs, setIsFs] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => {
-    const origin = window.location.origin;
+  const post = useCallback((msg: Record<string, unknown>) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage({ source: "IELTS_PLATFORM", ...msg }, window.location.origin);
+    } catch {
+      /* iframe gone */
+    }
+  }, []);
 
-    async function onMessage(e: MessageEvent) {
-      if (e.origin !== origin) return;
-      const d = e.data as Record<string, unknown> | null;
-      if (!d || d.source !== "IELTS_CDI_TEST" || d.type !== "SUBMIT") return;
+  const submit = useCallback(
+    async (answers: Answers, auto: boolean) => {
       if (handled.current) return;
       handled.current = true;
       setSaving(true);
       setError(null);
-
-      const payload = (d.payload ?? {}) as Record<string, unknown>;
-      const res = await submitMockSection(mockId, section, parseAnswers(payload.answers));
+      const res = await submitMockSection(mockId, section, answers);
       setSaving(false);
       if (!res.ok) {
-        // "Already submitted" means a previous submit landed; treat it as done
-        // rather than stranding the student on an error.
+        // "Already submitted" means a previous submit landed; treat it as done.
         if (/already been submitted/i.test(res.error)) {
           setDone(true);
           return;
         }
         handled.current = false;
+        finalizing.current = false;
         setError(res.error);
         return;
       }
-      // No router.refresh() here, on purpose: the server page redirects away from
-      // a section that is already submitted, so refreshing would unmount this
-      // runner and throw away the "submitted — continue" screen. Continuing
-      // navigates to the next section, which renders fresh anyway.
+      // No router.refresh(): the section page redirects away from a submitted
+      // section, which would unmount this screen before it is read.
+      if (auto) setNotice("Time is up — your answers were handed in.");
       setDone(true);
-    }
+    },
+    [mockId, section],
+  );
 
+  // Messages from the bridge inside the CDI file.
+  useEffect(() => {
+    const origin = window.location.origin;
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== origin || e.source !== iframeRef.current?.contentWindow) return;
+      const d = e.data as { source?: string; type?: string; payload?: Record<string, unknown> } | null;
+      if (!d || d.source !== "IELTS_CDI_TEST") return;
+      const payload = d.payload ?? {};
+      if (d.type === "SUBMIT") {
+        void submit(parseAnswers(payload.answers), false);
+      } else if (d.type === "SNAPSHOT") {
+        const answers = parseAnswers(payload.answers);
+        if (finalizing.current) void submit(answers, true);
+        else if (!handled.current) void saveMockSectionDraft(mockId, section, answers, section === "listening" ? maxPos.current : null);
+      } else if (d.type === "RESTORED") {
+        const missing = Array.isArray(payload.missing) ? (payload.missing as number[]) : [];
+        if (missing.length) {
+          setNotice(`Your saved answers are back. Please re-place question${missing.length === 1 ? "" : "s"} ${missing.join(", ")} (drag-and-drop answers cannot be restored automatically).`);
+        } else {
+          setNotice("Your saved answers have been restored.");
+        }
+      }
+    }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [mockId, section, router]);
+  }, [mockId, section, submit]);
 
+  // Autosave.
   useEffect(() => {
-    function onFs() {
-      setIsFs(document.fullscreenElement === containerRef.current);
-    }
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
-  }, []);
+    const t = setInterval(() => {
+      if (!handled.current) post({ type: "SNAPSHOT" });
+    }, SNAPSHOT_MS);
+    return () => clearInterval(t);
+  }, [post]);
 
-  async function toggleFullscreen() {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await containerRef.current?.requestFullscreen();
-    } catch {
-      /* denied / unsupported */
-    }
-  }
+  // Official clock; hand in at zero from the freshest snapshot (server falls back to its draft).
+  useEffect(() => {
+    const t = setInterval(() => {
+      const n = Date.now();
+      setNow(n);
+      if (n >= deadline && !handled.current && !finalizing.current) {
+        finalizing.current = true;
+        post({ type: "SNAPSHOT" });
+        setTimeout(() => {
+          if (!handled.current) void submit({}, true);
+        }, 3000);
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [deadline, post, submit]);
+
+  // Wire the iframe once it loads: restore answers, and guard the audio.
+  const onLoad = useCallback(() => {
+    if (Object.keys(draft).length) setTimeout(() => post({ type: "RESTORE", answers: draft }), 800);
+    if (section !== "listening") return;
+
+    let tries = 0;
+    let lastSeekReport = 0;
+    const find = setInterval(() => {
+      tries++;
+      let audio: HTMLAudioElement | null = null;
+      try {
+        audio = iframeRef.current?.contentDocument?.querySelector("audio") ?? null;
+      } catch {
+        audio = null;
+      }
+      if (!audio && tries < 60) return;
+      clearInterval(find);
+      if (!audio) return;
+      audioRef.current = audio;
+      const a = audio;
+
+      // Resume where the student had got to, not from the start.
+      const jump = () => {
+        if (maxPos.current > 1 && a.currentTime < maxPos.current - 1) a.currentTime = maxPos.current;
+      };
+      a.addEventListener("play", jump);
+      a.addEventListener("loadedmetadata", jump);
+      a.addEventListener("timeupdate", () => {
+        if (!a.seeking && a.currentTime > maxPos.current) maxPos.current = a.currentTime;
+      });
+      // The recording plays once: a rewind is snapped back to the furthest point.
+      a.addEventListener("seeking", () => {
+        if (a.currentTime < maxPos.current - 1.5) {
+          a.currentTime = maxPos.current;
+          const t = Date.now();
+          if (t - lastSeekReport > 5000) {
+            lastSeekReport = t;
+            report({ type: "seek_back" });
+          }
+        }
+      });
+    }, 1000);
+  }, [audioRef, draft, post, report, section]);
 
   function goNext() {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     router.push(nextHref);
   }
 
+  const remaining = Math.max(0, deadline - now);
+  const mins = Math.floor(remaining / 60_000);
+  const secs = Math.floor((remaining % 60_000) / 1000);
   const label = section === "listening" ? "Listening" : "Reading";
 
   return (
-    <div ref={containerRef} className="fixed inset-0 z-50 flex flex-col bg-background">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-3">
+    <div className="flex h-full flex-col">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-            Mock · {label}
-          </span>
+          <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Mock · {label}</span>
           <span className="truncate text-sm font-medium">{title}</span>
         </div>
-        <button
-          onClick={toggleFullscreen}
-          className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-surface-2"
+        <span
+          title="Official time left for this section. It keeps running if you leave or reload."
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-sm font-semibold tabular-nums",
+            remaining < 5 * 60_000 ? "bg-danger/10 text-danger" : "bg-surface-2",
+          )}
         >
-          {isFs ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-          <span className="hidden sm:inline">{isFs ? "Exit fullscreen" : "Fullscreen"}</span>
-        </button>
+          <Clock className="h-4 w-4" /> Time left {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
+        </span>
       </div>
 
+      {notice && !done && (
+        <div className="flex items-center justify-between gap-3 border-b border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+          <span>{notice}</span>
+          <button onClick={() => setNotice(null)} className="text-xs text-muted underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <iframe
+        ref={iframeRef}
         src={`/api/test-html/${testId}`}
         title={title}
+        onLoad={onLoad}
         className="min-h-0 w-full flex-1 bg-white"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
       />
@@ -162,8 +303,9 @@ export function MockRunner({
             </div>
             <h2 className="mt-4 text-lg font-bold">{label} submitted</h2>
             <p className="mt-1 text-sm text-muted">
-              Your answers are saved. Scores are not shown during the mock — your teacher releases
-              the full result once everything is marked.
+              {notice && /Time is up/.test(notice) ? `${notice} ` : ""}
+              Your answers are saved. Scores are not shown during the mock — your teacher releases the full result once
+              everything is marked.
             </p>
             <Button className="mt-6 w-full" onClick={goNext}>
               {nextLabel} <ArrowRight className="h-4 w-4" />

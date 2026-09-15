@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Loader2, Send } from "lucide-react";
 import { saveMockWriting } from "@/app/actions/mock";
+import { ExamGuard, useExamReport } from "@/components/mock/exam-guard";
 import { Button } from "@/components/ui/button";
 import { TASK1_MIN_WORDS, TASK2_MIN_WORDS, countWords } from "@/lib/mock-shared";
 import { cn } from "@/lib/utils";
@@ -19,16 +20,10 @@ const AUTOSAVE_MS = 20_000;
  * handing in the moment it reaches zero — so closing the tab and coming back
  * later resumes the same clock rather than a fresh one.
  */
-export function WritingExam({
-  mockId,
-  deadline,
-  initialTask1,
-  initialTask2,
-  task1Prompt,
-  task2Prompt,
-  task1ImageUrl,
-}: {
+type WritingProps = {
   mockId: string;
+  attemptId: string;
+  title: string;
   /** Epoch ms. */
   deadline: number;
   initialTask1: string;
@@ -36,8 +31,43 @@ export function WritingExam({
   task1Prompt: string;
   task2Prompt: string;
   task1ImageUrl: string | null;
-}) {
+  reloaded: boolean;
+  initialLongAway: number;
+};
+
+/** Writing inside the exam shell: fullscreen, overlay on exit, integrity reporting (0052). */
+export function WritingExam(props: WritingProps) {
+  return (
+    <div className="fixed inset-0 z-50 bg-background">
+      <ExamGuard
+        mockId={props.mockId}
+        attemptId={props.attemptId}
+        section="writing"
+        sectionLabel="Writing"
+        reloaded={props.reloaded}
+        initialLongAway={props.initialLongAway}
+        className="h-full"
+      >
+        <div className="mx-auto max-w-6xl space-y-4 px-4 py-4">
+          <h1 className="text-xl font-bold">{props.title} — Writing</h1>
+          <WritingBody {...props} />
+        </div>
+      </ExamGuard>
+    </div>
+  );
+}
+
+function WritingBody({
+  mockId,
+  deadline,
+  initialTask1,
+  initialTask2,
+  task1Prompt,
+  task2Prompt,
+  task1ImageUrl,
+}: WritingProps) {
   const router = useRouter();
+  const report = useExamReport();
   const [tab, setTab] = useState<1 | 2>(1);
   const [task1, setTask1] = useState(initialTask1);
   const [task2, setTask2] = useState(initialTask2);
@@ -140,7 +170,7 @@ export function WritingExam({
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/95 px-4 py-3 shadow-soft backdrop-blur">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface/95 px-4 py-3 shadow-soft backdrop-blur">
         <div className="flex items-center gap-1.5">
           {([1, 2] as const).map((n) => (
             <button
@@ -211,8 +241,20 @@ export function WritingExam({
             autoCorrect="off"
             autoCapitalize="off"
             placeholder={`Write your answer to Task ${tab} here…`}
+            // Pasting is allowed (students move their own sentences around) but a
+            // large paste is recorded for the teacher — agreed in the 0052 review:
+            // blocking is bypassable theatre, a record is evidence.
+            onPaste={(e) => {
+              const words = countWords(e.clipboardData.getData("text"));
+              if (words >= 5) report({ type: "paste", words, task: tab });
+            }}
+            onDrop={(e) => {
+              const words = countWords(e.dataTransfer.getData("text"));
+              if (words >= 5) report({ type: "paste", words, task: tab });
+            }}
             className="min-h-[24rem] w-full flex-1 resize-y rounded-lg bg-surface-2 p-4 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-primary/30 lg:min-h-[32rem]"
           />
+          <p className="mt-1 px-1 text-xs text-muted">Large pastes are recorded for your teacher.</p>
           <p
             className={cn(
               "mt-2 px-1 text-right text-xs tabular-nums",

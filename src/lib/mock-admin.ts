@@ -14,7 +14,16 @@ import {
   type MockRow,
   type RequestRow,
 } from "@/lib/mock";
-import { adminStage, isBand, overallBand, writingBand, type AdminStage } from "@/lib/mock-shared";
+import {
+  adminStage,
+  asIntegrity,
+  integrityVerdict,
+  isBand,
+  overallBand,
+  writingBand,
+  type AdminStage,
+  type IntegrityVerdict,
+} from "@/lib/mock-shared";
 
 // The OWNER's side of the Mock exam section (0050/0051).
 //
@@ -171,7 +180,16 @@ export async function listMockPapers(): Promise<MockPaper[]> {
  * granted and a keyless paper was only discovered when a student submitted.
  */
 function readinessIssues(
-  mock: Pick<MockRow, "listening_test_id" | "reading_test_id" | "writing_task1_prompt" | "writing_task2_prompt" | "writing_minutes">,
+  mock: Pick<
+    MockRow,
+    | "listening_test_id"
+    | "reading_test_id"
+    | "writing_task1_prompt"
+    | "writing_task2_prompt"
+    | "writing_minutes"
+    | "listening_minutes"
+    | "reading_minutes"
+  >,
   papers: Map<string, MockPaper>,
 ): string[] {
   const issues: string[] = [];
@@ -187,7 +205,10 @@ function readinessIssues(
   check(mock.reading_test_id, "reading", "Reading");
   if (!mock.writing_task1_prompt?.trim()) issues.push("Add the Writing Task 1 prompt.");
   if (!mock.writing_task2_prompt?.trim()) issues.push("Add the Writing Task 2 prompt.");
-  if (!(mock.writing_minutes >= 10 && mock.writing_minutes <= 180)) issues.push("Writing time must be 10–180 minutes.");
+  const inRange = (m: number) => m >= 10 && m <= 180;
+  if (!inRange(mock.listening_minutes)) issues.push("Listening time must be 10–180 minutes.");
+  if (!inRange(mock.reading_minutes)) issues.push("Reading time must be 10–180 minutes.");
+  if (!inRange(mock.writing_minutes)) issues.push("Writing time must be 10–180 minutes.");
   return issues;
 }
 
@@ -302,15 +323,41 @@ export type AdminAttemptSummary = {
   reading_band: number | null;
   writing_band: number | null;
   overall_band: number | null;
+  /** 0052 — evidence for the teacher, never acted on automatically. */
+  integrity: IntegrityVerdict;
 };
 
 const SUMMARY_COLS =
-  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band";
+  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band, listening_started_at, reading_started_at, listening_minutes, reading_minutes, integrity";
+
+type SummaryRow = Omit<AdminAttemptSummary, "mock_title" | "stage" | "integrity"> & {
+  listening_started_at: string | null;
+  reading_started_at: string | null;
+  listening_minutes: number | null;
+  reading_minutes: number | null;
+  integrity: unknown;
+};
+
+/** The integrity verdict for an attempt row that carries the 0052 columns. */
+export function verdictFor(a: {
+  integrity: unknown;
+  listening_started_at: string | null;
+  listening_submitted_at: string | null;
+  listening_minutes: number | null;
+  reading_started_at: string | null;
+  reading_submitted_at: string | null;
+  reading_minutes: number | null;
+}): IntegrityVerdict {
+  return integrityVerdict(asIntegrity(a.integrity), [
+    { section: "listening", startedAt: a.listening_started_at, submittedAt: a.listening_submitted_at, minutes: a.listening_minutes },
+    { section: "reading", startedAt: a.reading_started_at, submittedAt: a.reading_submitted_at, minutes: a.reading_minutes },
+  ]);
+}
 
 /** EVERY attempt ever — the permanent record — paged to exhaustion. */
 export async function listAttemptsAdmin(): Promise<AdminAttemptSummary[]> {
   const [list, mocks] = await Promise.all([
-    fetchAll<Omit<AdminAttemptSummary, "mock_title" | "stage">>("attempts", (from, to) =>
+    fetchAll<SummaryRow>("attempts", (from, to) =>
       db()
         .from("mock_attempts")
         .select(SUMMARY_COLS)
@@ -323,7 +370,15 @@ export async function listAttemptsAdmin(): Promise<AdminAttemptSummary[]> {
     ),
   ]);
   const title = new Map(mocks.map((m) => [m.id, m.title]));
-  return list.map((a) => {
+  return list.map((row) => {
+    const {
+      listening_started_at,
+      reading_started_at,
+      listening_minutes,
+      reading_minutes,
+      integrity,
+      ...a
+    } = row;
     const bands = {
       listening_band: num(a.listening_band),
       reading_band: num(a.reading_band),
@@ -335,6 +390,16 @@ export async function listAttemptsAdmin(): Promise<AdminAttemptSummary[]> {
       ...bands,
       stage: adminStage({ ...a, ...bands }),
       mock_title: title.get(a.mock_id) ?? "(deleted mock)",
+      // The full event list stays on the server; the list needs only the verdict.
+      integrity: verdictFor({
+        integrity,
+        listening_started_at,
+        listening_submitted_at: a.listening_submitted_at,
+        listening_minutes,
+        reading_started_at,
+        reading_submitted_at: a.reading_submitted_at,
+        reading_minutes,
+      }),
     };
   });
 }
@@ -382,6 +447,8 @@ export type MockInput = {
   writing_task1_prompt: string | null;
   writing_task2_prompt: string | null;
   writing_minutes: number;
+  listening_minutes: number;
+  reading_minutes: number;
   published: boolean;
 };
 
@@ -412,7 +479,8 @@ export async function saveMock(
 ): Promise<{ ok: true; id: string; issues: string[] } | { ok: false; error: string; issues?: string[] }> {
   const title = input.title.trim();
   if (!title) return { ok: false, error: "Give the mock a title." };
-  const minutes = Math.round(Number(input.writing_minutes) || 0);
+  const mins = (v: unknown, fallback: number) => Math.round(Number(v ?? fallback) || 0);
+  const minutes = mins(input.writing_minutes, 60);
 
   const candidate = {
     listening_test_id: input.listening_test_id || null,
@@ -420,12 +488,20 @@ export async function saveMock(
     writing_task1_prompt: norm(input.writing_task1_prompt) || null,
     writing_task2_prompt: norm(input.writing_task2_prompt) || null,
     writing_minutes: minutes,
+    listening_minutes: mins(input.listening_minutes, 40),
+    reading_minutes: mins(input.reading_minutes, 60),
   };
 
   const ids = [candidate.listening_test_id, candidate.reading_test_id].filter(Boolean) as string[];
   const papers = new Map((ids.length ? await loadPapers(ids) : []).map((p) => [p.id, p]));
   const issues = readinessIssues(candidate, papers);
-  if (minutes < 10 || minutes > 180) return { ok: false, error: "Writing time must be 10–180 minutes." };
+  for (const [label, m] of [
+    ["Listening", candidate.listening_minutes],
+    ["Reading", candidate.reading_minutes],
+    ["Writing", candidate.writing_minutes],
+  ] as const) {
+    if (m < 10 || m > 180) return { ok: false, error: `${label} time must be 10–180 minutes.` };
+  }
   if (input.published && issues.length) {
     return { ok: false, error: "This mock isn't ready to publish.", issues };
   }
@@ -448,7 +524,9 @@ export async function saveMock(
         current.reading_test_id !== candidate.reading_test_id ||
         norm(current.writing_task1_prompt) !== norm(candidate.writing_task1_prompt) ||
         norm(current.writing_task2_prompt) !== norm(candidate.writing_task2_prompt) ||
-        current.writing_minutes !== candidate.writing_minutes;
+        current.writing_minutes !== candidate.writing_minutes ||
+        current.listening_minutes !== candidate.listening_minutes ||
+        current.reading_minutes !== candidate.reading_minutes;
       if (changed) return { ok: false, error: LOCKED_MESSAGE };
     }
     const { error } = await client.from("mocks").update(row).eq("id", input.id);
@@ -494,6 +572,8 @@ export async function duplicateMock(mockId: string): Promise<{ ok: true; id: str
       writing_task1_image_path: m.writing_task1_image_path,
       writing_task2_prompt: m.writing_task2_prompt,
       writing_minutes: m.writing_minutes,
+      listening_minutes: m.listening_minutes,
+      reading_minutes: m.reading_minutes,
       published: false,
     })
     .select("id")
@@ -587,6 +667,8 @@ async function createAttempt(
     reading_test_id: mock.reading_test_id,
     // Snapshots (0051): the exam this student sits cannot change under them.
     writing_minutes: mock.writing_minutes,
+    listening_minutes: mock.listening_minutes,
+    reading_minutes: mock.reading_minutes,
     writing_task1_image_path: mock.writing_task1_image_path,
   });
   if (error) {

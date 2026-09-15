@@ -15,7 +15,7 @@
 // The source CDI files in storage are never modified; this is a transform
 // applied to the response body on the way out.
 
-import { HARVEST_ANSWERS_JS } from "./scoring-bridge";
+import { HARVEST_ANSWERS_JS, RESTORE_ANSWERS_JS } from "./scoring-bridge";
 
 export const SANITIZED_BRIDGE_MARKER = "IELTS Platform sanitized bridge";
 
@@ -233,9 +233,27 @@ const SANITIZED_BRIDGE = `
 /* ${SANITIZED_BRIDGE_MARKER} (auto-injected by /api/test-html) */
 (function () {
 ${HARVEST_ANSWERS_JS}
+${RESTORE_ANSWERS_JS}
 
   var TARGET_ORIGIN = "__ORIGIN__";
   var TEST_ID = "__TEST_ID__";
+
+  // Mock exam runner control channel (0052). Inert unless the PARENT page on our
+  // own origin asks: SNAPSHOT returns the current answers (autosave), RESTORE
+  // refills them after a reload. Practice tests never send these.
+  window.addEventListener("message", function (e) {
+    if (e.origin !== TARGET_ORIGIN || e.source !== parent) return;
+    var d = e.data || {};
+    if (d.source !== "IELTS_PLATFORM") return;
+    try {
+      if (d.type === "SNAPSHOT") {
+        parent.postMessage({ source: "IELTS_CDI_TEST", type: "SNAPSHOT", payload: { answers: harvestAnswers() } }, TARGET_ORIGIN);
+      } else if (d.type === "RESTORE") {
+        var missing = restoreAnswers(d.answers || {});
+        parent.postMessage({ source: "IELTS_CDI_TEST", type: "RESTORED", payload: { missing: missing } }, TARGET_ORIGIN);
+      }
+    } catch (err) {}
+  });
 
   // Hide the report while the key is absent — it could only render a wrong 0/N.
   // Removed again the instant the real data arrives.

@@ -114,6 +114,58 @@ export const HARVEST_ANSWERS_JS = `
   }
 `;
 
+// The inverse of harvestAnswers(), for the MOCK exam runner (0052): after a
+// reload, the runner hands back the answers it last snapshotted and the page
+// refills what it can. Defines `restoreAnswers(answers)` in the enclosing
+// scope and returns the question numbers it could NOT put back.
+//
+// Deliberately limited to the controls a value can be written into — text
+// inputs (name="qN" or data-q) and radio/checkbox groups (name="qN"). Drag-and-
+// drop tokens are moved by each shell's own code and there is no safe generic
+// way to replay that; those numbers come back as "missing" so the runner can
+// tell the student to re-place them. The server keeps the snapshot either way,
+// so nothing is lost from grading.
+//
+// Each change fires input + change events so the shell's own listeners (answer
+// counters, navigation dots, localStorage) see it as if the student typed it.
+export const RESTORE_ANSWERS_JS = `
+  function restoreAnswers(answers) {
+    var missing = [];
+    function fire(el) {
+      try {
+        if (typeof Event === "function" && el.dispatchEvent) {
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      } catch (e) {}
+    }
+    for (var q in answers) {
+      if (!Object.prototype.hasOwnProperty.call(answers, q) || !/^\\d+$/.test(q)) continue;
+      var want = String(answers[q]);
+      var done = false;
+      var named = document.querySelectorAll('[name="q' + q + '"]');
+      for (var i = 0; i < named.length; i++) {
+        var el = named[i];
+        if (el.type === "radio" || el.type === "checkbox") {
+          if (el.value === want) { if (!el.checked) { el.checked = true; fire(el); } done = true; }
+        } else if ("value" in el) {
+          if (el.value !== want) { el.value = want; fire(el); }
+          done = true;
+        }
+      }
+      if (!done) {
+        var gaps = document.querySelectorAll('input[data-q="' + q + '"]');
+        for (var g = 0; g < gaps.length; g++) {
+          if (gaps[g].value !== want) { gaps[g].value = want; fire(gaps[g]); }
+          done = true;
+        }
+      }
+      if (!done) missing.push(Number(q));
+    }
+    return missing.sort(function (a, b) { return a - b; });
+  }
+`;
+
 export const SCORING_BRIDGE = `
 <script>
 /* ${BRIDGE_MARKER} (auto-injected by /api/test-html) */

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import {
   getMock,
+  saveSectionDraft,
   saveWriting,
   startAttempt,
   submitRequest,
@@ -131,6 +132,22 @@ export async function submitMockSection(
   // continue" screen before the student could read it (caught in the E2E run).
   // Every /mock page is dynamic, so there is no cache to invalidate anyway.
   return submitSection(user.id, mockId, section, answers);
+}
+
+/**
+ * Listening/Reading autosave (0052): the page's current answers and how far the
+ * audio got. No revalidatePath, for the same reason as submitMockSection.
+ */
+export async function saveMockSectionDraft(
+  mockId: string,
+  section: "listening" | "reading",
+  answers: unknown,
+  audioPos: number | null,
+): Promise<MockActionResult> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  if (section !== "listening" && section !== "reading") return { ok: false, error: "Unknown section." };
+  return saveSectionDraft(user.id, mockId, section, answers, audioPos);
 }
 
 export async function saveMockWriting(

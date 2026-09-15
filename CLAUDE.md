@@ -1048,6 +1048,60 @@ only deletes an unstarted place.
 - CSV cells go through `csvCell` (formula prefixes neutralised — student names
   are student-controlled) with a UTF-8 BOM.
 
+## Anti-cheating (0052 + 0053) — a deterrent and a record, not a lock
+
+Designed in a meeting with Codex, Grok and agy (2026-09-15); the owner decided
+the open points. **What a browser cannot enforce, stated plainly:** a second
+phone, a helper in the room, screenshots, browser extensions. Nothing below
+claims otherwise, and nothing changes a score or submits automatically because
+of a signal.
+
+**Owner decisions:** laptop/desktop only; fullscreen required; leaving
+fullscreen covers the test, **the clock keeps running, Listening audio pauses**;
+repeated exits → warning + "Review suggested" for the teacher, never automatic.
+
+- **Server clocks for every section.** `startSection()` / `startWriting()` stamp
+  the start once and RETURN it (fetch-memo trap). Minutes are snapshotted
+  (`listening_minutes`/`reading_minutes`/`writing_minutes`, 40/60/60 default).
+  After deadline + 60 s grace only the saved draft counts; `finalizeExpiredSection()`
+  closes an expired section when the student lands on any mock page — ONE step
+  per request, and the caller must `redirect()` (memo again).
+- **Drafts + no replay.** The runner asks the bridge for `SNAPSHOT` every 15 s →
+  `saveMockSectionDraft` (answers + furthest audio position, forward-only). After
+  a reload it sends `RESTORE`; `restoreAnswers()` (scoring-bridge.ts) refills text
+  and radio/checkbox inputs and reports drag-drop numbers it cannot restore. The
+  audio resumes at the saved position and any rewind is snapped forward. Before
+  0052 a reload replayed the recording from 0.
+- **ExamGuard** (`components/mock/exam-guard.tsx`) wraps runner and writing:
+  device gate (`isExamCapableDevice`: fine pointer, short side ≥ 700, element
+  Fullscreen API), BroadcastChannel second-tab block, "Enter fullscreen & begin"
+  (user gesture; content not mounted before), opaque overlay + `inert` on exit,
+  hidden-tab ≥ 2 s logged, escalating warning copy. `DeviceNotice` stops a phone
+  BEFORE "Start the mock" starts the clock.
+- **Section links use `prefetch={false}`** — rendering a section page starts its
+  clock or records a reload.
+- **Events** go to `POST /api/mock-events` (route, so `sendBeacon` works on
+  pagehide), session-identified, validated/clamped/capped by the pure
+  `applyIntegrityEvents()`; reloads and timeouts are recorded server-side.
+- **Integrity writes are compare-and-set on `integrity_rev` (0053)**
+  (`mutateIntegrity`). Plain read-modify-write lost a second-tab event when the
+  page, the events route and another tab wrote at once.
+- **Report:** `integrityVerdict()` → clear / review / incomplete with reasons
+  (≥3 long exits, ≥60 s away, second tab, reload during Listening, paste ≥100
+  words, ≥3 rewinds, L/R finished in <25% of the time). Integrity card on
+  `/admin/mocks/attempts/[id]`; "Review suggested" chip + badge + CSV columns on
+  Results.
+- **Writing paste** is allowed and logged (≥5 words; ≥100 flags).
+- **Leak protection:** `getReleasedDetail()` hides the per-question review while
+  anyone else still has the mock open (bands and feedback still show); release
+  confirmations warn how many are still sitting.
+
+Traps found in the E2E run: `MockGradeForm` must not rely on router.refresh()
+or a transition — the action's revalidatePath left `pending` stuck and the
+props never re-keyed the form, so Release stayed disabled after Save. It keeps
+its own `saved`/`liveStatus` state and a plain busy flag. Headless Chromium has
+no MP3 codec; the E2E swaps in a generated silent WAV to test audio behaviour.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   adminStage,
+  applyIntegrityEvents,
+  asIntegrity,
+  emptyIntegrity,
+  integrityVerdict,
+  isExamCapableDevice,
+  recordReload,
   csvCell,
   countWords,
   isBand,
@@ -128,5 +134,71 @@ describe("csvCell", () => {
     expect(csvCell(6.5)).toBe("6.5");
     expect(csvCell(-1)).toBe("-1");
     expect(csvCell(null)).toBe("");
+  });
+});
+
+describe("integrity", () => {
+  const now = "2026-09-15T10:00:00.000Z";
+
+  it("clamps, validates and counts events", () => {
+    const i = applyIntegrityEvents(
+      emptyIntegrity(),
+      [
+        { type: "device", section: "listening", ua: "Chrome", screen: "1920x1080" },
+        { type: "away", section: "listening", ms: 5000, kind: "fullscreen" },
+        { type: "away", section: "listening", ms: 900, kind: "hidden" }, // below grace: dropped
+        { type: "away", section: "reading", ms: 1500, kind: "fullscreen" }, // counted, not long
+        { type: "paste", section: "writing", words: 150, task: 2 },
+        { type: "paste", section: "writing", words: 2 }, // too small: dropped
+        { type: "bogus", section: "writing" },
+        { type: "away", section: "nowhere", ms: 1 },
+        null,
+      ],
+      now,
+    );
+    expect(i.counters.away).toBe(2);
+    expect(i.counters.long_away).toBe(1);
+    expect(i.counters.away_ms).toBe(6500);
+    expect(i.counters.pastes).toBe(1);
+    expect(i.counters.largest_paste_words).toBe(150);
+    expect(i.device).toBe("Chrome · 1920x1080");
+    expect(i.events.every((e) => e.t === now)).toBe(true);
+    expect(i.events).toHaveLength(4);
+  });
+
+  it("caps the event list", () => {
+    let i = emptyIntegrity();
+    for (let n = 0; n < 20; n++) {
+      i = applyIntegrityEvents(i, Array.from({ length: 50 }, () => ({ type: "second_tab", section: "reading" })), now);
+    }
+    expect(i.events.length).toBe(300);
+    expect(i.counters.second_tab).toBe(1000);
+  });
+
+  it("gives a verdict", () => {
+    const clean = applyIntegrityEvents(emptyIntegrity(), [{ type: "device", section: "listening", ua: "x" }], now);
+    expect(integrityVerdict(clean).level).toBe("clear");
+    expect(integrityVerdict(emptyIntegrity()).level).toBe("incomplete");
+    const v = integrityVerdict(recordReload(clean, "listening", now));
+    expect(v.level).toBe("review");
+    expect(v.reasons[0]).toMatch(/Reloaded during Listening/);
+    const fast = integrityVerdict(clean, [
+      { section: "reading", startedAt: "2026-09-15T10:00:00Z", submittedAt: "2026-09-15T10:05:00Z", minutes: 60 },
+    ]);
+    expect(fast.level).toBe("review");
+  });
+
+  it("survives malformed stored data", () => {
+    expect(asIntegrity("nope").counters.away).toBe(0);
+    expect(asIntegrity({ counters: { away: "7", reloads: -3 } }).counters).toMatchObject({ away: 7, reloads: 0 });
+  });
+
+  it("recognises exam-capable devices", () => {
+    const laptop = { finePointer: true, anyFinePointer: true, screenW: 1366, screenH: 768, fullscreenEnabled: true };
+    expect(isExamCapableDevice(laptop)).toBe(true);
+    expect(isExamCapableDevice({ ...laptop, finePointer: false, anyFinePointer: false })).toBe(false);
+    expect(isExamCapableDevice({ ...laptop, screenW: 390, screenH: 844 })).toBe(false);
+    expect(isExamCapableDevice({ ...laptop, fullscreenEnabled: false })).toBe(false);
+    expect(isExamCapableDevice({ ...laptop, finePointer: false, anyFinePointer: true })).toBe(true);
   });
 });

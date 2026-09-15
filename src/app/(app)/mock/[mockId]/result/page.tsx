@@ -53,14 +53,24 @@ export default async function MockResultPage({ params }: { params: Promise<{ moc
         </Card>
       )}
 
-      <Card className="space-y-3">
-        <h2 className="font-semibold">Listening answers</h2>
-        <ReviewTable lines={detail.listeningReview} />
-      </Card>
-      <Card className="space-y-3">
-        <h2 className="font-semibold">Reading answers</h2>
-        <ReviewTable lines={detail.readingReview} />
-      </Card>
+      {detail.reviewHeld ? (
+        // Leak protection (0052): other students are still sitting this mock.
+        <Card className="text-sm text-muted">
+          The question-by-question answers will appear here once everyone taking this mock has finished, so the
+          answers cannot be passed on. Your bands above are final.
+        </Card>
+      ) : (
+        <>
+          <Card className="space-y-3">
+            <h2 className="font-semibold">Listening answers</h2>
+            <ReviewTable lines={detail.listeningReview} />
+          </Card>
+          <Card className="space-y-3">
+            <h2 className="font-semibold">Reading answers</h2>
+            <ReviewTable lines={detail.readingReview} />
+          </Card>
+        </>
+      )}
 
       <Card className="space-y-4">
         <h2 className="font-semibold">Your writing</h2>

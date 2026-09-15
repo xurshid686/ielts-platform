@@ -10,6 +10,12 @@ import {
   nextSection,
   type MockAttemptStatus,
   type MockRequestStatus,
+  applyIntegrityEvents,
+  asIntegrity,
+  recordReload,
+  recordTimeout,
+  type Integrity,
+  type MockSection,
 } from "@/lib/mock-shared";
 
 // The Mock exam section (migration 0050), in one place.
@@ -50,13 +56,15 @@ export type MockRow = {
   writing_task1_image_path: string | null;
   writing_task2_prompt: string | null;
   writing_minutes: number;
+  listening_minutes: number;
+  reading_minutes: number;
   published: boolean;
   created_at: string;
   updated_at: string;
 };
 
 export const MOCK_COLS =
-  "id, title, description, listening_test_id, reading_test_id, writing_task1_prompt, writing_task1_image_path, writing_task2_prompt, writing_minutes, published, created_at, updated_at";
+  "id, title, description, listening_test_id, reading_test_id, writing_task1_prompt, writing_task1_image_path, writing_task2_prompt, writing_minutes, listening_minutes, reading_minutes, published, created_at, updated_at";
 
 export type AttemptRow = {
   id: string;
@@ -101,10 +109,19 @@ export type AttemptRow = {
   writing_task1_image_path: string | null;
   listening_key: Json | null;
   reading_key: Json | null;
+  // 0052 — server section clocks, drafts, integrity record.
+  listening_started_at: string | null;
+  reading_started_at: string | null;
+  listening_minutes: number | null;
+  reading_minutes: number | null;
+  listening_draft: Json | null;
+  reading_draft: Json | null;
+  listening_audio_pos: number | null;
+  integrity: Json;
 };
 
 export const ATTEMPT_COLS =
-  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at, writing_minutes, writing_task1_image_path, listening_key, reading_key";
+  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at, writing_minutes, writing_task1_image_path, listening_key, reading_key, listening_started_at, reading_started_at, listening_minutes, reading_minutes, listening_draft, reading_draft, listening_audio_pos, integrity";
 
 export type RequestRow = {
   id: string;
@@ -339,6 +356,180 @@ export async function startAttempt(userId: string, mockId: string): Promise<LibR
   return { ok: true };
 }
 
+// ------------------------------------------------------- section lifecycle
+//
+// Every section has a SERVER clock (0052 for Listening/Reading, writing since
+// 0050): stamped once when the section is first opened, minutes snapshotted at
+// grant. A reload resumes the same clock — before 0052 a reload of Listening
+// reloaded the CDI file, restarting its own timer and replaying the audio.
+//
+// RETURN, DO NOT RE-READ. The start functions run during a server render where
+// Next memoizes identical GET fetches, so re-reading an attempt after writing
+// to it returns the pre-write copy (see startWriting's history in CLAUDE.md).
+
+/** Grace after a clock runs out, for a last autosave or submit in flight. */
+export const SECTION_GRACE_MS = 60_000;
+
+export function writingDeadline(startedAt: string | null, minutes: number): number | null {
+  return startedAt ? new Date(startedAt).getTime() + minutes * 60_000 : null;
+}
+
+type PaperSection = "listening" | "reading";
+
+const STARTED_COL = {
+  listening: "listening_started_at",
+  reading: "reading_started_at",
+  writing: "writing_started_at",
+} as const;
+
+function sectionMinutes(a: AttemptRow, mock: MockRow | null, section: MockSection): number {
+  if (section === "listening") return a.listening_minutes ?? mock?.listening_minutes ?? 40;
+  if (section === "reading") return a.reading_minutes ?? mock?.reading_minutes ?? 60;
+  return a.writing_minutes ?? mock?.writing_minutes ?? 60;
+}
+
+function isExpired(startedAt: string | null, minutes: number, now = Date.now()): boolean {
+  const deadline = writingDeadline(startedAt, minutes);
+  return deadline != null && now > deadline + SECTION_GRACE_MS;
+}
+
+/**
+ * Applies `change` to an attempt's integrity record with COMPARE-AND-SET on
+ * integrity_rev (0053). Several writers touch this record at once — the page
+ * recording a reload, /api/mock-events, a second tab — and a plain
+ * read-modify-write lost events in the E2E run. On a conflict it re-reads and
+ * re-applies, up to 6 times.
+ *
+ * Each re-read uses a different filter (`neq integrity_rev -n`), because inside
+ * a server render Next memoizes identical GETs and a repeated read would return
+ * the same stale row forever.
+ */
+async function mutateIntegrity(attemptId: string, change: (current: Integrity) => Integrity): Promise<void> {
+  for (let i = 0; i < 6; i++) {
+    const { data, error } = await db()
+      .from("mock_attempts")
+      .select("integrity, integrity_rev")
+      .eq("id", attemptId)
+      .neq("integrity_rev", -1 - i)
+      .maybeSingle();
+    if (error || !data) {
+      console.error("[mock] integrity read failed", error?.message);
+      return;
+    }
+    const row = data as { integrity: unknown; integrity_rev: number };
+    const next = change(asIntegrity(row.integrity));
+    const { data: written, error: wErr } = await db()
+      .from("mock_attempts")
+      .update({ integrity: next as unknown as Json, integrity_rev: row.integrity_rev + 1 })
+      .eq("id", attemptId)
+      .eq("integrity_rev", row.integrity_rev)
+      .select("id");
+    if (wErr) {
+      console.error("[mock] integrity write failed", wErr.message);
+      return;
+    }
+    if (written?.length) return;
+  }
+  console.error(`[mock] integrity write gave up after conflicts on ${attemptId}`);
+}
+
+export type SectionStart =
+  | {
+      ok: true;
+      startedAt: string;
+      minutes: number;
+      reloaded: boolean;
+      draft: Record<string, string>;
+      audioPos: number;
+      longAway: number;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Opens (or re-opens) a Listening/Reading section. The first call stamps the
+ * clock; any later call is a RELOAD, recorded server-side for the teacher —
+ * the client cannot be trusted to report its own reload.
+ */
+export async function startSection(userId: string, mockId: string, section: PaperSection): Promise<SectionStart> {
+  const a = await loadAttempt(userId, mockId);
+  if (!a) return { ok: false, error: "You don't have a place on this mock." };
+  if (nextSection(a) !== section) return { ok: false, error: "That section isn't open." };
+  const mock = await getMock(mockId);
+  const minutes = sectionMinutes(a, mock, section);
+  const draft = asAnswers(section === "listening" ? a.listening_draft : a.reading_draft) ?? {};
+  const audioPos = section === "listening" ? Number(a.listening_audio_pos ?? 0) || 0 : 0;
+  const integrity = asIntegrity(a.integrity);
+  const now = new Date().toISOString();
+  const col = STARTED_COL[section];
+  const already = section === "listening" ? a.listening_started_at : a.reading_started_at;
+
+  if (already) {
+    await mutateIntegrity(a.id, (cur) => recordReload(cur, section, now));
+    return { ok: true, startedAt: already, minutes, reloaded: true, draft, audioPos, longAway: integrity.counters.long_away };
+  }
+
+  const { data, error } = await db()
+    .from("mock_attempts")
+    .update({
+      [col]: now,
+      status: "in_progress",
+      started_at: a.started_at ?? now,
+      // Snapshot the time limit with the start (0051 rule: the exam cannot change under them).
+      ...(section === "listening" ? { listening_minutes: minutes } : { reading_minutes: minutes }),
+    })
+    .eq("id", a.id)
+    .is(col, null)
+    .select(col);
+  if (error) return { ok: false, error: error.message };
+  const stamped = (rows<Record<string, string>>(data)[0] ?? {})[col];
+  if (stamped) {
+    return { ok: true, startedAt: stamped, minutes, reloaded: false, draft, audioPos, longAway: integrity.counters.long_away };
+  }
+  // A concurrent render stamped it first; read with a query shape this render has not issued.
+  const { data: fresh } = await db().from("mock_attempts").select(`${col}, status`).eq("id", a.id).maybeSingle();
+  const started = (fresh as Record<string, string> | null)?.[col];
+  return started
+    ? { ok: true, startedAt: started, minutes, reloaded: true, draft, audioPos, longAway: integrity.counters.long_away }
+    : { ok: false, error: "Couldn't start the section clock." };
+}
+
+/**
+ * Autosave of a Listening/Reading section: the answers the page holds now and
+ * how far the audio got. Refused once the clock (plus grace) has run out, so a
+ * student cannot keep improving answers after time. `audio_pos` only moves
+ * forward — it is what stops a reload from replaying the recording.
+ */
+export async function saveSectionDraft(
+  userId: string,
+  mockId: string,
+  section: PaperSection,
+  answersInput: unknown,
+  audioPosInput: unknown,
+): Promise<LibResult> {
+  const a = await loadAttempt(userId, mockId);
+  if (!a) return { ok: false, error: "You don't have a place on this mock." };
+  if (nextSection(a) !== section) return { ok: false, error: "This section has already been submitted." };
+  const startedAt = section === "listening" ? a.listening_started_at : a.reading_started_at;
+  if (!startedAt) return { ok: false, error: "This section hasn't started." };
+  if (isExpired(startedAt, sectionMinutes(a, null, section))) return { ok: false, error: "Time is up for this section." };
+
+  const answers = asAnswers(answersInput) ?? {};
+  const patch: TablesUpdate<"mock_attempts"> =
+    section === "listening" ? { listening_draft: answers } : { reading_draft: answers };
+  if (section === "listening") {
+    const pos = Number(audioPosInput);
+    const prev = Number(a.listening_audio_pos ?? 0) || 0;
+    if (Number.isFinite(pos) && pos > prev && pos < 6 * 60 * 60) patch.listening_audio_pos = Math.round(pos * 10) / 10;
+  }
+  const { error } = await db()
+    .from("mock_attempts")
+    .update(patch)
+    .eq("id", a.id)
+    .is(section === "listening" ? "listening_submitted_at" : "reading_submitted_at", null);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 /**
  * Grades and stores a listening or reading section.
  *
@@ -348,6 +539,11 @@ export async function startAttempt(userId: string, mockId: string): Promise<LibR
  * those through PostgREST, which would leak the band before release), move the
  * rating, award XP or touch the streak. A mock is an exam, not practice.
  *
+ * The answers graded are the last server draft overlaid with what the page
+ * submits. AFTER the clock (plus grace) only the draft counts — a late submit,
+ * or a script posting answers after time, cannot add anything. A cleared answer
+ * that was in the last draft survives the overlay; that trade is accepted.
+ *
  * The update is conditional on `<section>_submitted_at is null`, so a double
  * submit (two tabs, a retry after a dropped connection) cannot overwrite the
  * first sitting's answers.
@@ -355,7 +551,7 @@ export async function startAttempt(userId: string, mockId: string): Promise<LibR
 export async function submitSection(
   userId: string,
   mockId: string,
-  section: "listening" | "reading",
+  section: PaperSection,
   answersInput: unknown,
 ): Promise<LibResult> {
   const a = await loadAttempt(userId, mockId);
@@ -376,17 +572,17 @@ export async function submitSection(
   const testId = section === "listening" ? a.listening_test_id : a.reading_test_id;
   if (!testId) return { ok: false, error: "This mock has no paper for that section. Tell your teacher." };
 
-  const { data: test } = await db()
-    .from("tests")
-    .select("answer_key")
-    .eq("id", testId)
-    .maybeSingle();
+  const { data: test } = await db().from("tests").select("answer_key").eq("id", testId).maybeSingle();
   const key = asAnswerKey((test as { answer_key?: unknown } | null)?.answer_key);
   if (!key) {
     return { ok: false, error: "This paper has no answer key, so it can't be marked. Tell your teacher." };
   }
 
-  const answers = asAnswers(answersInput) ?? {};
+  const startedAt = section === "listening" ? a.listening_started_at : a.reading_started_at;
+  const draft = asAnswers(section === "listening" ? a.listening_draft : a.reading_draft) ?? {};
+  const late = isExpired(startedAt, sectionMinutes(a, null, section));
+  const answers = late ? draft : { ...draft, ...(asAnswers(answersInput) ?? {}) };
+
   const graded = gradeAnswers(key, answers, section);
   const band = rawToBand(section, graded.raw, graded.total);
   const now = new Date().toISOString();
@@ -414,49 +610,74 @@ export async function submitSection(
 
   const { data: updated, error } = await db()
     .from("mock_attempts")
-    .update({ ...patch, status: "in_progress", started_at: a.started_at ?? now })
+    .update({
+      ...patch,
+      status: "in_progress",
+      started_at: a.started_at ?? now,
+      // A section submitted without ever being opened (pre-0052 page) gets a start stamp now.
+      ...(startedAt ? {} : { [STARTED_COL[section]]: now }),
+    })
     .eq("id", a.id)
     .is(section === "listening" ? "listening_submitted_at" : "reading_submitted_at", null)
     .select("id");
   if (error) return { ok: false, error: error.message };
   if (!updated?.length) return { ok: false, error: "This section has already been submitted." };
+  if (late) await mutateIntegrity(a.id, (cur) => recordTimeout(cur, section, now));
   return { ok: true };
 }
 
-/** Grace after the writing clock runs out, for a last autosave in flight. */
-const WRITING_GRACE_MS = 60_000;
+/**
+ * Closes the current section if its clock has run out, from the saved draft.
+ * Returns true when it changed something.
+ *
+ * ONE STEP PER REQUEST, and callers must redirect() when it returns true: it
+ * runs during a page render, where Next memoizes identical GETs, so any read of
+ * the attempt after this write in the same render sees the pre-write copy. A
+ * redirect is a fresh request with a fresh memo, and if the next section's
+ * clock has also expired the next render closes that one.
+ */
+export async function finalizeExpiredSection(userId: string, mockId: string): Promise<boolean> {
+  // A select shape no other loader uses, so this read is never served from the memo.
+  const { data } = await db()
+    .from("mock_attempts")
+    .select(`${ATTEMPT_COLS}, id`)
+    .eq("user_id", userId)
+    .eq("mock_id", mockId)
+    .maybeSingle();
+  const a = data as AttemptRow | null;
+  if (!a || (a.status !== "approved" && a.status !== "in_progress")) return false;
+  const section = nextSection(a);
+  if (!section) return false;
+  const mock = await getMock(mockId);
+  if (!isExpired(a[STARTED_COL[section]], sectionMinutes(a, mock, section))) return false;
 
-export function writingDeadline(startedAt: string | null, minutes: number): number | null {
-  return startedAt ? new Date(startedAt).getTime() + minutes * 60_000 : null;
+  const res =
+    section === "writing"
+      ? await saveWriting(userId, mockId, a.writing_task1 ?? "", a.writing_task2 ?? "", true)
+      : await submitSection(userId, mockId, section, {});
+  return res.ok;
 }
 
-/**
- * Starts the writing clock the first time the student opens Writing, and
- * returns the clock's start time.
- *
- * RETURN THE TIMESTAMP, DO NOT RE-READ IT. This runs during a server render,
- * where Next memoizes identical GET fetches for the life of the render — and a
- * supabase-js select IS a GET. The section page has already loaded this
- * attempt once, so reading it again after the update hands back the SAME
- * pre-update response: no start time, so the page redirected every student to
- * the overview the first time they opened Writing (caught in the E2E run; a
- * reload worked, because by then the clock was already set). The PATCH below is
- * not memoized, so its `returning` row is the truth.
- */
+/** Starts the writing clock the first time; a later visit is recorded as a reload. */
 export async function startWriting(
   userId: string,
   mockId: string,
-): Promise<{ ok: true; startedAt: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; startedAt: string; reloaded: boolean; longAway: number } | { ok: false; error: string }> {
   const a = await loadAttempt(userId, mockId);
   if (!a) return { ok: false, error: "You don't have a place on this mock." };
   if (nextSection(a) !== "writing") return { ok: false, error: "Writing isn't open yet." };
-  if (a.writing_started_at) return { ok: true, startedAt: a.writing_started_at };
+  const integrity = asIntegrity(a.integrity);
+  const now = new Date().toISOString();
+  if (a.writing_started_at) {
+    await mutateIntegrity(a.id, (cur) => recordReload(cur, "writing", now));
+    return { ok: true, startedAt: a.writing_started_at, reloaded: true, longAway: integrity.counters.long_away };
+  }
 
   const mock = await getMock(mockId);
   const { data, error } = await db()
     .from("mock_attempts")
     .update({
-      writing_started_at: new Date().toISOString(),
+      writing_started_at: now,
       // The prompts are copied now so a later edit to the mock cannot change
       // what this student is recorded as having answered.
       writing_task1_prompt: mock?.writing_task1_prompt ?? null,
@@ -468,18 +689,17 @@ export async function startWriting(
   if (error) return { ok: false, error: error.message };
 
   const stamped = rows<{ writing_started_at: string }>(data)[0]?.writing_started_at;
-  if (stamped) return { ok: true, startedAt: stamped };
+  if (stamped) return { ok: true, startedAt: stamped, reloaded: false, longAway: integrity.counters.long_away };
 
-  // Zero rows: a concurrent render started the clock between our read and our
-  // write. Read it with a query shape this render has not issued (so it cannot
-  // be served from the memo).
   const { data: fresh } = await db()
     .from("mock_attempts")
     .select("writing_started_at, id")
     .eq("id", a.id)
     .maybeSingle();
   const started = (fresh as { writing_started_at: string | null } | null)?.writing_started_at;
-  return started ? { ok: true, startedAt: started } : { ok: false, error: "Couldn't start the writing clock." };
+  return started
+    ? { ok: true, startedAt: started, reloaded: true, longAway: integrity.counters.long_away }
+    : { ok: false, error: "Couldn't start the writing clock." };
 }
 
 export type WritingSaveResult =
@@ -509,8 +729,7 @@ export async function saveWriting(
   }
 
   const minutes = a.writing_minutes ?? (await getMock(mockId))?.writing_minutes ?? 60;
-  const deadline = writingDeadline(a.writing_started_at, minutes)!;
-  const expired = Date.now() > deadline + WRITING_GRACE_MS;
+  const expired = isExpired(a.writing_started_at, minutes);
   const now = new Date().toISOString();
 
   const patch: TablesUpdate<"mock_attempts"> = {};
@@ -534,6 +753,7 @@ export async function saveWriting(
     .select("id");
   if (error) return { ok: false, error: error.message };
   if (!updated?.length) return { ok: false, error: "Your writing has already been submitted." };
+  if (expired && handIn) await mutateIntegrity(a.id, (cur) => recordTimeout(cur, "writing", now));
   return { ok: true, submitted: handIn, savedAt: now };
 }
 
@@ -552,6 +772,25 @@ export async function getWritingDraft(userId: string, mockId: string) {
     writingMinutes: a.writing_minutes,
     task1ImagePath: a.writing_task1_image_path,
   };
+}
+
+/**
+ * Folds browser-reported integrity events into the attempt (0052). Accepted
+ * only for the student's own attempt while it is being sat, or within a few
+ * minutes of handing in (the final batch flushes on page exit).
+ */
+export async function recordIntegrityEvents(userId: string, mockId: string, events: unknown): Promise<LibResult> {
+  if (!Array.isArray(events) || events.length === 0) return { ok: true };
+  const a = await loadAttempt(userId, mockId);
+  if (!a) return { ok: false, error: "Not found." };
+  const openish =
+    a.status === "approved" ||
+    a.status === "in_progress" ||
+    (a.status === "submitted" && a.submitted_at && Date.now() - new Date(a.submitted_at).getTime() < 5 * 60_000);
+  if (!openish) return { ok: false, error: "This attempt is closed." };
+  const now = new Date().toISOString();
+  await mutateIntegrity(a.id, (cur) => applyIntegrityEvents(cur, events, now));
+  return { ok: true };
 }
 
 // ------------------------------------------------------- attempt breakdown
@@ -638,9 +877,35 @@ export async function getAttemptDetail(attemptId: string): Promise<AttemptDetail
   };
 }
 
-/** The student's released result with its breakdown. Null unless released. */
-export async function getReleasedDetail(userId: string, mockId: string): Promise<AttemptDetail | null> {
+/** How many OTHER students still have this mock open (a place not yet handed in). */
+export async function countStillSitting(mockId: string, excludeAttemptId?: string): Promise<number> {
+  let q = db()
+    .from("mock_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("mock_id", mockId)
+    .in("status", ["approved", "in_progress"]);
+  if (excludeAttemptId) q = q.neq("id", excludeAttemptId);
+  const { count, error } = await q;
+  if (error) throw new Error(`[mock] sitting count failed: ${error.message}`);
+  return count ?? 0;
+}
+
+/**
+ * The student's released result with its breakdown. Null unless released.
+ *
+ * LEAK PROTECTION (0052): mocks are reused, so the per-question answers are
+ * held back while anyone else still has this mock open — otherwise the first
+ * student released can hand the key to the rest. Bands, raw marks and writing
+ * feedback are shown regardless; only the correct answers wait.
+ */
+export async function getReleasedDetail(
+  userId: string,
+  mockId: string,
+): Promise<(AttemptDetail & { reviewHeld: boolean }) | null> {
   const a = await loadAttempt(userId, mockId);
   if (!a || a.status !== "released") return null;
-  return getAttemptDetail(a.id);
+  const [detail, sitting] = await Promise.all([getAttemptDetail(a.id), countStillSitting(mockId, a.id)]);
+  if (!detail) return null;
+  if (sitting === 0) return { ...detail, reviewHeld: false };
+  return { ...detail, listeningReview: [], readingReview: [], reviewHeld: true };
 }

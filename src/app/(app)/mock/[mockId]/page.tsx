@@ -2,23 +2,27 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ArrowRight, BookOpen, Check, Headphones, Lock, PenLine } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
-import { getStudentAttempt } from "@/lib/mock";
+import { finalizeExpiredSection, getStudentAttempt } from "@/lib/mock";
 import { nextSection, STATUS_LABEL, type MockSection } from "@/lib/mock-shared";
 import { Card } from "@/components/ui/card";
 import { BeginMockButton } from "@/components/mock/mock-actions";
+import { DeviceNotice } from "@/components/mock/device-notice";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Mock exam" };
 
 const SECTIONS: { id: MockSection; label: string; icon: typeof Headphones; note: string }[] = [
-  { id: "listening", label: "Listening", icon: Headphones, note: "About 30 minutes. Audio plays once." },
-  { id: "reading", label: "Reading", icon: BookOpen, note: "60 minutes, 40 questions." },
+  { id: "listening", label: "Listening", icon: Headphones, note: "Timed on our server. The recording plays once and does not restart if you reload." },
+  { id: "reading", label: "Reading", icon: BookOpen, note: "Timed on our server. 40 questions; answers autosave." },
   { id: "writing", label: "Writing", icon: PenLine, note: "Task 1 and Task 2 on one clock." },
 ];
 
 export default async function MockOverviewPage({ params }: { params: Promise<{ mockId: string }> }) {
   const { mockId } = await params;
   const profile = await requireProfile();
+  // A section whose clock ran out while the student was away is closed from its
+  // saved draft; redirect so the render below reads fresh (fetch memo, 0052).
+  if (await finalizeExpiredSection(profile.id, mockId)) redirect(`/mock/${mockId}`);
   const found = await getStudentAttempt(profile.id, mockId);
 
   // No place on this mock: the list page is where a student requests one.
@@ -54,10 +58,14 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
             <li>You get ONE attempt. A submitted section cannot be reopened.</li>
             <li>The sections go in exam order: Listening, Reading, then Writing.</li>
-            <li>Use headphones, a quiet room and a laptop or desktop.</li>
+            <li>Use a <b>laptop or desktop computer</b> (phones are not supported), headphones and a quiet room.</li>
+            <li>Each section runs in <b>fullscreen</b>. Leaving fullscreen hides the test; <b>the clock keeps running</b> (Listening audio pauses until you return).</li>
+            <li>Leaving fullscreen, switching tabs, reloading and large pastes are <b>recorded for your teacher</b>.</li>
             <li>No scores are shown during the mock. Your teacher releases the full result.</li>
           </ul>
-          <BeginMockButton mockId={mockId} href={`/mock/${mockId}/listening`} label="Start the mock" />
+          <DeviceNotice>
+            <BeginMockButton mockId={mockId} href={`/mock/${mockId}/listening`} label="Start the mock" />
+          </DeviceNotice>
         </Card>
       )}
 
@@ -92,6 +100,8 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
                 </div>
                 {isCurrent ? (
                   <Link
+                    // Never prefetch: rendering a section page starts its clock / records a reload.
+                    prefetch={false}
                     href={`/mock/${mockId}/${s.id}`}
                     className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
                   >

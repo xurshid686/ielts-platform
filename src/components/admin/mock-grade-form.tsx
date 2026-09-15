@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Loader2, Save } from "lucide-react";
 import { gradeMockWriting, releaseMockAttempt, unreleaseMockAttempt } from "@/app/actions/mock";
@@ -40,28 +40,37 @@ export function MockGradeForm({
 }) {
   const router = useRouter();
   const toField = (b: number | null) => (b == null ? "" : String(b));
-  const autoWriting = writingBand(initial.task1, initial.task2);
-  const initialOverride = initial.writing != null && initial.writing !== autoWriting ? String(initial.writing) : "";
+  const overrideOf = (s: Saved) =>
+    s.writing != null && s.writing !== writingBand(s.task1, s.task2) ? String(s.writing) : "";
+
+  // What is SAVED lives in this component, updated on each successful action.
+  // It used to be read only from props and trusted router.refresh() to remount
+  // the form with the new values — the refresh did not re-key it, so after
+  // "Save grade" the form still compared against the old grade and Release
+  // stayed disabled ("Save your changes first") until a manual reload. Caught
+  // in the 0052 E2E run.
+  const [saved, setSaved] = useState<Saved>(initial);
+  const [liveStatus, setLiveStatus] = useState(status);
 
   const [task1, setTask1] = useState(toField(initial.task1));
   const [task2, setTask2] = useState(toField(initial.task2));
-  const [override, setOverride] = useState(initialOverride);
+  const [override, setOverride] = useState(overrideOf(initial));
   const [feedback, setFeedback] = useState(initial.feedback ?? "");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
 
   const t1 = task1 === "" ? null : Number(task1);
   const t2 = task2 === "" ? null : Number(task2);
   const suggested = writingBand(t1, t2);
   const writing = override === "" ? suggested : Number(override);
   const overall = overallBand({ listening: listeningBand, reading: readingBand, writing });
-  const released = status === "released";
-  const graded = initial.writing != null;
+  const released = liveStatus === "released";
+  const graded = saved.writing != null;
   const dirty =
-    task1 !== toField(initial.task1) ||
-    task2 !== toField(initial.task2) ||
-    override !== initialOverride ||
-    feedback !== (initial.feedback ?? "");
+    task1 !== toField(saved.task1) ||
+    task2 !== toField(saved.task2) ||
+    override !== overrideOf(saved) ||
+    feedback !== (saved.feedback ?? "");
 
   useEffect(() => {
     if (!dirty) return;
@@ -74,20 +83,29 @@ export function MockGradeForm({
     fn: () => Promise<{ ok: true } | { ok: false; error: string }>,
     okText: string,
     after?: () => void,
+    onOk?: () => void,
   ) {
     setMsg(null);
-    startTransition(async () => {
+    // A plain busy flag, NOT useTransition. The actions revalidatePath() this
+    // page; inside a transition that refresh kept `pending` true indefinitely,
+    // so after "Save grade" every button stayed disabled (0052 E2E). The busy
+    // flag clears when the call returns, and the buttons read the form's own
+    // saved/liveStatus state rather than waiting for the page to re-render.
+    setPending(true);
+    void (async () => {
       try {
         const res = await fn();
         setMsg(res.ok ? { ok: true, text: okText } : { ok: false, text: res.error });
         if (res.ok) {
-          if (after) after();
-          else router.refresh();
+          onOk?.();
+          after?.();
         }
       } catch {
         setMsg({ ok: false, text: "Couldn't reach the server. Your grade is still on screen — try again." });
+      } finally {
+        setPending(false);
       }
-    });
+    })();
   }
 
   function saveGrade(thenNext: boolean) {
@@ -96,6 +114,7 @@ export function MockGradeForm({
       () => gradeMockWriting(attemptId, { task1: t1!, task2: t2!, writing: override === "" ? null : Number(override), feedback }),
       released ? "Published result updated — the student sees the change now." : "Grade saved. Not visible to the student until you release.",
       thenNext && nextHref ? () => router.push(nextHref) : undefined,
+      () => setSaved({ task1: t1, task2: t2, writing, feedback: feedback.trim() ? feedback : null }),
     );
   }
 
@@ -185,7 +204,9 @@ export function MockGradeForm({
               disabled={pending || dirty}
               onClick={() => {
                 if (!confirm("Hide this result from the student again?")) return;
-                act(() => unreleaseMockAttempt(attemptId), "Result hidden from the student.");
+                act(() => unreleaseMockAttempt(attemptId), "Result hidden from the student.", undefined, () =>
+                  setLiveStatus("submitted"),
+                );
               }}
             >
               <EyeOff className="h-4 w-4" /> Unrelease
@@ -194,16 +215,18 @@ export function MockGradeForm({
             <Button
               variant={nextHref ? "outline" : "primary"}
               className="h-11"
-              disabled={pending || status !== "submitted" || !graded || dirty}
+              disabled={pending || liveStatus !== "submitted" || !graded || dirty}
               title={!graded ? "Save a grade first" : dirty ? "Save your changes first" : undefined}
               onClick={() => {
                 if (
                   !confirm(
-                    `Release to the student?\n\nListening ${fmt(listeningBand)} · Reading ${fmt(readingBand)} · Writing ${fmt(initial.writing)}\n\nThey will be notified and see these bands now.`,
+                    `Release to the student?\n\nListening ${fmt(listeningBand)} · Reading ${fmt(readingBand)} · Writing ${fmt(saved.writing)}\n\nThey will be notified and see these bands now.`,
                   )
                 )
                   return;
-                act(() => releaseMockAttempt(attemptId), "Released — the student has been notified.");
+                act(() => releaseMockAttempt(attemptId), "Released — the student has been notified.", undefined, () =>
+                  setLiveStatus("released"),
+                );
               }}
             >
               <Eye className="h-4 w-4" /> Release result
