@@ -1349,6 +1349,44 @@ the student finishes (no scores — nothing is marked yet).
   (`resend-spy.mjs`), which asserts subject, from, links and the attached PDF
   without sending mail; `SPY_FAIL=1` proves a refusal leaves the result released.
 
+### The email status bar (migration 0056, owner 2026-09-16)
+
+Structure reviewed with Codex; its heavier suggestions (a durable job queue with
+automatic backoff, open/click analytics, a suppression list) were deliberately
+NOT built — a sitting is tens of emails.
+
+- **`mock_messages` is the log**: one row per send attempt, so a retry adds a row
+  instead of overwriting the last outcome, and receipts finally have an error
+  trail. `provider_id` (Resend's email id) is what a webhook event is matched on;
+  `mock_attempts.result_email_status` is a denormalised copy of the latest RESULT
+  status so the Results list needs no join. **Writers: `lib/mock-email.ts` and
+  the webhook, nothing else.** No grants, RLS on, like every mock table.
+- **`/api/resend-webhook`** verifies the Svix signature over the **raw body**
+  (`lib/email/verify-webhook.ts`, HMAC-SHA256 of `id.timestamp.body`, ±5 min,
+  timing-safe, several `v1,` sigs supported for rotation) — no new dependency.
+  Needs `RESEND_WEBHOOK_SECRET`; without it the route is 503 and statuses simply
+  stop at "sent". Resend retries anything non-2xx, so: bad signature → 401,
+  unknown email id / ignored event type / already-terminal row → **200, no
+  change**, a database failure → 500. `shouldAdvance()` never regresses a status
+  (a late `sent` after `delivered`) and lets `bounced`/`complained`/`failed` win.
+- **The strip** (`components/admin/email-status.tsx`) sits above the Results
+  table. Counts are per ATTEMPT — one state each, so they add up to the released
+  total — computed in the panel by `countEmailStatuses()` in mock-shared.ts from
+  attempts it already holds, which is why they follow the mock scope with no
+  extra round trip. Each count is a button setting `email=<bucket>` in the URL,
+  which filters the table via `emailBucket()`. "Email history" opens the log
+  (`listMockMessages`), and the attempt page lists that attempt's own history.
+- **Retries are the owner's** (`retryFailedResultEmailsAction` → `retryFailedResultEmails`):
+  only attempts whose latest result email FAILED. A bounce or complaint is never
+  retried — the address is wrong, so re-sending just fails again.
+- **Students are told at submit** (writing done screen + the mock overview) that
+  the result will be emailed with the paper attached. Nothing shows them the
+  address, and the receipt wording is unchanged.
+- E2E: the test signs its own Svix events with a throwaway secret and POSTs them
+  at the route, so delivered / bounced / unsigned / unknown-id are all covered
+  without Resend. The spy grew `POST /__fail` and `/__ok` toggles so one run
+  exercises a refusal and the retry.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

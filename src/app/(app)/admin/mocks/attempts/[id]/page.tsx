@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { countStillSitting, getAttemptDetail } from "@/lib/mock";
-import { finalizeExpiredAttempts, gradingQueue, verdictFor } from "@/lib/mock-admin";
+import { attemptMessages, finalizeExpiredAttempts, gradingQueue, verdictFor } from "@/lib/mock-admin";
 import {
   STAGE_LABEL,
   adminStage,
@@ -69,9 +69,11 @@ export default async function AdminMockAttemptPage({
   const withBack = (attemptId: string) =>
     `/admin/mocks/attempts/${attemptId}${back ? `?back=${encodeURIComponent(back)}` : ""}`;
 
-  const [queue, stillSitting] = await Promise.all([
+  const [queue, stillSitting, messages] = await Promise.all([
     gradingQueue(a.id, a.mock_id),
     countStillSitting(a.mock_id, a.id),
+    // This attempt's email history (0056) — newest first, both kinds.
+    attemptMessages(a.id),
   ]);
   const stage = adminStage(a);
   const integrity = asIntegrity(a.integrity);
@@ -146,6 +148,14 @@ export default async function AdminMockAttemptPage({
 
       <SendResultEmail
         attemptId={a.id}
+        history={messages.map((m) => ({
+          id: m.id,
+          kind: m.kind,
+          to: m.to_email,
+          status: m.status,
+          error: m.error,
+          at: tashkent(m.created_at),
+        }))}
         sentAt={a.result_email_sent_at ? tashkent(a.result_email_sent_at) : null}
         to={a.result_email_to ?? a.student_email}
         error={a.result_email_error}

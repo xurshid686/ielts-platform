@@ -36,7 +36,8 @@ export const EMAIL_BASE_URL = (process.env.EMAIL_LINK_BASE || SITE_URL).replace(
 
 const BRAND: Brand = { name: SITE_NAME, url: EMAIL_BASE_URL, contactUrl: CONTACT_TELEGRAM_URL };
 
-export type SendResult = { sent: boolean; error?: string };
+/** `id` is Resend's own email id — the key a delivery webhook is matched on (0056). */
+export type SendResult = { sent: boolean; id?: string; error?: string };
 
 export type Attachment = {
   filename: string;
@@ -84,7 +85,8 @@ async function sendEmail(opts: {
       const detail = await res.text().catch(() => "");
       return { sent: false, error: `Resend ${res.status}: ${detail.slice(0, 200)}` };
     }
-    return { sent: true };
+    const body = (await res.json().catch(() => null)) as { id?: unknown } | null;
+    return { sent: true, id: typeof body?.id === "string" ? body.id : undefined };
   } catch (e) {
     return { sent: false, error: e instanceof Error ? e.message : "Email failed" };
   }

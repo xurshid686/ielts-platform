@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Loader2, Mail } from "lucide-react";
 import { sendMockResultEmailAction } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * The result email's record, and Send again (0055).
@@ -13,12 +14,15 @@ import { Button } from "@/components/ui/button";
  * transition or router.refresh() — the same trap MockGradeForm hit: a
  * revalidating action re-keys this area and the confirmation would vanish.
  */
+export type MessageRow = { id: string; kind: string; to: string; status: string; error: string | null; at: string };
+
 export function SendResultEmail({
   attemptId,
   sentAt,
   to,
   error,
   released,
+  history,
 }: {
   attemptId: string;
   /** Already formatted for the reader. */
@@ -26,6 +30,8 @@ export function SendResultEmail({
   to: string | null;
   error: string | null;
   released: boolean;
+  /** Every email sent for this attempt (0056), newest first. */
+  history: MessageRow[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -70,6 +76,31 @@ export function SendResultEmail({
           </span>
         </p>
       )}
+      {history.length > 0 && (
+        <ul className="space-y-1 border-t border-border pt-2 text-xs">
+          {history.map((m) => (
+            <li key={m.id} className="flex flex-wrap items-baseline gap-2">
+              <span className="tabular-nums text-muted">{m.at}</span>
+              <span className="text-muted">{m.kind === "result" ? "Result" : "Receipt"}</span>
+              <span
+                className={cn(
+                  "font-medium",
+                  m.status === "delivered"
+                    ? "text-success"
+                    : m.status === "sent" || m.status === "queued" || m.status === "delayed"
+                      ? "text-primary"
+                      : "text-danger",
+                )}
+              >
+                {m.status}
+              </span>
+              <span className="break-all text-muted">{m.to}</span>
+              {m.error && <span className="text-danger">{m.error}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {released && (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" className="h-9" onClick={send} disabled={working}>

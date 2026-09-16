@@ -53,7 +53,8 @@ import {
   uploadMockPaperAction,
   uploadMockTask1Image,
 } from "@/app/actions/mock";
-import type { AdminAttemptSummary, AdminMock, AdminRequest, MockPaper } from "@/lib/mock-admin";
+import type { AdminAttemptSummary, AdminMock, AdminRequest, MockMessage, MockPaper } from "@/lib/mock-admin";
+import { EmailStatus } from "@/components/admin/email-status";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { parseTask1, parseTask2, spendLine, wordsLine } from "@/lib/ielts/writing-prompt";
 import {
@@ -61,6 +62,8 @@ import {
   SESSION_LABEL,
   STAGE_GROUPS,
   STAGE_LABEL,
+  countEmailStatuses,
+  emailBucket,
   csvCell,
   tashkent,
   type AdminStage,
@@ -172,6 +175,7 @@ export function AdminMocks({
   attempts,
   images,
   videos,
+  messages,
   isOwner,
 }: {
   pending: AdminRequest[];
@@ -181,6 +185,8 @@ export function AdminMocks({
   attempts: AdminAttemptSummary[];
   images: Record<string, string>;
   videos: Videos;
+  /** The email log behind the status bar (0056). */
+  messages: MockMessage[];
   /** Deleting a mock destroys students' records, so it is the owner's alone. */
   isOwner: boolean;
 }) {
@@ -340,7 +346,7 @@ export function AdminMocks({
         <Requests pending={scopedPending} decisions={decisions} mocks={mocks} scopedMockId={mockId} onMsg={setMsg} onCreateMock={() => go({ tab: "mocks" })} />
       )}
       {tab === "results" && (
-        <Results attempts={scopedAttempts} allCount={attempts.length} onMsg={setMsg} url={url} go={go} hasMocks={mocks.length > 0} />
+        <Results attempts={scopedAttempts} messages={messages} allCount={attempts.length} onMsg={setMsg} url={url} go={go} hasMocks={mocks.length > 0} />
       )}
       {tab === "mocks" && (
         <Mocks
@@ -625,6 +631,7 @@ const stageTone: Record<AdminStage, string> = {
 
 function Results({
   attempts,
+  messages,
   allCount,
   onMsg,
   url,
@@ -632,6 +639,7 @@ function Results({
   hasMocks,
 }: {
   attempts: AdminAttemptSummary[];
+  messages: MockMessage[];
   allCount: number;
   onMsg: (m: Msg) => void;
   url: ReturnType<typeof useUrlState>;
@@ -643,6 +651,14 @@ function Results({
   const [confirming, setConfirming] = useState(false);
   const [q, setQ] = useState(url.get("q"));
   const integrityOnly = url.get("integrity") === "review";
+  // The email status bar's counts double as a filter on this table (0056). The
+  // counts come from the attempts already loaded, so they follow the mock scope
+  // and the Retry button without another round trip.
+  const emailFilter = url.get("email");
+  const emailCounts = useMemo(
+    () => countEmailStatuses(attempts, messages.filter((m) => m.kind === "receipt" && m.status === "failed").length),
+    [attempts, messages],
+  );
   // The full-report export is per mock, so it needs one in scope (the Mock picker above).
   const scopedMockId = url.get("mock");
   const reviewCount = attempts.filter((a) => a.integrity.level === "review").length;
@@ -677,6 +693,7 @@ function Results({
     const list = attempts.filter((a) => {
       if (stage && !(STAGE_GROUPS[stage] as readonly AdminStage[]).includes(a.stage)) return false;
       if (integrityOnly && a.integrity.level !== "review") return false;
+      if (emailFilter && emailBucket(a) !== emailFilter) return false;
       if (needle && ![a.student_name, a.student_email, a.mock_title].some((v) => v?.toLowerCase().includes(needle))) return false;
       const when = new Date(a.submitted_at ?? a.approved_at).getTime();
       if (fromT != null && when < fromT) return false;
@@ -690,7 +707,7 @@ function Results({
       if (sort === "name") return (a.student_name ?? a.student_email ?? "").localeCompare(b.student_name ?? b.student_email ?? "");
       return key(b).localeCompare(key(a));
     });
-  }, [attempts, stage, integrityOnly, from, to, sort, url]);
+  }, [attempts, stage, integrityOnly, emailFilter, from, to, sort, url]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((Math.min(page, pages) - 1) * PAGE_SIZE, Math.min(page, pages) * PAGE_SIZE);
@@ -700,9 +717,9 @@ function Results({
   const back = encodeURIComponent(url.query);
 
   function exportCsv() {
-    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons", "writing_violations", "writing_auto_submitted", "result_emailed_at", "result_email_error"];
+    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons", "writing_violations", "writing_auto_submitted", "result_emailed_at", "result_email_status", "result_email_error"];
     const lines = filtered.map((a) =>
-      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; "), a.writing_violations, a.writing_auto_submitted ? "yes" : "no", a.result_email_sent_at, a.result_email_error]
+      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; "), a.writing_violations, a.writing_auto_submitted ? "yes" : "no", a.result_email_sent_at, emailBucket(a) ?? "", a.result_email_error]
         .map(csvCell)
         .join(","),
     );
@@ -778,7 +795,7 @@ function Results({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted">
             {filtered.length} of {allCount} attempt{allCount === 1 ? "" : "s"}
-            {(stage || integrityOnly || url.get("q") || from || to) && (
+            {(stage || integrityOnly || emailFilter || url.get("q") || from || to) && (
               <button className="ml-2 underline" onClick={() => { setQ(""); url.set({ stage: null, integrity: null, q: null, from: null, to: null }); }}>
                 Clear filters
               </button>
@@ -819,6 +836,15 @@ function Results({
           </div>
         </div>
       </div>
+
+      <EmailStatus
+        counts={emailCounts}
+        messages={scopedMockId ? messages.filter((m) => m.mock_id === scopedMockId) : messages}
+        mockId={scopedMockId || null}
+        mockName={scopedMockId ? (attempts.find((a) => a.mock_id === scopedMockId)?.mock_title ?? null) : null}
+        active={emailFilter}
+        onFilter={(bucket: string | null) => url.set({ email: bucket, page: null })}
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -1028,17 +1054,31 @@ function StageCell({ a }: { a: AdminAttemptSummary }) {
           <AlertTriangle className="h-3 w-3" /> Auto-submitted
         </span>
       )}
-      {a.status === "released" && (
-        <span
-          title={a.result_email_sent_at ? `Result emailed ${tashkent(a.result_email_sent_at)}` : (a.result_email_error ?? "Not emailed yet")}
-          className={cn(
-            "ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium",
-            a.result_email_sent_at ? "bg-success/10 text-success" : "bg-warning/10 text-warning",
-          )}
-        >
-          <Mail className="h-3 w-3" /> {a.result_email_sent_at ? "emailed" : "not emailed"}
-        </span>
-      )}
+      {a.status === "released" && (() => {
+        // The real delivery state since 0056; "sent" alone only means Resend took it.
+        const bucket = emailBucket(a) ?? "not_sent";
+        const label =
+          bucket === "no_address" ? "no address" : bucket === "not_sent" ? "not emailed" : bucket === "complained" ? "spam" : bucket;
+        const tone =
+          bucket === "delivered"
+            ? "bg-success/10 text-success"
+            : bucket === "sent" || bucket === "delayed"
+              ? "bg-primary/10 text-primary"
+              : bucket === "not_sent" || bucket === "no_address"
+                ? "bg-warning/10 text-warning"
+                : "bg-danger/10 text-danger";
+        return (
+          <span
+            title={
+              a.result_email_error ??
+              (a.result_email_sent_at ? `Result emailed ${tashkent(a.result_email_sent_at)}` : "Not emailed yet")
+            }
+            className={cn("ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium", tone)}
+          >
+            <Mail className="h-3 w-3" /> {label}
+          </span>
+        );
+      })()}
       {a.integrity.level === "review" && !a.writing_auto_submitted && (
         <span
           title={a.integrity.reasons.join(" · ")}

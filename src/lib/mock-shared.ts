@@ -491,3 +491,67 @@ export function isExamCapableDevice(d: {
   const shortSide = Math.min(d.screenW, d.screenH);
   return d.fullscreenEnabled && (d.finePointer || d.anyFinePointer) && shortSide >= 700;
 }
+
+// ---------------------------------------------------------------- email status (0056)
+//
+// "Did every released student get their result?" — so the buckets count
+// ATTEMPTS, one state each (from the latest message), and they add up to the
+// released total. Receipts are counted separately: different denominator.
+
+export type EmailBucket =
+  | "delivered"
+  | "sent"
+  | "delayed"
+  | "bounced"
+  | "complained"
+  | "failed"
+  | "not_sent"
+  | "no_address";
+
+export type EmailStatusCounts = Record<EmailBucket, number> & {
+  released: number;
+  receipts_sent: number;
+  receipts_failed: number;
+};
+
+const EMAIL_BUCKETS: EmailBucket[] = [
+  "delivered",
+  "sent",
+  "delayed",
+  "bounced",
+  "complained",
+  "failed",
+  "not_sent",
+  "no_address",
+];
+
+/** Which bucket an attempt falls in, or null when no email is due yet. */
+export function emailBucket(a: {
+  status: string;
+  student_email: string | null;
+  result_email_status: string | null;
+}): EmailBucket | null {
+  if (a.status !== "released") return null;
+  if (!a.student_email) return "no_address";
+  const s = a.result_email_status;
+  return s && (EMAIL_BUCKETS as string[]).includes(s) && s !== "not_sent" && s !== "no_address"
+    ? (s as EmailBucket)
+    : "not_sent";
+}
+
+export function countEmailStatuses(
+  attempts: { status: string; student_email: string | null; result_email_status: string | null; receipt_email_sent_at?: string | null }[],
+  failedReceipts = 0,
+): EmailStatusCounts {
+  const counts = Object.fromEntries(EMAIL_BUCKETS.map((b) => [b, 0])) as Record<EmailBucket, number>;
+  let released = 0;
+  let receipts_sent = 0;
+  for (const a of attempts) {
+    if (a.receipt_email_sent_at) receipts_sent++;
+    const bucket = emailBucket(a);
+    if (!bucket) continue;
+    released++;
+    counts[bucket]++;
+  }
+  return { ...counts, released, receipts_sent, receipts_failed: failedReceipts };
+}

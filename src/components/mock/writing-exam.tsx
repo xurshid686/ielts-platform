@@ -444,7 +444,9 @@ function DoneScreen({ byViolations, onPdf, onBack }: { byViolations: boolean; on
           {byViolations
             ? `There were ${WRITING_MAX_VIOLATIONS} violations, so your writing was handed in as it was. Your teacher will see why. `
             : "All three sections are in. "}
-          Your teacher will mark your writing and release your full result — you will get a notification when it is ready.
+          Your teacher will mark your writing and release your full result. When they do,{" "}
+          <b className="text-foreground">we email it to you with your results paper attached</b> — and you will get a
+          notification here too.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button

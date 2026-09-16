@@ -23,7 +23,7 @@ import type { Database as GeneratedDatabase, Json } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// PENDING SCHEMA OVERRIDES — migrations 0050–0055 ONLY.
+// PENDING SCHEMA OVERRIDES — migrations 0050–0056 ONLY.
 //
 // Hand-written stand-ins for the tables migration 0050 (the Mock exam section)
 // creates, which ./supabase.ts has not seen yet because regenerating it needs a
@@ -148,6 +148,24 @@ type PendingTables = {
     result_email_to: string | null;
     result_email_error: string | null;
     receipt_email_sent_at: string | null;
+    // 0056
+    result_email_status: string | null;
+  }>;
+  // 0056 — the email log behind the status bar
+  mock_messages: PendingTable<{
+    id: string;
+    attempt_id: string;
+    mock_id: string;
+    kind: string;
+    to_email: string;
+    provider_id: string | null;
+    status: string;
+    error: string | null;
+    attempts: number;
+    created_at: string;
+    sent_at: string | null;
+    delivered_at: string | null;
+    updated_at: string;
   }>;
   // 0054
   mock_videos: PendingTable<{

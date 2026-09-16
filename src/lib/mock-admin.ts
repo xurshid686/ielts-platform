@@ -366,9 +366,11 @@ export type AdminAttemptSummary = {
   /** Writing v3 violations on record, and whether they handed the writing in. */
   writing_violations: number;
   writing_auto_submitted: boolean;
-  /** 0055 — the result email. */
+  /** 0055 — the result email; 0056 adds its delivery status. */
   result_email_sent_at: string | null;
   result_email_error: string | null;
+  result_email_status: string | null;
+  receipt_email_sent_at: string | null;
   user_id: string | null;
   student_name: string | null;
   student_email: string | null;
@@ -394,7 +396,7 @@ export type AdminAttemptSummary = {
 };
 
 const SUMMARY_COLS =
-  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band, listening_started_at, reading_started_at, listening_minutes, reading_minutes, integrity, result_email_sent_at, result_email_error";
+  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band, listening_started_at, reading_started_at, listening_minutes, reading_minutes, integrity, result_email_sent_at, result_email_error, result_email_status, receipt_email_sent_at";
 
 type SummaryRow = Omit<
   AdminAttemptSummary,
@@ -1262,6 +1264,71 @@ export function bulkApprove(requestIds: string[], adminId: string | null): Promi
 /** Only server-verified ready attempts are released; everything else is reported as skipped. */
 export function bulkRelease(attemptIds: string[], adminId: string | null): Promise<BulkOutcome> {
   return runBulk(attemptIds, (id) => releaseAttempt(id, adminId));
+}
+
+// ------------------------------------------------------- the email status bar (0056)
+//
+// The COUNTS are computed in the panel from the attempts it already holds
+// (countEmailStatuses in mock-shared.ts, so it is pure and testable); only the
+// message log needs the database.
+
+/** One attempt's email history, newest first (the attempt page). */
+export async function attemptMessages(attemptId: string) {
+  const { data, error } = await db()
+    .from("mock_messages")
+    .select("id, kind, to_email, status, error, created_at")
+    .eq("attempt_id", attemptId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw new Error(`[mock-admin] attempt messages failed: ${error.message}`);
+  return rows<{ id: string; kind: string; to_email: string; status: string; error: string | null; created_at: string }>(data);
+}
+
+export type MockMessage = {
+  id: string;
+  attempt_id: string;
+  mock_id: string;
+  mock_title: string;
+  student_name: string | null;
+  kind: string;
+  to_email: string;
+  status: string;
+  error: string | null;
+  created_at: string;
+  delivered_at: string | null;
+};
+
+/** The message log, newest first. Capped — this is a panel, not an archive. */
+export async function listMockMessages(mockId: string | null, limit = 200): Promise<MockMessage[]> {
+  let q = db()
+    .from("mock_messages")
+    .select("id, attempt_id, mock_id, kind, to_email, status, error, created_at, delivered_at")
+    .order("created_at", { ascending: false })
+    .limit(Math.min(limit, 500));
+  if (mockId) q = q.eq("mock_id", mockId);
+  const { data, error } = await q;
+  if (error) throw new Error(`[mock-admin] message log failed: ${error.message}`);
+  const list = rows<Omit<MockMessage, "mock_title" | "student_name">>(data);
+  if (!list.length) return [];
+
+  const attemptIds = [...new Set(list.map((m) => m.attempt_id))];
+  const mockIds = [...new Set(list.map((m) => m.mock_id))];
+  const [{ data: who }, { data: titles }] = await Promise.all([
+    db().from("mock_attempts").select("id, student_name, student_email").in("id", attemptIds),
+    db().from("mocks").select("id, title").in("id", mockIds),
+  ]);
+  const names = new Map(
+    rows<{ id: string; student_name: string | null; student_email: string | null }>(who).map((a) => [
+      a.id,
+      a.student_name?.trim() || a.student_email || null,
+    ]),
+  );
+  const title = new Map(rows<{ id: string; title: string }>(titles).map((m) => [m.id, m.title]));
+  return list.map((m) => ({
+    ...m,
+    student_name: names.get(m.attempt_id) ?? null,
+    mock_title: title.get(m.mock_id) ?? "(deleted mock)",
+  }));
 }
 
 export type { AttemptRow };

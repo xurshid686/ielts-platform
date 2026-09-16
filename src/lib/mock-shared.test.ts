@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   adminStage,
   applyIntegrityEvents,
+  countEmailStatuses,
+  emailBucket,
   applyWritingViolation,
   recordAutoSubmit,
   WRITING_MAX_VIOLATIONS,
@@ -223,5 +225,50 @@ describe("writing violations (v3)", () => {
     expect(integrityVerdict({ ...i, device: "x" }).reasons[0]).toMatch(/auto-submitted/);
     // survives a jsonb round trip
     expect(asIntegrity(JSON.parse(JSON.stringify(i))).counters.writing_violations).toBe(3);
+  });
+});
+
+describe("email status counts (0056)", () => {
+  const A = (over: Partial<{ status: string; student_email: string | null; result_email_status: string | null; receipt_email_sent_at: string | null }> = {}) => ({
+    status: "released",
+    student_email: "s@example.com",
+    result_email_status: "delivered",
+    receipt_email_sent_at: "2026-09-16T00:00:00Z",
+    ...over,
+  });
+
+  it("buckets one state per released attempt, and they add up", () => {
+    const c = countEmailStatuses([
+      A(),
+      A({ result_email_status: "sent" }),
+      A({ result_email_status: "bounced" }),
+      A({ result_email_status: "failed" }),
+      A({ result_email_status: null }),
+      A({ student_email: null, result_email_status: null }),
+      // not released: no email is due, so it is not counted at all
+      A({ status: "submitted" }),
+    ]);
+    expect(c.released).toBe(6);
+    expect(c.delivered + c.sent + c.bounced + c.failed + c.not_sent + c.no_address).toBe(c.released);
+    expect({ delivered: c.delivered, sent: c.sent, bounced: c.bounced, failed: c.failed, not_sent: c.not_sent, no_address: c.no_address })
+      .toEqual({ delivered: 1, sent: 1, bounced: 1, failed: 1, not_sent: 1, no_address: 1 });
+  });
+
+  it("an address is the first question: no address beats any stored status", () => {
+    expect(emailBucket(A({ student_email: null, result_email_status: "delivered" }))).toBe("no_address");
+  });
+
+  it("an unreleased attempt has no bucket", () => {
+    expect(emailBucket(A({ status: "in_progress" }))).toBeNull();
+  });
+
+  it("an unknown stored status reads as not emailed", () => {
+    expect(emailBucket(A({ result_email_status: "weird" }))).toBe("not_sent");
+  });
+
+  it("counts receipts separately, with their own denominator", () => {
+    const c = countEmailStatuses([A(), A({ receipt_email_sent_at: null }), A({ status: "submitted" })], 2);
+    expect(c.receipts_sent).toBe(2);
+    expect(c.receipts_failed).toBe(2);
   });
 });

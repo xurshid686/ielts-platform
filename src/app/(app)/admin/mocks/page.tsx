@@ -4,6 +4,7 @@ import {
   finalizeExpiredAttempts,
   listAttemptsAdmin,
   listMockPapers,
+  listMockMessages,
   listMocksAdmin,
   listPendingRequests,
   listRecentDecisions,
@@ -24,13 +25,15 @@ export default async function AdminMocksPage() {
   // Close sections whose clock ran out while the student stayed away (v2.1),
   // before anything below reads the attempts.
   await finalizeExpiredAttempts();
-  const [pending, decisions, mocks, papers, attempts, videoRows] = await Promise.all([
+  const [pending, decisions, mocks, papers, attempts, videoRows, messages] = await Promise.all([
     listPendingRequests(),
     listRecentDecisions(),
     listMocksAdmin(),
     listMockPapers(),
     listAttemptsAdmin(),
     getMockVideos(),
+    // The email log behind the status bar (0056); newest 200, all mocks.
+    listMockMessages(null),
   ]);
   const videos = Object.fromEntries(Object.entries(videoRows).map(([k, v]) => [k, { url: v!.url, duration: v!.duration }]));
 
@@ -60,6 +63,7 @@ export default async function AdminMocksPage() {
         attempts={attempts}
         images={images}
         videos={videos}
+        messages={messages}
         isOwner={!!me.is_owner}
       />
     </div>

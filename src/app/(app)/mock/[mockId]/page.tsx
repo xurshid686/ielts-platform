@@ -140,8 +140,8 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
 
       {attempt.status === "submitted" && (
         <Card className="text-sm text-muted">
-          All sections are submitted. Your teacher is marking your writing — you will get a
-          notification when your result is released.
+          All sections are submitted. Your teacher is marking your writing — when your result is released
+          we email it to you with your results paper attached, and you get a notification here.
         </Card>
       )}
     </div>

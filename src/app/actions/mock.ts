@@ -9,6 +9,7 @@ import {
   emailMockReceipt,
   emailMockResult,
   emailMockResults,
+  retryFailedResultEmails,
 } from "@/lib/mock-email";
 import {
   addWritingViolation,
@@ -518,6 +519,18 @@ export async function bulkReleaseMockAttempts(attemptIds: string[]): Promise<{ o
     const released = [...new Set(attemptIds)].filter((id) => !outcome.skipped.some((s) => s.id === id));
     after(() => emailMockResults(released));
     return { ok: true as const, outcome };
+  });
+}
+
+/** The owner's "Retry failed (n)" on the email status bar (0056). */
+export async function retryFailedResultEmailsAction(mockId: string): Promise<MockAdminResult> {
+  return guarded("retry result emails", async () => {
+    const { sent, failed } = await retryFailedResultEmails(mockId);
+    refreshAdmin();
+    if (!sent && !failed) return { ok: true as const, note: "Nothing to retry." };
+    return failed
+      ? { ok: false as const, error: `${sent} sent, ${failed} still failing. Check the addresses.` }
+      : { ok: true as const, note: `${sent} email${sent === 1 ? "" : "s"} sent.` };
   });
 }
 
