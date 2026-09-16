@@ -13,6 +13,7 @@ import {
   isExamCapableDevice,
   recordReload,
   recordVideoSkip,
+  sameTypedTitle,
   csvCell,
   countWords,
   isBand,
@@ -140,6 +141,24 @@ describe("csvCell", () => {
     expect(csvCell(6.5)).toBe("6.5");
     expect(csvCell(-1)).toBe("-1");
     expect(csvCell(null)).toBe("");
+  });
+});
+
+describe("sameTypedTitle (delete confirmation)", () => {
+  it("accepts the title as a person types it", () => {
+    // The live bug: "Mock  1 Sunday" has two spaces, so nobody could type it
+    // and the Delete button never enabled.
+    expect(sameTypedTitle("Mock 1 Sunday", "Mock  1 Sunday")).toBe(true);
+    expect(sameTypedTitle("  Mock 1 Sunday  ", "Mock  1 Sunday")).toBe(true);
+    expect(sameTypedTitle("mock 1 sunday", "Mock  1 Sunday")).toBe(true);
+    expect(sameTypedTitle("Mock\t1\nSunday", "Mock  1 Sunday")).toBe(true);
+  });
+
+  it("still requires the whole title", () => {
+    expect(sameTypedTitle("Mock 1", "Mock  1 Sunday")).toBe(false);
+    expect(sameTypedTitle("", "Mock  1 Sunday")).toBe(false);
+    expect(sameTypedTitle("Mock 2 Sunday", "Mock  1 Sunday")).toBe(false);
+    expect(sameTypedTitle("Mock1Sunday", "Mock  1 Sunday")).toBe(false);
   });
 });
 

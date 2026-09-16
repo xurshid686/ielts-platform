@@ -1324,7 +1324,12 @@ three Writing violations hand the writing in. Listening/Reading keep warn + reco
   CASCADES: attempts, requests and the mock's `mock-assets` folder, in that
   order — `mocks` is `on delete restrict` from attempts. The owner types the
   title, and `deleteMock(id, expectTitle)` re-checks it server-side so a
-  mis-sent id cannot delete the wrong mock. The mock's PAPERS stay in the
+  mis-sent id cannot delete the wrong mock. **The typed title is compared with
+  `sameTypedTitle()`** (mock-shared.ts), which collapses runs of whitespace and
+  ignores case — client gate and server re-check MUST use the same function.
+  A plain `.trim()` comparison made a real mock UNDELETABLE (2026-09-16): the
+  owner's "Mock  1 Sunday" has two spaces, nobody types that, so the Delete
+  button never enabled and the failure looked like delete being broken. The mock's PAPERS stay in the
   library. Unpublish is still the non-destructive option.
 
 ### Emailing the result (migration 0055, owner 2026-09-16)

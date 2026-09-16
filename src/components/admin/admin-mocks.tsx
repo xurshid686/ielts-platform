@@ -66,6 +66,7 @@ import {
   countEmailStatuses,
   emailBucket,
   csvCell,
+  sameTypedTitle,
   tashkent,
   type AdminStage,
   type MockSection,
@@ -1462,7 +1463,7 @@ function DeleteMockDialog({
 }) {
   const [typed, setTyped] = useState("");
   const c = mock.counts;
-  const matches = typed.trim() === mock.title.trim();
+  const matches = sameTypedTitle(typed, mock.title);
   return (
     <Modal title={`Delete ${mock.title}?`} onClose={onClose}>
       <div className="space-y-3 text-sm">

@@ -26,6 +26,24 @@ export const SESSION_LABEL: Record<SessionState, string> = {
   closed: "Session ended",
 };
 
+/**
+ * The typed-title confirmation on a destructive action, compared the way a
+ * person reads a title rather than the way a database stores one.
+ *
+ * `.trim()` alone was not enough: a mock titled "Mock  1 Sunday" (two spaces,
+ * invisible on screen) could not be deleted at all, because nobody types the
+ * double space — the confirm button simply never enabled. Runs of whitespace
+ * collapse to one and case is ignored. This is still a real confirmation: the
+ * whole title must be typed, and the id is what identifies the row.
+ *
+ * Client and server MUST use this same function, or the button enables on a
+ * value the server then refuses.
+ */
+export function sameTypedTitle(typed: string, actual: string): boolean {
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  return norm(typed) === norm(actual);
+}
+
 export function asSessionState(v: unknown): SessionState {
   return v === "running" || v === "closed" ? v : "waiting";
 }

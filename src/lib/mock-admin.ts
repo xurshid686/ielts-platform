@@ -28,6 +28,7 @@ import {
   integrityVerdict,
   isBand,
   overallBand,
+  sameTypedTitle,
   writingBand,
   type AdminStage,
   type IntegrityVerdict,
@@ -716,7 +717,7 @@ export async function deleteMock(mockId: string, expectTitle?: string): Promise<
   if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
   const mock = await getMock(mockId);
   if (!mock) return { ok: false, error: "That mock no longer exists." };
-  if (expectTitle != null && expectTitle.trim() !== mock.title.trim()) {
+  if (expectTitle != null && !sameTypedTitle(expectTitle, mock.title)) {
     return { ok: false, error: "The title you typed doesn't match this mock, so nothing was deleted." };
   }
   const client = db();
