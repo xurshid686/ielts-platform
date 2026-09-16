@@ -19,6 +19,7 @@ import {
   Inbox,
   Loader2,
   Lock,
+  Mail,
   Pencil,
   Play,
   Plus,
@@ -699,9 +700,9 @@ function Results({
   const back = encodeURIComponent(url.query);
 
   function exportCsv() {
-    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons", "writing_violations", "writing_auto_submitted"];
+    const header = ["student", "email", "mock", "stage", "listening", "reading", "writing", "overall", "approved", "submitted", "released", "integrity", "integrity_reasons", "writing_violations", "writing_auto_submitted", "result_emailed_at", "result_email_error"];
     const lines = filtered.map((a) =>
-      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; "), a.writing_violations, a.writing_auto_submitted ? "yes" : "no"]
+      [a.student_name, a.student_email, a.mock_title, STAGE_LABEL[a.stage], a.listening_band, a.reading_band, a.writing_band, a.overall_band, a.approved_at, a.submitted_at, a.released_at, a.integrity.level, a.integrity.reasons.join("; "), a.writing_violations, a.writing_auto_submitted ? "yes" : "no", a.result_email_sent_at, a.result_email_error]
         .map(csvCell)
         .join(","),
     );
@@ -1027,6 +1028,17 @@ function StageCell({ a }: { a: AdminAttemptSummary }) {
           <AlertTriangle className="h-3 w-3" /> Auto-submitted
         </span>
       )}
+      {a.status === "released" && (
+        <span
+          title={a.result_email_sent_at ? `Result emailed ${tashkent(a.result_email_sent_at)}` : (a.result_email_error ?? "Not emailed yet")}
+          className={cn(
+            "ml-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium",
+            a.result_email_sent_at ? "bg-success/10 text-success" : "bg-warning/10 text-warning",
+          )}
+        >
+          <Mail className="h-3 w-3" /> {a.result_email_sent_at ? "emailed" : "not emailed"}
+        </span>
+      )}
       {a.integrity.level === "review" && !a.writing_auto_submitted && (
         <span
           title={a.integrity.reasons.join(" · ")}
@@ -1133,7 +1145,7 @@ function ReleaseConfirm({
           </span>
         </p>
       )}
-      <p className="mt-2 text-xs text-muted">Each student is notified and sees these bands immediately. The server re-checks each one; anything not ready is skipped.</p>
+      <p className="mt-2 text-xs text-muted">Each student is notified, emailed their result with the PDF attached, and sees these bands immediately. The server re-checks each one; anything not ready is skipped.</p>
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button disabled={busy || !rows.length} onClick={() => onConfirm(rows.map((r) => r.id))}>

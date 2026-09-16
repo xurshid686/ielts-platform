@@ -220,11 +220,11 @@ export function MockGradeForm({
               onClick={() => {
                 if (
                   !confirm(
-                    `Release to the student?\n\nListening ${fmt(listeningBand)} · Reading ${fmt(readingBand)} · Writing ${fmt(saved.writing)}\n\nThey will be notified and see these bands now.`,
+                    `Release to the student?\n\nListening ${fmt(listeningBand)} · Reading ${fmt(readingBand)} · Writing ${fmt(saved.writing)}\n\nThey will be notified, emailed their result with the PDF attached, and see these bands now.`,
                   )
                 )
                   return;
-                act(() => releaseMockAttempt(attemptId), "Released — the student has been notified.", undefined, () =>
+                act(() => releaseMockAttempt(attemptId), "Released — the student has been notified and emailed.", undefined, () =>
                   setLiveStatus("released"),
                 );
               }}

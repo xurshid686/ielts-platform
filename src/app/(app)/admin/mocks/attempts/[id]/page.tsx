@@ -31,6 +31,7 @@ import { ReviewTable } from "@/components/mock/review-table";
 import { MockGradeForm } from "@/components/admin/mock-grade-form";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { ReportDownloads } from "@/components/mock/report-downloads";
+import { SendResultEmail } from "@/components/admin/send-result-email";
 
 export const metadata = { title: "Mock attempt" };
 
@@ -142,6 +143,14 @@ export default async function AdminMockAttemptPage({
         <Stat icon={<PenLine className="h-4 w-4" />} label="Writing" band={fmt(a.writing_band)}
           sub={a.writing_submitted_at ? (a.writing_band == null ? "to grade" : "graded") : "not submitted"} href="#writing" />
       </div>
+
+      <SendResultEmail
+        attemptId={a.id}
+        sentAt={a.result_email_sent_at ? tashkent(a.result_email_sent_at) : null}
+        to={a.result_email_to ?? a.student_email}
+        error={a.result_email_error}
+        released={a.status === "released"}
+      />
 
       <IntegrityCard
         integrity={integrity}

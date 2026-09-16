@@ -3,13 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getAttemptDetail, UUID } from "@/lib/mock";
 import { listAttemptsAdmin } from "@/lib/mock-admin";
 import {
-  imageMeta,
+  imageReader,
   renderReportDocx,
   renderReportPdf,
   reportData,
   reportFilename,
   type MockReportData,
-  type ReportImage,
 } from "@/lib/mock-report";
 
 // The mock result as a file (owner, 2026-09-16): PDF or Word.
@@ -40,21 +39,7 @@ export async function GET(req: Request) {
   const { data: prof } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   const isAdmin = (prof as { role?: string } | null)?.role === "admin";
 
-  // Task 1 pictures are in a private bucket; read them once per path.
-  const images = new Map<string, ReportImage | null>();
-  const image = async (path: string | null | undefined): Promise<ReportImage | null> => {
-    if (!path) return null;
-    if (images.has(path)) return images.get(path)!;
-    let meta: ReportImage | null = null;
-    try {
-      const { data } = await admin.storage.from("mock-assets").download(path);
-      if (data) meta = imageMeta(Buffer.from(await data.arrayBuffer()));
-    } catch {
-      meta = null;
-    }
-    images.set(path, meta);
-    return meta;
-  };
+  const image = imageReader();
 
   const reports: MockReportData[] = [];
   let name: string[] = [];

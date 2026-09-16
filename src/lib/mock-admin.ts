@@ -366,6 +366,9 @@ export type AdminAttemptSummary = {
   /** Writing v3 violations on record, and whether they handed the writing in. */
   writing_violations: number;
   writing_auto_submitted: boolean;
+  /** 0055 — the result email. */
+  result_email_sent_at: string | null;
+  result_email_error: string | null;
   user_id: string | null;
   student_name: string | null;
   student_email: string | null;
@@ -391,9 +394,12 @@ export type AdminAttemptSummary = {
 };
 
 const SUMMARY_COLS =
-  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band, listening_started_at, reading_started_at, listening_minutes, reading_minutes, integrity";
+  "id, user_id, student_name, student_email, mock_id, status, approved_at, started_at, listening_submitted_at, reading_submitted_at, writing_started_at, writing_saved_at, writing_submitted_at, submitted_at, released_at, listening_band, reading_band, writing_band, overall_band, listening_started_at, reading_started_at, listening_minutes, reading_minutes, integrity, result_email_sent_at, result_email_error";
 
-type SummaryRow = Omit<AdminAttemptSummary, "mock_title" | "stage" | "integrity"> & {
+type SummaryRow = Omit<
+  AdminAttemptSummary,
+  "mock_title" | "stage" | "integrity" | "writing_violations" | "writing_auto_submitted"
+> & {
   listening_started_at: string | null;
   reading_started_at: string | null;
   listening_minutes: number | null;

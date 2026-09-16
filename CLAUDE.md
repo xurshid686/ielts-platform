@@ -1308,6 +1308,47 @@ three Writing violations hand the writing in. Listening/Reading keep warn + reco
   mis-sent id cannot delete the wrong mock. The mock's PAPERS stay in the
   library. Unpublish is still the non-destructive option.
 
+### Emailing the result (migration 0055, owner 2026-09-16)
+
+Resend, through the sender that already existed in `src/lib/email/send.ts`.
+**Two emails:** the released result (bands in the body, the results paper
+attached, links to the result page and to both paper reviews) and a receipt when
+the student finishes (no scores — nothing is marked yet).
+
+- **Setup is the owner's:** `RESEND_API_KEY` (and `EMAIL_FROM` once the domain is
+  verified) in `.env.local`, Vercel Preview and DigitalOcean (Run time; no cache
+  clear needed, it is not a `NEXT_PUBLIC_*`). DNS for mockonline.uz lives at
+  **webspace.uz**; Resend's three records go on `send.mockonline.uz` +
+  `resend._domainkey`, so the existing MX on the bare domain is untouched.
+  With no key, releases still work and the panel says "Email not sent".
+- **`src/lib/email/mock-templates.ts` imports NOTHING** (the
+  discipline-report-text rule) so the HTML is unit-tested; `send.ts` is transport
+  and branding only. Every link is absolute — an email client has no origin.
+- **`EMAIL_BASE_URL`** (`EMAIL_LINK_BASE` at run time, else `SITE_URL`) is the one
+  base for the body AND the footer. `SITE_URL` is inlined at BUILD time, so
+  without this a dev-preview build emailed students links to production.
+- **`src/lib/mock-email.ts` is the only door.** `emailMockResult` /
+  `emailMockReceipt` never throw and never block: they stamp
+  `result_email_sent_at` / `result_email_to` or `result_email_error` (0055) and
+  are guarded so each email goes once (`force` = the owner's Send again;
+  unreleasing clears the stamp). `emailMockResults` paces a bulk release ~600 ms
+  apart for Resend's ~2/second limit.
+- **Sent from the actions in `after()`** (`releaseMockAttempt`,
+  `bulkReleaseMockAttempts`, and next to `notifyWritingIn` for the receipt), so
+  building a PDF and calling Resend never holds up the owner's click. Every
+  finishing path (submit, time-out, 3-violation auto-submit) reaches the receipt
+  through `saveWriting`.
+- **`buildAttemptReport(attemptId, format)`** in `lib/mock-report.ts` is shared by
+  the email and `/api/mock-report`, so the attachment is byte-identical to the
+  download.
+- Panel: the attempt page shows who it went to and when, or the failure with a
+  Send-again button (`components/admin/send-result-email.tsx` — it keeps its own
+  message state, the MockGradeForm re-key trap); Results has an emailed chip and
+  two CSV columns.
+- E2E: the server runs with `RESEND_BASE_URL` pointed at a local recorder
+  (`resend-spy.mjs`), which asserts subject, from, links and the attached PDF
+  without sending mail; `SPY_FAIL=1` proves a refusal leaves the result released.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

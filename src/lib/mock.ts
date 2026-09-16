@@ -132,6 +132,11 @@ export type AttemptRow = {
   listening_audio_pos: number | null;
   integrity: Json;
   // 0054 — instruction video before each section.
+  /** 0055 — the result email's record. */
+  result_email_sent_at: string | null;
+  result_email_to: string | null;
+  result_email_error: string | null;
+  receipt_email_sent_at: string | null;
   listening_video_pos: number | null;
   listening_video_started_at: string | null;
   listening_video_done_at: string | null;
@@ -144,7 +149,7 @@ export type AttemptRow = {
 };
 
 export const ATTEMPT_COLS =
-  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at, writing_minutes, writing_task1_image_path, listening_key, reading_key, listening_started_at, reading_started_at, listening_minutes, reading_minutes, listening_draft, reading_draft, listening_audio_pos, integrity, listening_video_pos, listening_video_started_at, listening_video_done_at, reading_video_pos, reading_video_started_at, reading_video_done_at, writing_video_pos, writing_video_started_at, writing_video_done_at";
+  "id, user_id, student_name, student_email, mock_id, request_id, status, approved_at, started_at, listening_test_id, reading_test_id, listening_answers, listening_raw, listening_total, listening_band, listening_submitted_at, reading_answers, reading_raw, reading_total, reading_band, reading_submitted_at, writing_task1_prompt, writing_task2_prompt, writing_task1, writing_task2, writing_started_at, writing_saved_at, writing_submitted_at, writing_task1_band, writing_task2_band, writing_band, writing_feedback, graded_at, overall_band, submitted_at, released_at, created_at, writing_minutes, writing_task1_image_path, listening_key, reading_key, listening_started_at, reading_started_at, listening_minutes, reading_minutes, listening_draft, reading_draft, listening_audio_pos, integrity, result_email_sent_at, result_email_to, result_email_error, receipt_email_sent_at, listening_video_pos, listening_video_started_at, listening_video_done_at, reading_video_pos, reading_video_started_at, reading_video_done_at, writing_video_pos, writing_video_started_at, writing_video_done_at";
 
 export type RequestRow = {
   id: string;

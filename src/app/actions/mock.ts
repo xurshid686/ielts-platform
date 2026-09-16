@@ -3,6 +3,13 @@
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  clearResultEmailStamp,
+  emailMockReceipt,
+  emailMockResult,
+  emailMockResults,
+} from "@/lib/mock-email";
 import {
   addWritingViolation,
   beginSection,
@@ -216,6 +223,11 @@ export async function saveMockWriting(
   return res;
 }
 
+/**
+ * A mock has just been handed in: tell the owner on Telegram, and send the
+ * student their receipt (0055). Every finishing path — a normal submit, the
+ * clock running out and the 3-violation auto-submit — comes through here.
+ */
 async function notifyWritingIn(user: { id: string; email?: string | null }, mockId: string) {
   const [mock, { supabase }] = await Promise.all([getMock(mockId), sessionUser()]);
   const { data: prof } = await supabase.from("profiles").select("name, email").eq("id", user.id).maybeSingle();
@@ -228,6 +240,19 @@ async function notifyWritingIn(user: { id: string; email?: string | null }, mock
     }),
   );
   // No revalidatePath: same reason as submitMockSection.
+  const attemptId = await attemptIdFor(user.id, mockId);
+  if (attemptId) after(() => emailMockReceipt(attemptId));
+}
+
+/** The caller's attempt on a mock, for the emailers (service-role read). */
+async function attemptIdFor(userId: string, mockId: string): Promise<string | null> {
+  const { data } = await createAdminClient()
+    .from("mock_attempts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("mock_id", mockId)
+    .maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 /** Writing v3: a tab/app switch or a big paste. Three hand the writing in. */
@@ -476,6 +501,9 @@ export async function releaseMockAttempt(attemptId: string): Promise<MockAdminRe
     if (res.ok) {
       refreshAdmin();
       revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+      // After the response (0055): building the PDF and calling Resend must not
+      // hold up the owner's click, and an email failure never undoes a release.
+      after(() => emailMockResult(attemptId));
     }
     return res;
   });
@@ -485,7 +513,22 @@ export async function bulkReleaseMockAttempts(attemptIds: string[]): Promise<{ o
   return guarded("bulk release", async (adminId) => {
     const outcome = await bulkRelease(attemptIds, adminId);
     refreshAdmin();
+    // Only the ones this call actually released; emailMockResults paces itself
+    // for Resend's rate limit and skips anything already emailed.
+    const released = [...new Set(attemptIds)].filter((id) => !outcome.skipped.some((s) => s.id === id));
+    after(() => emailMockResults(released));
     return { ok: true as const, outcome };
+  });
+}
+
+/** The owner's "Send again" on an attempt — re-sends even if it went out before. */
+export async function sendMockResultEmailAction(attemptId: string): Promise<MockAdminResult> {
+  return guarded("send result email", async () => {
+    const res = await emailMockResult(attemptId, true);
+    revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+    refreshAdmin();
+    if (res.sent) return { ok: true as const, note: "Result emailed to the student." };
+    return { ok: false as const, error: res.skipped ?? res.error ?? "The email could not be sent." };
   });
 }
 
@@ -493,6 +536,8 @@ export async function unreleaseMockAttempt(attemptId: string): Promise<MockAdmin
   return guarded("unrelease", async () => {
     const res = await unreleaseAttempt(attemptId);
     if (res.ok) {
+      // A re-release should email again (0055).
+      await clearResultEmailStamp(attemptId);
       refreshAdmin();
       revalidatePath(`/admin/mocks/attempts/${attemptId}`);
     }

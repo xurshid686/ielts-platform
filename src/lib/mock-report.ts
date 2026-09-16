@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { AttemptDetail, ReviewLine } from "@/lib/mock";
+import { getAttemptDetail, type AttemptDetail, type ReviewLine } from "@/lib/mock";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { promptLines } from "@/lib/ielts/writing-prompt";
 import { countWords, tashkent } from "@/lib/mock-shared";
 
@@ -302,4 +303,62 @@ export function reportFilename(parts: string[], ext: "pdf" | "docx"): string {
     .join(" - ")
     .slice(0, 120);
   return `${base || "Mock result"}.${ext}`;
+}
+
+// ------------------------------------------------------------- one attempt's file
+//
+// Used by /api/mock-report (the download buttons) AND by the result email, so a
+// student's attachment is byte-identical to what they can download.
+
+/** Task 1 pictures live in a private bucket; read them once per path. */
+export function imageReader() {
+  const admin = createAdminClient();
+  const seen = new Map<string, ReportImage | null>();
+  return async (path: string | null | undefined): Promise<ReportImage | null> => {
+    if (!path) return null;
+    if (seen.has(path)) return seen.get(path)!;
+    let meta: ReportImage | null = null;
+    try {
+      const { data } = await admin.storage.from("mock-assets").download(path);
+      if (data) meta = imageMeta(Buffer.from(await data.arrayBuffer()));
+    } catch {
+      meta = null;
+    }
+    seen.set(path, meta);
+    return meta;
+  };
+}
+
+export type BuiltReport = {
+  data: Uint8Array;
+  filename: string;
+  contentType: string;
+  report: MockReportData;
+};
+
+/** The report for ONE attempt, ready to attach or stream. Null if it is gone. */
+export async function buildAttemptReport(
+  attemptId: string,
+  format: "pdf" | "docx" = "pdf",
+): Promise<BuiltReport | null> {
+  const detail = await getAttemptDetail(attemptId);
+  if (!detail) return null;
+  const image = imageReader();
+  const report = reportData(
+    detail,
+    await image(detail.attempt.writing_task1_image_path ?? detail.mock?.writing_task1_image_path),
+  );
+  const data =
+    format === "docx"
+      ? new Uint8Array(await renderReportDocx([report]))
+      : await renderReportPdf([report]);
+  return {
+    data,
+    filename: reportFilename([report.mockTitle, report.student], format),
+    contentType:
+      format === "docx"
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : "application/pdf",
+    report,
+  };
 }
