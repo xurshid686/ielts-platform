@@ -305,6 +305,7 @@ const EVENT_TEXT: Record<string, (e: IntegrityEvent) => string> = {
   paste: (e) => `Pasted ${e.words} words into Task ${e.task ?? 1}`,
   seek_back: () => "Tried to rewind the recording",
   timeout: () => "Time ran out — handed in automatically from the saved draft",
+  video_skip: () => "Skipped the instruction video",
 };
 
 /**

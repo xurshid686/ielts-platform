@@ -242,7 +242,8 @@ export type IntegrityEventType =
   | "seek_back"
   | "timeout"
   | "violation"
-  | "auto_submit";
+  | "auto_submit"
+  | "video_skip";
 
 /** Writing v3: three violations hand the writing in automatically (Writing only). */
 export const WRITING_MAX_VIOLATIONS = 3;
@@ -428,6 +429,17 @@ export function recordAutoSubmit(current: Integrity, now: string): Integrity {
   const next = asIntegrity(current);
   next.counters.writing_auto_submitted = 1;
   next.events = [...next.events, { t: now, type: "auto_submit" as const, section: "writing" as const }].slice(-MAX_EVENTS);
+  return next;
+}
+
+/**
+ * Server-side: the student used "Skip" on the instruction video. NOT a
+ * violation — it touches no counter and never feeds "review suggested". It is
+ * only there so the teacher can see the briefing was not watched.
+ */
+export function recordVideoSkip(current: Integrity, section: MockSection, now: string): Integrity {
+  const next = asIntegrity(current);
+  next.events = [...next.events, { t: now, type: "video_skip" as const, section }].slice(-MAX_EVENTS);
   return next;
 }
 

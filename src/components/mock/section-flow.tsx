@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, LogOut, Loader2, Play } from "lucide-react";
+import { AlertTriangle, LogOut, Loader2, Play, SkipForward } from "lucide-react";
 import { beginMockSection, finishMockVideo, saveMockVideoProgress } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
 import { ExamGuard, leaveExamFullscreen } from "@/components/mock/exam-guard";
@@ -13,7 +13,7 @@ import type { MockSection } from "@/lib/mock-shared";
 
 // One mock section, end to end (0054):
 //
-//   fullscreen → instruction video (no skip, no seek) → "Start <section>" → paper
+//   fullscreen → instruction video (skippable, no seek) → "Start <section>" → paper
 //
 // The section clock starts on the Start click (beginMockSection), never on page
 // open, and the client swaps straight to the paper — a navigation would be a
@@ -128,12 +128,12 @@ export function SectionFlow(props: SectionFlowProps) {
             title: `${label} — instructions`,
             body: props.videoPos > 1
               ? "Enter fullscreen to continue the instruction video from where you stopped. Your section clock has not started."
-              : "Watch the short instruction video in fullscreen. The section clock starts only when you click Start after it.",
+              : "Watch the short instruction video in fullscreen, or skip it. The section clock starts only when you click Start after it.",
             button: props.videoPos > 1 ? "Enter fullscreen & continue" : "Enter fullscreen & watch",
           }
         : {
             title: `Start ${label}`,
-            body: "You have watched the instructions. Enter fullscreen, then start the section when you are ready.",
+            body: "The instructions are done. Enter fullscreen, then start the section when you are ready.",
             button: "Enter fullscreen",
           };
 
@@ -291,14 +291,19 @@ function InstructionVideo({
       .catch(() => setNeedsClick(true));
   }, [save]);
 
-  const finish = useCallback(async () => {
+  const finish = useCallback(async (skipped = false) => {
     if (finished.current) return;
     finished.current = true;
     setChecking(true);
+    // Skip is also the way out of a video that failed to load, so drop that
+    // message rather than showing it over the "One moment…" spinner.
+    setFailed(null);
     save(true);
     // The server insists it saw the time pass; a slow save can lag a second or two.
+    // A skip is accepted at once, but keeps the same retry loop so a network
+    // blip on the way out doesn't strand the student on the video.
     for (let i = 0; i < 12; i++) {
-      const res = await finishMockVideo(mockId, section).catch(() => ({ ok: false as const, error: "offline" }));
+      const res = await finishMockVideo(mockId, section, skipped).catch(() => ({ ok: false as const, error: "offline" }));
       if (res.ok) {
         setChecking(false);
         onDone();
@@ -419,6 +424,21 @@ function InstructionVideo({
                 )}
               </div>
             )}
+            {/*
+              Skip: visible and clickable from the first frame, including while
+              the video is still buffering or after it failed to load — it is
+              the honest way out, which is why scrubbing stays blocked. Last in
+              the DOM so it sits above the overlay above.
+            */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="absolute bottom-4 right-4 h-9 bg-black/50 text-white opacity-70 hover:opacity-100"
+              disabled={checking}
+              onClick={() => void finish(true)}
+            >
+              Skip <SkipForward className="h-4 w-4" />
+            </Button>
           </>
         )}
       </div>

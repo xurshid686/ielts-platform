@@ -12,6 +12,7 @@ import {
   integrityVerdict,
   isExamCapableDevice,
   recordReload,
+  recordVideoSkip,
   csvCell,
   countWords,
   isBand,
@@ -191,6 +192,15 @@ describe("integrity", () => {
       { section: "reading", startedAt: "2026-09-15T10:00:00Z", submittedAt: "2026-09-15T10:05:00Z", minutes: 60 },
     ]);
     expect(fast.level).toBe("review");
+  });
+
+  it("notes a skipped instruction video without making it a violation", () => {
+    const clean = applyIntegrityEvents(emptyIntegrity(), [{ type: "device", section: "listening", ua: "x" }], now);
+    const i = recordVideoSkip(clean, "listening", now);
+    expect(i.events.at(-1)).toMatchObject({ type: "video_skip", section: "listening", t: now });
+    // Evidence only: no counter moves and the verdict is untouched.
+    expect(i.counters).toEqual(clean.counters);
+    expect(integrityVerdict(i).level).toBe("clear");
   });
 
   it("survives malformed stored data", () => {

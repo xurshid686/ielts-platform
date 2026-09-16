@@ -42,6 +42,7 @@ import {
   rejectRequest,
   releaseAttempt,
   removeTask1Image,
+  reopenMockSession,
   reprofilePaper,
   saveMock,
   setMockPublished,
@@ -158,11 +159,12 @@ export async function saveMockVideoProgress(
   return saveVideoProgress(user.id, mockId, section, pos);
 }
 
-export async function finishMockVideo(mockId: string, section: MockSection): Promise<MockActionResult> {
+/** `skipped` = the student pressed Skip rather than watching it through. */
+export async function finishMockVideo(mockId: string, section: MockSection, skipped = false): Promise<MockActionResult> {
   const { user } = await sessionUser();
   if (!user) return { ok: false, error: "Your session expired. Sign in again." };
   if (!isSection(section)) return { ok: false, error: "Unknown section." };
-  return markVideoDone(user.id, mockId, section);
+  return markVideoDone(user.id, mockId, section, skipped === true);
 }
 
 /** The "Start <section>" click after the video: starts the section clock. */
@@ -409,6 +411,17 @@ export async function deleteMockDefinition(mockId: string, expectTitle?: string)
 export async function startMockSessionAction(mockId: string): Promise<MockAdminResult> {
   return guarded("start session", async (adminId) => {
     const res = await startMockSession(mockId, adminId);
+    if (res.ok) {
+      refreshAdmin();
+      refreshStudent(mockId);
+    }
+    return res;
+  });
+}
+
+export async function reopenMockSessionAction(mockId: string): Promise<MockAdminResult> {
+  return guarded("reopen session", async (adminId) => {
+    const res = await reopenMockSession(mockId, adminId);
     if (res.ok) {
       refreshAdmin();
       refreshStudent(mockId);

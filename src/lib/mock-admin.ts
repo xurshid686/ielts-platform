@@ -743,27 +743,51 @@ export async function deleteMock(mockId: string, expectTitle?: string): Promise<
 // ------------------------------------------------------------- sessions (0054)
 
 /**
- * Start session: the button that makes a mock valid. Refused unless the mock
- * is ready by the same validator publish and approval use. Every place approved
- * while the session waited is re-snapshotted to the mock as it is NOW — the
- * owner may have changed papers or times since approving.
+ * Open a mock's session: `waiting → running` (Start) or `closed → running`
+ * (Reopen). Both do the same work, so they share one body — the only
+ * differences are which state may be left, the refusal wording, and whether the
+ * close stamps are cleared.
+ *
+ * Refused unless the mock is ready by the same validator publish and approval
+ * use. Every place approved while the session was shut is re-snapshotted to the
+ * mock as it is NOW — the owner may have changed papers or times since
+ * approving. (After a reopen the content has been locked since the first Start,
+ * so the re-snapshot is a no-op; it is kept so the two paths stay identical.)
+ *
+ * Reopening does NOT hand anyone a second attempt: the notify/snapshot queries
+ * below only touch places still in `approved`, and a student who has already
+ * submitted is refused by `startAttempt`'s own `status !== "approved"` check.
  */
-export async function startMockSession(mockId: string, adminId: string | null): Promise<LibResult & { issues?: string[] }> {
+async function openSession(
+  mockId: string,
+  adminId: string | null,
+  from: "waiting" | "closed",
+): Promise<LibResult & { issues?: string[] }> {
   if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
   const mock = await getMock(mockId);
   if (!mock) return { ok: false, error: "That mock no longer exists." };
   if (mock.session_state === "running") return { ok: false, error: "The session is already running." };
-  if (mock.session_state === "closed") return { ok: false, error: "This session has ended. Duplicate the mock to run another sitting." };
+  if (mock.session_state !== from) {
+    return from === "waiting"
+      ? { ok: false, error: "This session has ended. Reopen it to run another sitting." }
+      : { ok: false, error: "That session hasn't been started yet." };
+  }
   const issues = await issuesFor(mock);
   if (issues.length) return { ok: false, error: "This mock isn't ready to start.", issues };
 
   const client = db();
   const now = new Date().toISOString();
+  // A reopen keeps session_started_at — that is when the first sitting began —
+  // but clears the close stamps, or the card would still read "ended".
   const { data: flipped, error } = await client
     .from("mocks")
-    .update({ session_state: "running", session_started_at: now, session_started_by: adminId, updated_at: now })
+    .update(
+      from === "waiting"
+        ? { session_state: "running", session_started_at: now, session_started_by: adminId, updated_at: now }
+        : { session_state: "running", session_closed_at: null, session_closed_by: null, updated_at: now },
+    )
     .eq("id", mockId)
-    .eq("session_state", "waiting")
+    .eq("session_state", from)
     .select("id");
   if (error) return { ok: false, error: error.message };
   if (!flipped?.length) return { ok: false, error: "The session was already started." };
@@ -790,7 +814,7 @@ export async function startMockSession(mockId: string, adminId: string | null): 
       users.map((user_id) => ({
         user_id,
         type: "mock_access",
-        title: "Your mock exam has started",
+        title: from === "waiting" ? "Your mock exam has started" : "Your mock exam is open again",
         body: `"${mock.title}" is open. Start it on a laptop in fullscreen when you are ready.`,
         data: { href: `/mock/${mockId}` },
       })),
@@ -798,6 +822,22 @@ export async function startMockSession(mockId: string, adminId: string | null): 
     if (noteErr) console.error("[mock-admin] session notifications failed", noteErr.message);
   }
   return { ok: true };
+}
+
+/** Start session: the button that makes a mock valid. `waiting → running`. */
+export function startMockSession(mockId: string, adminId: string | null): Promise<LibResult & { issues?: string[] }> {
+  return openSession(mockId, adminId, "waiting");
+}
+
+/**
+ * Reopen session: `closed → running`, for a session ended by mistake or one
+ * that should take a latecomer. Students who already submitted keep their
+ * results and are NOT given another attempt; the mock's content stays locked
+ * (`isLocked` is `session_state !== "waiting"`), since attempts were snapshotted
+ * against it at the first Start. Duplicate the mock to run a CHANGED sitting.
+ */
+export function reopenMockSession(mockId: string, adminId: string | null): Promise<LibResult & { issues?: string[] }> {
+  return openSession(mockId, adminId, "closed");
 }
 
 /**
@@ -1029,7 +1069,7 @@ async function createAttempt(
   ]);
   if (!mock) return { ok: false, error: "That mock no longer exists." };
   if (mock.session_state === "closed") {
-    return { ok: false, error: "This mock's session has ended. Duplicate it to run another sitting." };
+    return { ok: false, error: "This mock's session has ended. Reopen it to give this student a place." };
   }
   const issues = await issuesFor(mock);
   if (issues.length) return { ok: false, error: `This mock isn't ready: ${issues.join(" ")}` };

@@ -44,6 +44,7 @@ import {
   recordMockSelfTestAction,
   rejectMockRequest,
   removeMockTask1Image,
+  reopenMockSessionAction,
   reprofileMockPaperAction,
   saveMockDefinition,
   setMockPaperMinutesAction,
@@ -1232,7 +1233,9 @@ function Mocks({
         <p>
           <span className="font-medium text-foreground">How a mock runs:</span> build it (upload the Listening and Reading HTML right in
           the form — each paper is parsed and live-checked), approve places, then click <b>Start session</b>. Nobody can start
-          before that. <b>End session</b> stops new starts; students already inside finish. {papers.length} mock paper
+          before that. <b>End session</b> stops new starts; students already inside finish. An ended session can be{" "}
+          <b>reopened</b> — that lets approved students start again, but never gives a second attempt to anyone who
+          already submitted. {papers.length} mock paper
           {papers.length === 1 ? "" : "s"} on file.
         </p>
       </Card>
@@ -1331,6 +1334,25 @@ function Mocks({
                     }}
                   >
                     <Square className="h-4 w-4" /> End session
+                  </Button>
+                )}
+                {m.session_state === "closed" && (
+                  <Button
+                    size="sm"
+                    className="h-10"
+                    disabled={busy || m.issues.length > 0}
+                    title={m.issues.length ? "Fix the checklist below first" : "Let approved students start again"}
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `Reopen the session for "${m.title}"?\n\nApproved students who haven't started can start again (they are notified), and you can give out new places. Students who already submitted keep their results and cannot retake it.\n\nPapers, prompts and times stay locked.`,
+                        )
+                      )
+                        return;
+                      run(() => reopenMockSessionAction(m.id), `${m.title}: session reopened.`);
+                    }}
+                  >
+                    <Play className="h-4 w-4" /> Reopen session
                   </Button>
                 )}
                 <Button size="sm" variant="outline" className="h-10" disabled={busy || editing !== null} onClick={() => setEditing(m.id)}>
@@ -2001,7 +2023,7 @@ function InstructionVideos({ videos, onMsg }: { videos: Videos; onMsg: (m: Msg) 
         <span className="flex items-center gap-2 font-semibold">
           <Video className="h-4 w-4" /> Instruction videos
           <span className="text-xs font-normal text-muted">
-            {SECTION_ORDER.filter((s) => videos[s]).length}/3 set · played before every section, no skip
+            {SECTION_ORDER.filter((s) => videos[s]).length}/3 set · played before every section, no seek; a student may skip (it is noted on the integrity report)
           </span>
         </span>
         {open ? <ChevronLeft className="h-4 w-4 -rotate-90" /> : <ChevronRight className="h-4 w-4 rotate-90" />}

@@ -18,6 +18,7 @@ import {
   type SessionState,
   recordReload,
   recordTimeout,
+  recordVideoSkip,
   applyWritingViolation,
   recordAutoSubmit,
   WRITING_MAX_VIOLATIONS,
@@ -634,8 +635,22 @@ export async function saveVideoProgress(
   return { ok: true, pos };
 }
 
-/** The video reached its end. Refused if the server has not seen enough time pass. */
-export async function markVideoDone(userId: string, mockId: string, section: MockSection): Promise<LibResult> {
+/**
+ * The video reached its end — or the student pressed Skip.
+ *
+ * Watching it through is refused unless the server has seen enough time pass
+ * (the client's own clock is not trusted). `skipped` is the honest way out: it
+ * bypasses ONLY that check, stamps the section's video as done exactly as
+ * finishing it would, and leaves a `video_skip` note on the integrity report so
+ * the teacher can see the briefing was not watched. Every other guard — the
+ * right section, the session's admission rule — still applies.
+ */
+export async function markVideoDone(
+  userId: string,
+  mockId: string,
+  section: MockSection,
+  skipped = false,
+): Promise<LibResult> {
   const [a, mock, videos] = await Promise.all([loadAttempt(userId, mockId), getMock(mockId), getMockVideos()]);
   if (!a || !mock) return { ok: false, error: "You don't have a place on this mock." };
   if (nextSection(a) !== section) return { ok: false, error: "That section isn't open." };
@@ -645,12 +660,16 @@ export async function markVideoDone(userId: string, mockId: string, section: Moc
   const refused = admissionError(mock.session_state, a.status);
   if (refused) return { ok: false, error: refused };
   const startedAt = a[cols.started];
-  if (!videoWatchedEnough(startedAt ? new Date(startedAt).getTime() : null, video.duration, Date.now())) {
+  if (!skipped && !videoWatchedEnough(startedAt ? new Date(startedAt).getTime() : null, video.duration, Date.now())) {
     return { ok: false, error: "Please watch the instructions to the end." };
   }
-  const patch: TablesUpdate<"mock_attempts"> = { [cols.done]: new Date().toISOString(), [cols.pos]: video.duration };
-  const { error } = await db().from("mock_attempts").update(patch).eq("id", a.id).is(cols.done, null);
+  const now = new Date().toISOString();
+  const patch: TablesUpdate<"mock_attempts"> = { [cols.done]: now, [cols.pos]: video.duration };
+  const { data: stamped, error } = await db().from("mock_attempts").update(patch).eq("id", a.id).is(cols.done, null).select("id");
   if (error) return { ok: false, error: error.message };
+  // Only the call that actually stamped writes the note, so a retry of the
+  // client's finish() loop cannot log the same skip twice.
+  if (skipped && stamped?.length) await mutateIntegrity(a.id, (cur) => recordVideoSkip(cur, section, now));
   return { ok: true };
 }
 

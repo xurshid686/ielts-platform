@@ -1131,8 +1131,8 @@ owner clicks **Start session** (`mocks.session_state` waiting → running), whic
 admits every approved student, late approvals included, until **End session**
 (→ closed: nobody new starts; students already `in_progress` finish). Each
 section begins with a section-specific **instruction video** (fullscreen, no
-skip, no seek); the **section clock starts at the "Start <section>" click after
-it**, never on page open. Mock mode is automatic and the CDI paper's own start
+seek, but **skippable** — see below); the **section clock starts at the "Start
+<section>" click after it**, never on page open. Mock mode is automatic and the CDI paper's own start
 screen, timer and results never show — only the platform clock, centred in the
 top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
 
@@ -1142,8 +1142,16 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
   same DO block that adds the column, so re-running 0054 closes nothing).
 - **Minutes/papers are editable while `waiting`, even with places approved**;
   `startMockSession` re-snapshots every unstarted place to the mock as it is at
-  Start. Locked once running/closed (`isLocked`). A closed mock takes no new
-  places — duplicate it for another sitting.
+  Start. Locked once running/closed (`isLocked`).
+- **A closed session can be REOPENED** (`closed → running`, `reopenMockSession`).
+  Start and Reopen share one `openSession(mockId, adminId, from)` body; the
+  reopen path keeps `session_started_at` (the first sitting's start) and clears
+  `session_closed_at/_by`. Reopening admits approved students again and lets new
+  places be granted, but hands NOBODY a second attempt: the snapshot/notify
+  queries only touch places still `approved`, `startAttempt` refuses a status
+  that is not `approved`, and `mock_attempts_one_per_student` (0050) still
+  stands. Content stays locked, because attempts were snapshotted at the first
+  Start — duplicate the mock only to run a CHANGED sitting.
 - **Section lifecycle:** `sectionView()` (read-only) → phase `video` | `ready` |
   `active`. `startSection()`/`startWriting()` now only RESUME a running clock
   (and record the reload); they never stamp. `beginSection()`/`beginWriting()`
@@ -1158,6 +1166,17 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
   are on R2 `cdi-videos` under `mock/<section>-instructions-v1.mp4`; rows in
   `mock_videos` (no client grants). Admin "Instruction videos" card replaces a
   video by URL (duration read in the browser, HEAD-checked on the server).
+- **Skip (2026-09-16):** a small "Skip" sits bottom-right over the video, visible
+  and clickable from the first frame — including while it is still buffering or
+  after it failed to load. It calls `finishMockVideo(..., skipped)` →
+  `markVideoDone(..., skipped)`, which bypasses ONLY `videoWatchedEnough`; every
+  other guard (right section, `admissionError`) still applies, and it stamps
+  `_video_done_at` exactly as finishing does, so `beginGuard` needed no change.
+  A skip writes a `video_skip` integrity event (via `mutateIntegrity`, only on
+  the call that actually stamped, so the client's 12-try retry loop cannot log
+  it twice). That event is **evidence, not a violation**: it moves no counter
+  and never feeds "review suggested". Scrubbing stays blocked — Skip is the
+  honest way out, the same stance the `mock-intro-video` skill takes.
 - **`components/mock/section-flow.tsx`** owns the ExamGuard for the whole
   section (video → Start → paper/writing) and a shared `mediaRef` so leaving
   fullscreen pauses the video or the recording. `ExamTopBar`/`ExamClock` is the
