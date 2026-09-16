@@ -56,6 +56,13 @@ export async function GET(
   // handles a refusal by leaving the in-page report hidden, which is exactly
   // the exam experience wanted. The released breakdown is rendered server-side
   // on /mock/[id]/result instead. Admins keep it, to check a paper.
+  //
+  // This still holds after RELEASE, when the student may reopen the paper
+  // (/mock/<id>/review/<section>, 2026-09-16): that review is marked from the
+  // key SNAPSHOTTED on their own attempt, server-side, and only the accepted
+  // answers for their own questions are injected. The paper's own grader is
+  // never used there — it reads internal state a restored answer never reaches,
+  // so it would show a score that disagrees with the real one.
   if (access.row.track === "mock") {
     const isAdmin = await callerIsAdmin(access.userId);
     if (!isAdmin) {

@@ -1097,9 +1097,10 @@ repeated exits → warning + "Review suggested" for the teacher, never automatic
   Results.
 - **Writing paste** is allowed and logged (≥5 words; ≥100 flags). Since Writing v3 a paste of
   more than 10 words is ALSO a violation (see below).
-- **Leak protection:** `getReleasedDetail()` hides the per-question review while
-  anyone else still has the mock open (bands and feedback still show); release
-  confirmations warn how many are still sitting.
+- ~~**Leak protection:** `getReleasedDetail()` hides the per-question review while
+  anyone else still has the mock open~~ — DROPPED 2026-09-16 (owner): release now
+  means full review, papers included, so holding the table back only made the
+  rule harder to explain. Release confirmations still warn how many are sitting.
 
 Traps found in the E2E run: `MockGradeForm` must not rely on router.refresh()
 or a transition — the action's revalidatePath left `pending` stuck and the
@@ -1269,6 +1270,43 @@ three Writing violations hand the writing in. Listening/Reading keep warn + reco
   Results chip + CSV columns `writing_violations`, `writing_auto_submitted`.
 - E2E: blur is simulated by dispatching `blur`/`focus` on window; a synthetic paste event
   (`ClipboardEvent` + `DataTransfer`) fires React's onPaste without inserting text.
+
+### Released review, saveable results, deleting a mock (owner decisions 2026-09-16)
+
+- **A released student reopens the papers they sat**, read-only:
+  `/mock/<id>/review/<listening|reading>` → `/api/test-html/<test>?review=<attempt>`
+  → `adaptForReview` (mock-adapter.ts). `canOpenMockPaper` now also passes a
+  RELEASED attempt (`hasReleasedMockPaper`), and `findMockReview` is the gate:
+  the attempt is theirs, released, and sat with that paper (an admin may open any).
+- **THE MARKING IS THE SERVER'S, and the key still never reaches the browser.**
+  The first cut let the paper grade itself (practice pipeline + the key from
+  /api/test-key) and it showed **11/40 where the platform had recorded 38/40**: a
+  reading shell grades from its INTERNAL state, which a DOM value restored by
+  `restoreAnswers` never reaches, so every matching / multiple-choice / drag
+  answer counted blank. So review serves the key-STRIPPED file, injects the
+  per-question `ReviewLine[]` from the key snapshotted on the attempt (0051), and
+  writes a ✓ / ✗-with-accepted-answer badge next to each question
+  (`.__rv-ok` / `.__rv-no`), with the recorded score in a sticky `#__reviewBar`.
+  `/api/test-key` still refuses every mock paper to non-admins.
+- Review also: storage namespaced `review:<attempt>:<section>:`, the paper's own
+  report / Show Results / Submit / Retake hidden (by id AND by button text),
+  every field `readOnly` + `disabled`, and — the owner asked for free replay —
+  its own `<audio controls>` in the bar, since the player's transport is exam
+  chrome that review switches off.
+- **The result as a file:** `/api/mock-report?attempt=<id>|mock=<id>&format=pdf|docx`
+  (`lib/mock-report.ts`, jspdf + docx, both server-side). Bands, marks, feedback,
+  both prompts (parsed), the Task 1 picture, both essays and the answer tables.
+  A student gets their own released attempt; an admin any attempt, or a whole
+  mock in one file (`MAX_BULK = 200`). `imageMeta()` reads PNG/JPEG size from the
+  bytes (no image library); the PDF embeds with jsPDF compression "FAST" —
+  without it a screenshot PNG made a 3.5 MB report.
+- **Deleting a mock is the OWNER'S alone** (`deleteMockDefinition` checks
+  `profiles.is_owner`; the panel only shows the button to the owner) and it
+  CASCADES: attempts, requests and the mock's `mock-assets` folder, in that
+  order — `mocks` is `on delete restrict` from attempts. The owner types the
+  title, and `deleteMock(id, expectTitle)` re-checks it server-side so a
+  mis-sent id cannot delete the wrong mock. The mock's PAPERS stay in the
+  library. Unpublish is still the non-destructive option.
 
 # Every test page must be linked — `Discovered - currently not indexed`
 

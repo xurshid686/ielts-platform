@@ -58,9 +58,11 @@ export async function canOpenTrack({
   testId: string;
 }): Promise<boolean> {
   // Mock papers (0050): the paper must be the section the student is on RIGHT
-  // NOW in an approved attempt — nothing before, nothing after submitting. The
-  // rule lives in lib/mock.ts next to the attempt state it reads. Admins pass so
-  // they can check a paper.
+  // NOW in an approved attempt — nothing before, nothing between submitting and
+  // release. Since 2026-09-16 a RELEASED attempt opens its papers again, and
+  // /api/test-html serves those read-only (?review=<attempt>). The rule lives in
+  // lib/mock.ts next to the attempt state it reads. Admins pass so they can
+  // check a paper.
   if (track === "mock") {
     if (viewer.role === "admin") return true;
     if (!userId) return false;

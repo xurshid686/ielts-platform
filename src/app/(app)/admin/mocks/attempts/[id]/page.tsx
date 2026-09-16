@@ -30,6 +30,7 @@ import { Card } from "@/components/ui/card";
 import { ReviewTable } from "@/components/mock/review-table";
 import { MockGradeForm } from "@/components/admin/mock-grade-form";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
+import { ReportDownloads } from "@/components/mock/report-downloads";
 
 export const metadata = { title: "Mock attempt" };
 
@@ -81,6 +82,8 @@ export default async function AdminMockAttemptPage({
         <Link href={backHref} className="inline-flex h-10 items-center gap-1 text-sm text-muted hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to results
         </Link>
+
+        <ReportDownloads attemptId={a.id} label="Save report" />
 
         {/* Grading queue for this mock: oldest submission first. */}
         {queue.total > 0 && (

@@ -1,7 +1,7 @@
 import { injectScoringBridge } from "@/lib/ielts/scoring-bridge";
 import { sanitizeTestHtml, stripTestHtml, SanitizeIncompleteError } from "@/lib/ielts/sanitize-test-html";
-import { adaptForMock, type MockServeContext } from "@/lib/ielts/mock-adapter";
-import { findMockSitting } from "@/lib/mock";
+import { adaptForMock, adaptForReview, type MockServeContext } from "@/lib/ielts/mock-adapter";
+import { findMockReview, findMockSitting, type MockReview } from "@/lib/mock";
 import { publicOrigin } from "@/lib/public-origin";
 import { asAnswerKey } from "@/lib/ielts/grade";
 import { resolveTestAccess, downloadTestHtml } from "@/lib/tests/access";
@@ -28,12 +28,35 @@ export async function GET(
   // with its clock running. An admin gets the adapter only for the upload
   // self-test (?selftest=<nonce>); otherwise the plain preview below.
   let mock: MockServeContext | null = null;
+  // A RELEASED attempt may reopen its paper read-only (?review=<attemptId>,
+  // 2026-09-16). That path runs on the practice pipeline further down — the
+  // paper marks itself with the key /api/test-key hands back — so it is decided
+  // here and kept out of `mock`, which means the exam adapter.
+  let review: { ctx: MockServeContext; lines: MockReview["lines"]; summary: string } | null = null;
   if (access.row.track === "mock") {
     const url = new URL(req.url);
     const selftest = url.searchParams.get("selftest");
     const attemptParam = url.searchParams.get("mock");
+    const reviewParam = url.searchParams.get("review");
+    if (reviewParam && access.userId) {
+      const found = await findMockReview(access.userId, id, reviewParam, access.isAdmin);
+      if (!found) return new Response("Not found", { status: 404 });
+      review = {
+        ctx: {
+          namespace: `review:${found.attemptId}:${found.section}:`,
+          section: found.section,
+          origin: publicOrigin(req),
+          selftest: false,
+          review: true,
+        },
+        lines: found.lines,
+        summary: found.summary,
+      };
+    }
     const skill = access.row.skill === "listening" ? "listening" : "reading";
-    if (access.isAdmin && selftest) {
+    if (review) {
+      // decided above
+    } else if (access.isAdmin && selftest) {
       if (!/^[a-z0-9]{6,40}$/i.test(selftest)) return new Response("Not found", { status: 404 });
       mock = { namespace: `selftest:${selftest}:`, section: skill, origin: publicOrigin(req), selftest: true };
     } else if (!access.isAdmin || attemptParam) {
@@ -80,7 +103,11 @@ export async function GET(
   const hasKey = !!asAnswerKey(access.row.answer_key);
   let html: string;
   try {
-    if (mock) {
+    if (review) {
+      // The key is STRIPPED here too: the marking is injected per question from
+      // the attempt's own snapshot, so the file never carries the answers.
+      html = adaptForReview(stripTestHtml(raw, publicOrigin(req), id), review.ctx, review.lines, review.summary);
+    } else if (mock) {
       // No key, no mock: grading is server-side and a keyless paper never passes readiness.
       if (!hasKey) return new Response("This paper has no answer key.", { status: 502 });
       html = adaptForMock(stripTestHtml(raw, publicOrigin(req), id), mock);

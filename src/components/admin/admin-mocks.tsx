@@ -14,6 +14,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileDown,
   ImageIcon,
   Inbox,
   Loader2,
@@ -170,6 +171,7 @@ export function AdminMocks({
   attempts,
   images,
   videos,
+  isOwner,
 }: {
   pending: AdminRequest[];
   decisions: AdminRequest[];
@@ -178,6 +180,8 @@ export function AdminMocks({
   attempts: AdminAttemptSummary[];
   images: Record<string, string>;
   videos: Videos;
+  /** Deleting a mock destroys students' records, so it is the owner's alone. */
+  isOwner: boolean;
 }) {
   const url = useUrlState();
   const router = useRouter();
@@ -345,6 +349,7 @@ export function AdminMocks({
           videos={videos}
           onMsg={setMsg}
           onDirty={(d) => (dirtyRef.current = d)}
+          isOwner={isOwner}
           openResults={(id) => go({ tab: "results", mock: id, stage: null })}
         />
       )}
@@ -637,6 +642,8 @@ function Results({
   const [confirming, setConfirming] = useState(false);
   const [q, setQ] = useState(url.get("q"));
   const integrityOnly = url.get("integrity") === "review";
+  // The full-report export is per mock, so it needs one in scope (the Mock picker above).
+  const scopedMockId = url.get("mock");
   const reviewCount = attempts.filter((a) => a.integrity.level === "review").length;
   // Students still sitting each mock — releasing now lets answers reach them (0052).
   const sittingByMock = useMemo(() => {
@@ -793,6 +800,21 @@ function Results({
             <Button variant="outline" className="h-10" onClick={exportCsv} disabled={!filtered.length} title="Exports every attempt matching the filters, not just this page">
               <Download className="h-4 w-4" /> Export {filtered.length} (CSV)
             </Button>
+            {/* Full reports for one mock — needs a mock in scope, since the file is per mock. */}
+            {scopedMockId && (
+              <>
+                {(["pdf", "docx"] as const).map((f) => (
+                  <a
+                    key={f}
+                    href={`/api/mock-report?mock=${scopedMockId}&format=${f}`}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-surface-2"
+                    title="Every attempt of this mock, with bands, essays and answers"
+                  >
+                    <FileDown className="h-4 w-4" /> All reports ({f === "pdf" ? "PDF" : "Word"})
+                  </a>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1106,8 +1128,8 @@ function ReleaseConfirm({
         <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
           <span>
-            {stillSitting.map(([t, n]) => `${n} student${n === 1 ? " is" : "s are"} still sitting ${t}`).join("; ")}. Released students see
-            their bands now, but the question-by-question answers stay hidden until everyone has finished.
+            {stillSitting.map(([t, n]) => `${n} student${n === 1 ? " is" : "s are"} still sitting ${t}`).join("; ")}. A released student
+            sees their bands, the answers AND the papers straight away, so they could pass them on to whoever is still sitting.
           </span>
         </p>
       )}
@@ -1131,6 +1153,7 @@ function Mocks({
   videos,
   onMsg,
   onDirty,
+  isOwner,
   openResults,
 }: {
   mocks: AdminMock[];
@@ -1139,10 +1162,12 @@ function Mocks({
   videos: Videos;
   onMsg: (m: Msg) => void;
   onDirty: (dirty: boolean) => void;
+  isOwner: boolean;
   openResults: (mockId: string) => void;
 }) {
   const [editing, setEditing] = useState<string | "new" | null>(mocks.length ? null : "new");
   const { busy, run } = useRunner(onMsg);
+  const [deleting, setDeleting] = useState<AdminMock | null>(null);
 
   function close() {
     onDirty(false);
@@ -1286,19 +1311,17 @@ function Mocks({
                 >
                   <Copy className="h-4 w-4" /> Duplicate
                 </Button>
-                {m.counts.total === 0 && m.session_state !== "running" && (
+                {isOwner && (
                   <Button
                     size="sm"
                     variant="danger"
                     className="h-10"
                     disabled={busy}
                     aria-label={`Delete ${m.title}`}
-                    onClick={() => {
-                      if (!confirm(`Delete "${m.title}"? This cannot be undone.`)) return;
-                      run(() => deleteMockDefinition(m.id), `Deleted ${m.title}.`);
-                    }}
+                    title={m.counts.total ? "Deletes the mock and every attempt on it" : "Deletes this mock"}
+                    onClick={() => setDeleting(m)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" /> Delete
                   </Button>
                 )}
               </div>
@@ -1331,7 +1354,80 @@ function Mocks({
           </Card>
         ),
       )}
+
+      {deleting && (
+        <DeleteMockDialog
+          mock={deleting}
+          busy={busy}
+          onClose={() => setDeleting(null)}
+          onConfirm={(title) => {
+            const label = deleting.title;
+            setDeleting(null);
+            run(() => deleteMockDefinition(deleting.id, title), `Deleted ${label}.`);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Deleting a mock takes its students' records with it, so the owner types the
+ * title first — the server checks the same title before it removes anything.
+ */
+function DeleteMockDialog({
+  mock,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  mock: AdminMock;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (title: string) => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const c = mock.counts;
+  const matches = typed.trim() === mock.title.trim();
+  return (
+    <Modal title={`Delete ${mock.title}?`} onClose={onClose}>
+      <div className="space-y-3 text-sm">
+        <p className="flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/5 p-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+          <span>
+            This deletes the mock and <b>{c.total} place{c.total === 1 ? "" : "s"}</b> on it
+            {c.released > 0 && <> — including {c.released} released result{c.released === 1 ? "" : "s"}</>}: bands,
+            essays, answers and integrity reports. It cannot be undone.
+            {mock.session_state === "running" && <> The session is running, so anyone sitting it now loses their work.</>}
+          </span>
+        </p>
+        <p className="text-muted">
+          To confirm, type the title: <b className="text-foreground">{mock.title}</b>
+        </p>
+        <input
+          className="admin-input h-10"
+          value={typed}
+          autoFocus
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && matches && !busy) onConfirm(typed);
+          }}
+          aria-label="Type the mock title to confirm"
+          placeholder={mock.title}
+        />
+        <p className="text-xs text-muted">
+          Keeping the records? Use <b>Unpublish</b> instead — students can no longer request it, and nothing is lost.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Keep it
+          </Button>
+          <Button variant="danger" disabled={!matches || busy} onClick={() => onConfirm(typed)}>
+            <Trash2 className="h-4 w-4" /> Delete permanently
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

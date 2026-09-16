@@ -20,7 +20,7 @@ export const metadata = { title: "Mock exams" };
 // a failure lands on the admin error boundary instead of reading as "nothing
 // waiting" (see lib/mock-admin.ts).
 export default async function AdminMocksPage() {
-  await requireAdmin();
+  const me = await requireAdmin();
   // Close sections whose clock ran out while the student stayed away (v2.1),
   // before anything below reads the attempts.
   await finalizeExpiredAttempts();
@@ -60,6 +60,7 @@ export default async function AdminMocksPage() {
         attempts={attempts}
         images={images}
         videos={videos}
+        isOwner={!!me.is_owner}
       />
     </div>
   );

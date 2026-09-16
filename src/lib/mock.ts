@@ -330,7 +330,11 @@ export async function getStudentAttempt(
  * before the clock started (Codex review, 2026-09-15).
  */
 export async function canOpenMockPaper(userId: string, testId: string): Promise<boolean> {
-  return (await findMockSitting(userId, testId)) !== null;
+  if (await findMockSitting(userId, testId)) return true;
+  // ...or the sitting is over and the result is RELEASED, which opens the paper
+  // again read-only (2026-09-16). /api/test-html still demands ?review=<attempt>
+  // for that path, and serves it locked; nothing else changes.
+  return hasReleasedMockPaper(userId, testId);
 }
 
 /**
@@ -1260,19 +1264,98 @@ export async function countStillSitting(mockId: string, excludeAttemptId?: strin
 /**
  * The student's released result with its breakdown. Null unless released.
  *
- * LEAK PROTECTION (0052): mocks are reused, so the per-question answers are
- * held back while anyone else still has this mock open — otherwise the first
- * student released can hand the key to the rest. Bands, raw marks and writing
- * feedback are shown regardless; only the correct answers wait.
+ * Release means FULL review (owner, 2026-09-16): bands, the per-question
+ * answers AND the papers themselves (`/mock/<id>/review/<section>`). The 0052
+ * hold that kept the answers back while others were still sitting is gone —
+ * the paper opens on release either way, so holding the table only made the
+ * rule harder to explain. `countStillSitting` still warns the owner BEFORE
+ * they release.
  */
 export async function getReleasedDetail(
   userId: string,
   mockId: string,
-): Promise<(AttemptDetail & { reviewHeld: boolean }) | null> {
+): Promise<AttemptDetail | null> {
   const a = await loadAttempt(userId, mockId);
   if (!a || a.status !== "released") return null;
-  const [detail, sitting] = await Promise.all([getAttemptDetail(a.id), countStillSitting(mockId, a.id)]);
-  if (!detail) return null;
-  if (sitting === 0) return { ...detail, reviewHeld: false };
-  return { ...detail, listeningReview: [], readingReview: [], reviewHeld: true };
+  return getAttemptDetail(a.id);
+}
+
+export type MockReview = {
+  attemptId: string;
+  section: PaperSection;
+  testId: string;
+  /** The marking, from the key SNAPSHOTTED on the attempt (0051). */
+  lines: ReviewLine[];
+  /** "Reading — 34 of 40 correct", shown in the review bar. */
+  summary: string;
+};
+
+/**
+ * The read-only review of a paper the student SAT, after release (2026-09-16).
+ * Unlike `findMockSitting` there is no clock: the gate is simply that this
+ * attempt is theirs, it is released, and the paper is the one it was sat with.
+ * An admin may review any attempt's paper (to check a complaint).
+ *
+ * The marking is computed HERE, not in the browser: the paper's own grader
+ * reads internal state that a restored answer never reaches, so it would show a
+ * score that disagrees with the recorded one.
+ */
+export async function findMockReview(
+  userId: string,
+  testId: string,
+  attemptId: string,
+  isAdmin = false,
+): Promise<MockReview | null> {
+  if (!UUID.test(attemptId) || !UUID.test(testId)) return null;
+  const { data } = await db()
+    .from("mock_attempts")
+    .select(
+      "id, user_id, status, listening_test_id, reading_test_id, listening_answers, reading_answers, listening_key, reading_key",
+    )
+    .eq("id", attemptId)
+    .maybeSingle();
+  const a = data as {
+    id: string;
+    user_id: string | null;
+    status: string;
+    listening_test_id: string | null;
+    reading_test_id: string | null;
+    listening_answers: Json | null;
+    reading_answers: Json | null;
+    listening_key: Json | null;
+    reading_key: Json | null;
+  } | null;
+  if (!a) return null;
+  if (!isAdmin && (a.user_id !== userId || a.status !== "released")) return null;
+  const section: PaperSection | null =
+    a.listening_test_id === testId ? "listening" : a.reading_test_id === testId ? "reading" : null;
+  if (!section) return null;
+
+  const { lines } = await reviewFor(
+    testId,
+    section === "listening" ? a.listening_answers : a.reading_answers,
+    section === "listening" ? a.listening_key : a.reading_key,
+    section,
+  );
+  const right = lines.filter((l) => l.correct).length;
+  return {
+    attemptId: a.id,
+    section,
+    testId,
+    lines,
+    summary: `${section === "listening" ? "Listening" : "Reading"} — ${right} of ${lines.length} correct`,
+  };
+}
+
+/** Has this student a RELEASED attempt that sat this mock paper? (gates /api/test-key) */
+export async function hasReleasedMockPaper(userId: string, testId: string): Promise<boolean> {
+  if (!UUID.test(testId)) return false;
+  const { data } = await db()
+    .from("mock_attempts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "released")
+    .or(`listening_test_id.eq.${testId},reading_test_id.eq.${testId}`)
+    .limit(1);
+  return !!(data as { id: string }[] | null)?.length;
 }

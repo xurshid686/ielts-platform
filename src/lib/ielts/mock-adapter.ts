@@ -40,6 +40,8 @@ export type MockServeContext = {
   section: "listening" | "reading";
   origin: string;
   selftest: boolean;
+  /** Read-only review of a released attempt (2026-09-16); see adaptForReview. */
+  review?: boolean;
 };
 
 const js = (v: string) => JSON.stringify(v).replace(/</g, "\\u003c");
@@ -116,7 +118,10 @@ function storageShim(ctx: MockServeContext): string {
     try { parent.postMessage({ source: "IELTS_CDI_TEST", type: type, payload: { message: String(message == null ? "" : message) } }, ORIGIN); } catch (e) {}
   }
   try {
+    // A review never submits anything, so its dialogs are simply swallowed.
+    var REVIEW = ${ctx.review ? "true" : "false"};
     window.confirm = function (msg) {
+      if (REVIEW) return false;
       tell(/submit|deliver|finish|hand in/i.test(String(msg)) ? "REQUEST_SUBMIT" : "NOTICE", msg);
       return false;
     };
@@ -467,4 +472,222 @@ export function adaptForMock(strippedHtml: string, ctx: MockServeContext): strin
   const bridge = mockBridge(ctx);
   const idx = out.toLowerCase().lastIndexOf("</body>");
   return idx === -1 ? out + bridge : out.slice(0, idx) + bridge + out.slice(idx);
+}
+
+// ----------------------------------------------------------------- review mode
+//
+// After the owner RELEASES a result the student may reopen the paper they sat
+// (owner, 2026-09-16): their own answers in place, marked, with the accepted
+// answers — and nothing changeable.
+//
+// WHY THE PAPER DOES NOT MARK ITSELF. The obvious route was to restore the
+// answers and let the shell grade, so the student got its own Result Report.
+// It lies: a reading shell grades from its INTERNAL state object, which a
+// restored DOM value never reaches, so matching, multiple-choice and drag
+// answers all counted as blank — 11/40 for an attempt the platform had marked
+// 38/40. The marking here is therefore the SERVER's: the per-question lines
+// from the key snapshotted on the attempt (0051). The paper's own report and
+// its Show Results button are hidden, and the answer key never reaches the
+// browser at all (/api/test-key still refuses every mock paper).
+//
+// The recording stays playable, as the owner asked: review mode adds its own
+// <audio controls> bar for Listening, since the player's transport is part of
+// the exam chrome that gets switched off.
+
+export type ReviewLineLite = { q: string; given: string; accepted: string[]; correct: boolean };
+
+const REVIEW_CSS = [
+  "#startScreen,#loadingOverlay,#playOverlay{display:none!important}",
+  "#testTimer,#timerControls,#timerPauseBtn,#timerRestartBtn,#timerResetBtn,#switchMockBtn,#switchPracticeBtn,#modeBadge,#headerRetakeBtn{display:none!important}",
+  "#examTimer,#fsBtn,#chillBar,#fullscreenToggle{display:none!important}",
+  '[id*="ullscreen" i],[title="Full screen"],[aria-label*="full screen" i],[aria-label*="fullscreen" i]{display:none!important}',
+  // The paper's own report would show a score it cannot compute here.
+  "#submissionModal,#printReportBtn,#resultsPanel,#reportModal{display:none!important}",
+  // Nothing may be handed in again.
+  "#footerSubmit,#doSubmit,.big-submit,#submitBtn,#finalSubmitBtn{display:none!important}",
+  // Any briefing video baked into the file.
+  "video{display:none!important}",
+  "#__reviewBar{position:sticky;top:0;z-index:2147483000;background:#19445f;color:#fff;font:600 14px Arial,sans-serif;padding:8px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}",
+  "#__reviewBar audio{height:32px;max-width:420px;flex:1}",
+  ".__rv{font:700 12px Arial,sans-serif;padding:1px 6px;border-radius:4px;margin-left:6px;white-space:nowrap;vertical-align:middle;display:inline-block}",
+  ".__rv-ok{background:#e6f4ea;color:#137333;border:1px solid #137333}",
+  ".__rv-no{background:#fce8e6;color:#a50e0e;border:1px solid #a50e0e}",
+  ".__rv-fill{background:#fffbe6;border:1px solid #a50e0e;color:#a50e0e}",
+].join("");
+
+/** Injected after the paper's own scripts. ES5-safe, no dependencies. */
+function reviewScript(ctx: MockServeContext, lines: ReviewLineLite[], summary: string): string {
+  return `<script>
+/* ${MOCK_BRIDGE_MARKER}: released-attempt review (marking comes from the server) */
+(function () {
+${RESTORE_ANSWERS_JS}
+  /* the objects themselves, not js() — that would embed JSON *strings* */
+  var LINES = ${JSON.stringify(lines).replace(/</g, "\\u003c")};
+  var SUMMARY = ${js(summary)};
+  var IS_LISTENING = ${js(ctx.section)} === "listening";
+  function byId(id) { return document.getElementById(id); }
+  function isFn(n) { try { return typeof window[n] === "function"; } catch (e) { return false; } }
+  function noop() {}
+
+  try {
+    var style = document.createElement("style");
+    style.textContent = ${js(REVIEW_CSS)};
+    (document.head || document.documentElement).appendChild(style);
+  } catch (e) {}
+
+  // No clock, no hand-in, no results screen of the paper's own.
+  ["autoSubmit", "autoSubmitMock", "startTimer", "startCountdown", "showResults", "markOnPage", "saveState"].forEach(function (n) {
+    if (isFn(n)) { try { window[n] = noop; } catch (e) {} }
+  });
+
+  function startPaper() {
+    try {
+      if (IS_LISTENING) {
+        var card = document.querySelector('.mode-card[data-mode="practice"]') || document.querySelector('.mode-card[data-mode="mock"]');
+        if (card) { card.click(); return; }
+      }
+      if (isFn("startWithMode")) { window.startWithMode("practice"); return; }
+      var classic = byId("startTestBtn");
+      if (classic) { classic.disabled = false; classic.click(); return; }
+      if (isFn("beginTest")) { window.beginTest("practice"); return; }
+    } catch (e) {}
+  }
+
+  // Where question N lives, whatever the shell calls it.
+  function anchorFor(q) {
+    var sels = [
+      'input[data-q="' + q + '"]',
+      '[data-q="' + q + '"]',
+      '#drop-q' + q,
+      'input[name="q' + q + '"]',
+      '[data-question="' + q + '"]'
+    ];
+    for (var i = 0; i < sels.length; i++) {
+      var el = document.querySelector(sels[i]);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function badge(text, cls) {
+    var b = document.createElement("span");
+    b.className = "__rv " + cls;
+    b.textContent = text;
+    return b;
+  }
+
+  function markOne(line) {
+    var el = anchorFor(line.q);
+    if (!el) return false;
+    // Make sure their answer is visible: text inputs are filled by
+    // restoreAnswers, but a drop zone or a letter box may still be empty.
+    try {
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        if (!el.value && line.given) el.value = line.given;
+      } else if (!(el.textContent || "").trim() && line.given) {
+        el.appendChild(document.createTextNode(line.given));
+        el.className += " __rv-fill";
+      }
+    } catch (e) {}
+    var host = el;
+    // Radios/checkboxes: hang the badge off their label, not the box itself.
+    try { if (el.type === "radio" || el.type === "checkbox") host = el.closest("label") || el.parentNode || el; } catch (e) {}
+    var b = line.correct
+      ? badge("\\u2713", "__rv-ok")
+      : badge("\\u2717 " + (line.accepted.length ? line.accepted.slice(0, 3).join(" / ") : "\\u2014"), "__rv-no");
+    b.title = line.correct
+      ? "Correct. You wrote: " + (line.given || "(blank)")
+      : "You wrote: " + (line.given || "(blank)") + ". Accepted: " + line.accepted.join(" / ");
+    try {
+      if (host.parentNode) host.parentNode.insertBefore(b, host.nextSibling);
+      else host.appendChild(b);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function bar() {
+    if (byId("__reviewBar")) return;
+    var b = document.createElement("div");
+    b.id = "__reviewBar";
+    var t = document.createElement("span");
+    t.textContent = SUMMARY;
+    b.appendChild(t);
+    var note = document.createElement("span");
+    note.style.fontWeight = "400";
+    note.textContent = "Your answers, marked. \\u2713 correct, \\u2717 shows the accepted answer. Nothing can be changed.";
+    b.appendChild(note);
+    if (IS_LISTENING) {
+      var src = "";
+      var a = document.querySelector("audio");
+      try { src = a ? (a.currentSrc || a.src || "") : ""; } catch (e) {}
+      if (src) {
+        // The player's own transport is part of the exam chrome, so review gets
+        // its own: the owner asked for free replay while checking answers.
+        var own = document.createElement("audio");
+        own.controls = true;
+        own.preload = "metadata";
+        own.src = src;
+        b.appendChild(own);
+        try { a.pause(); } catch (e) {}
+      }
+    }
+    if (document.body) document.body.insertBefore(b, document.body.firstChild);
+  }
+
+  function lock() {
+    try {
+      var fields = document.querySelectorAll("input, textarea, select");
+      for (var i = 0; i < fields.length; i++) {
+        if (fields[i].closest && fields[i].closest("#__reviewBar")) continue;
+        fields[i].readOnly = true;
+        fields[i].disabled = true;
+      }
+      var drags = document.querySelectorAll("[draggable='true']");
+      for (var d = 0; d < drags.length; d++) drags[d].setAttribute("draggable", "false");
+      // Buttons that would hand in, grade or restart. Matched by their words,
+      // because every shell names them differently.
+      var btns = document.querySelectorAll("button, .btn, [role='button']");
+      for (var k = 0; k < btns.length; k++) {
+        var txt = (btns[k].textContent || "").toLowerCase();
+        if (btns[k].closest && btns[k].closest("#__reviewBar")) continue;
+        if (/submit|show results|retake|restart|deliver|finish/.test(txt)) btns[k].style.display = "none";
+      }
+    } catch (e) {}
+  }
+
+  function boot() {
+    startPaper();
+    setTimeout(function () {
+      bar();
+      try { restoreAnswers(LINES.reduce(function (acc, l) { if (l.given) acc[l.q] = l.given; return acc; }, {})); } catch (e) {}
+      setTimeout(function () {
+        var marked = 0;
+        for (var i = 0; i < LINES.length; i++) if (markOne(LINES[i])) marked++;
+        lock();
+        try { window.__IELTS_REVIEW__ = { marked: marked, total: LINES.length }; } catch (e) {}
+      }, 500);
+    }, 700);
+  }
+  if (document.readyState === "complete") setTimeout(boot, 0);
+  else window.addEventListener("load", function () { setTimeout(boot, 0); });
+})();
+</script>`;
+}
+
+/**
+ * The review transform. `strippedHtml` must be the key-STRIPPED file
+ * (stripTestHtml), the same input the exam adapter takes: the marking is
+ * injected per question, so the paper needs no key of its own.
+ */
+export function adaptForReview(
+  strippedHtml: string,
+  ctx: MockServeContext,
+  lines: ReviewLineLite[],
+  summary: string,
+): string {
+  let out = stripOldBridges(strippedHtml);
+  out = injectFirst(out, storageShim(ctx));
+  const script = reviewScript(ctx, lines, summary);
+  const idx = out.toLowerCase().lastIndexOf("</body>");
+  return idx === -1 ? out + script : out.slice(0, idx) + script + out.slice(idx);
 }

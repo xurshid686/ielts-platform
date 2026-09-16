@@ -693,14 +693,43 @@ export async function removeTask1Image(mockId: string): Promise<LibResult> {
   return { ok: true };
 }
 
-/** Only while nobody has a place — attempts are the permanent record. */
-export async function deleteMock(mockId: string): Promise<LibResult> {
-  if ((await attemptCount(mockId)) > 0) {
-    return { ok: false, error: "Students have places on this mock, so it is kept. Unpublish it instead." };
+/**
+ * Deletes a mock AND everything belonging to it (owner, 2026-09-16): every
+ * place, its bands, essays, answers and integrity report, the requests that led
+ * to them, and the Task 1 pictures in storage. There is no undo, which is why
+ * the panel makes the owner type the title and only the OWNER may call it
+ * (`deleteMockDefinition`).
+ *
+ * `expectTitle` is checked here too, so a mis-sent id cannot delete the wrong
+ * mock: the server refuses unless the title matches the row it is about to
+ * remove. Attempts go first — `mocks` is `on delete restrict` from them.
+ */
+export async function deleteMock(mockId: string, expectTitle?: string): Promise<LibResult & { removed?: number }> {
+  if (!UUID.test(mockId)) return { ok: false, error: "That mock no longer exists." };
+  const mock = await getMock(mockId);
+  if (!mock) return { ok: false, error: "That mock no longer exists." };
+  if (expectTitle != null && expectTitle.trim() !== mock.title.trim()) {
+    return { ok: false, error: "The title you typed doesn't match this mock, so nothing was deleted." };
   }
-  const { error } = await db().from("mocks").delete().eq("id", mockId);
+  const client = db();
+  const places = await attemptCount(mockId);
+
+  const { error: attErr } = await client.from("mock_attempts").delete().eq("mock_id", mockId);
+  if (attErr) return { ok: false, error: attErr.message };
+  const { error: reqErr } = await client.from("mock_requests").delete().eq("mock_id", mockId);
+  if (reqErr) return { ok: false, error: reqErr.message };
+
+  // Task 1 pictures live under <mockId>/ and belong to this mock alone.
+  try {
+    const { data: objs } = await client.storage.from("mock-assets").list(mockId);
+    if (objs?.length) await client.storage.from("mock-assets").remove(objs.map((o) => `${mockId}/${o.name}`));
+  } catch {
+    /* an orphaned picture is harmless; the row going is what matters */
+  }
+
+  const { error } = await client.from("mocks").delete().eq("id", mockId);
   if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return { ok: true, removed: places };
 }
 
 // ------------------------------------------------------------- sessions (0054)

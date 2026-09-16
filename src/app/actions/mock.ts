@@ -355,11 +355,26 @@ export async function removeMockTask1Image(mockId: string): Promise<MockAdminRes
   });
 }
 
-export async function deleteMockDefinition(mockId: string): Promise<MockAdminResult> {
+/**
+ * OWNER ONLY (2026-09-16), because it deletes students' records: the mock, every
+ * place on it with its bands, essays and answers, the requests, and the Task 1
+ * pictures. The typed title is re-checked in the library.
+ */
+export async function deleteMockDefinition(mockId: string, expectTitle?: string): Promise<MockAdminResult> {
   return guarded("delete mock", async () => {
-    const res = await deleteMock(mockId);
+    const { supabase } = await sessionUser();
+    const { data: me } = await supabase.auth.getUser();
+    const { data: prof } = me.user
+      ? await supabase.from("profiles").select("is_owner").eq("id", me.user.id).maybeSingle()
+      : { data: null };
+    if (!(prof as { is_owner?: boolean } | null)?.is_owner) {
+      return { ok: false as const, error: "Only the owner can delete a mock and its results." };
+    }
+    const res = await deleteMock(mockId, expectTitle);
     if (res.ok) refreshAdmin();
-    return res;
+    return res.ok
+      ? { ok: true as const, note: res.removed ? `Deleted with ${res.removed} attempt${res.removed === 1 ? "" : "s"}.` : undefined }
+      : res;
   });
 }
 
