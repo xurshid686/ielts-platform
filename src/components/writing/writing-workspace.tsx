@@ -91,7 +91,9 @@ export function WritingWorkspace({
         </div>
       </div>
 
-      <section className="flex min-h-[40vh] min-w-0 flex-1 flex-col px-6 py-5">
+      {/* max-md only: above it the pane is exactly what the mock always rendered.
+          Below it the two panes stack, and the box needs a height of its own. */}
+      <section className="flex min-w-0 flex-1 flex-col px-6 py-5 max-md:min-h-[40vh]">
         <textarea
           key={answerKey}
           value={value}

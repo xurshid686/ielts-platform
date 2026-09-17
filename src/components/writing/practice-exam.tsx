@@ -138,7 +138,11 @@ export function PracticeExam({
   const overtime = remaining === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white text-black" style={{ fontFamily: "Arial, sans-serif" }}>
+    <div
+      data-practice-root
+      className="flex h-full min-h-0 flex-col bg-white text-black"
+      style={{ fontFamily: "Arial, sans-serif" }}
+    >
       <div className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border bg-surface px-3 text-foreground">
         <div className="flex min-w-0 items-center gap-2" style={{ fontFamily: "var(--font-sans, inherit)" }}>
           {/* There is no fullscreen to escape and no sitting to abandon: leaving
@@ -250,7 +254,7 @@ function clock(ms: number) {
 function DoneScreen({ topic, words, onPdf }: { topic: string; words: number; onPdf: () => Promise<void> }) {
   const [making, setMaking] = useState(false);
   return (
-    <div className="flex h-full items-center justify-center bg-background px-4 text-foreground">
+    <div data-practice-root className="flex h-full items-center justify-center bg-background px-4 text-foreground">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
           <CheckCircle2 className="h-7 w-7" />
