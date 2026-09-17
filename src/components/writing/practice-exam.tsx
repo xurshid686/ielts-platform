@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Clock, Download, Loader2, PenLine, Send } from "lucide-react";
 import { savePracticeAnswer } from "@/app/actions/writing-practice";
@@ -48,13 +48,13 @@ export function PracticeExam({
   startedAt: string;
 }) {
   const [answer, setAnswer] = useState(initialAnswer);
-  const [now, setNow] = useState(() => Date.now());
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const now = useNow();
   const revision = useRef(initialRevision);
   const latest = useRef(answer);
   const lastSent = useRef(initialAnswer);
@@ -90,14 +90,10 @@ export function PracticeExam({
     [attemptId],
   );
 
-  // Clock + autosave. The clock is decoration; the autosave is not.
+  // The autosave. The clock is a separate, external-store subscription (useNow).
   useEffect(() => {
-    const tick = setInterval(() => setNow(Date.now()), 1000);
     const save = setInterval(() => void send(false), AUTOSAVE_MS);
-    return () => {
-      clearInterval(tick);
-      clearInterval(save);
-    };
+    return () => clearInterval(save);
   }, [send]);
 
   // Best effort only: a save on the way out is a convenience, and the periodic
@@ -133,8 +129,9 @@ export function PracticeExam({
     );
   }
 
-  // Clamped at zero, and nothing reads it but the badge below.
-  const remaining = Math.max(0, new Date(startedAt).getTime() + TASK2_MINUTES * 60_000 - now);
+  // Clamped at zero, and nothing reads it but the badge and the note below.
+  const remaining =
+    now == null ? TASK2_MINUTES * 60_000 : Math.max(0, new Date(startedAt).getTime() + TASK2_MINUTES * 60_000 - now);
   const overtime = remaining === 0;
 
   return (
@@ -172,7 +169,7 @@ export function PracticeExam({
             )}
           >
             <Clock className="h-4 w-4" />
-            {overtime ? "00:00" : clock(remaining)}
+            {clock(remaining)}
           </span>
         </div>
 
@@ -241,6 +238,31 @@ export function PracticeExam({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The wall clock, as an external store rather than state seeded from Date.now().
+ *
+ * Unlike the mock's Writing screen — only ever reached by a CLIENT transition
+ * inside SectionFlow — this page is SERVER-rendered, so a `useState(() =>
+ * Date.now())` made the server's clock text and the browser's first render
+ * disagree and React threw a hydration error (#418) on every sitting. Seeding it
+ * null and filling it in from an effect is the other obvious fix and the repo's
+ * lint rejects it (setState in an effect body, the admin-discipline rule).
+ *
+ * `getServerSnapshot` returns null, so both renders agree; the snapshot is
+ * bucketed to the second so it is stable between ticks, as the store contract
+ * requires.
+ */
+function useNow(): number | null {
+  return useSyncExternalStore(
+    (onChange) => {
+      const id = setInterval(onChange, 1000);
+      return () => clearInterval(id);
+    },
+    () => Math.floor(Date.now() / 1000) * 1000,
+    () => null,
   );
 }
 
