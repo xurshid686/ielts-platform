@@ -20,6 +20,7 @@ import {
   saveSectionDraft,
   saveVideoProgress,
   saveWriting,
+  sectionView,
   startAttempt,
   submitRequest,
   submitSection,
@@ -142,6 +143,41 @@ export async function beginMock(mockId: string): Promise<MockActionResult> {
 }
 
 const isSection = (s: unknown): s is MockSection => (SECTION_ORDER as unknown[]).includes(s);
+
+export type SectionDescriptor =
+  | { ok: true; phase: "video" | "ready" | "active"; minutes: number; video: { url: string; duration: number } | null; videoPos: number; blocked: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Everything the client needs to OPEN the next section, without a page render
+ * (2026-09-17). The between-sections menu calls this while the student reads it,
+ * so "Continue to Reading" has nothing left to wait for.
+ *
+ * Read-only: it starts no clock and writes nothing. The fields are ALLOWLISTED
+ * by hand — never spread `view`, which would be a route for a paper, a writing
+ * prompt or a key to reach the browser early. `sectionView` re-checks admission
+ * and that this really is the student's next section, so a stale menu cannot
+ * open something out of order.
+ *
+ * Deliberately NOT a route prefetch: rendering a section page calls
+ * `startSection`/`startWriting`, which record a reload — and a reload is one of
+ * the three violations that auto-submit Writing.
+ */
+export async function nextSectionDescriptor(mockId: string, section: MockSection): Promise<SectionDescriptor> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Your session expired. Sign in again." };
+  if (!isSection(section)) return { ok: false, error: "Unknown section." };
+  const view = await sectionView(user.id, mockId, section);
+  if (!view.ok) return { ok: false, error: view.error };
+  return {
+    ok: true,
+    phase: view.phase,
+    minutes: view.minutes,
+    video: view.video ? { url: view.video.url, duration: view.video.duration } : null,
+    videoPos: view.videoPos,
+    blocked: view.blocked,
+  };
+}
 
 /**
  * Instruction video progress (0054). No revalidatePath on any of these: the

@@ -1,21 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Clock, Headphones, Lock, PenLine } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { finalizeExpiredSection, getStudentAttempt } from "@/lib/mock";
-import { admissionError, nextSection, STATUS_LABEL, type MockSection } from "@/lib/mock-shared";
+import { SECTION_ORDER, admissionError, nextSection, STATUS_LABEL, type MockSection } from "@/lib/mock-shared";
 import { Card } from "@/components/ui/card";
 import { AutoRefresh, BeginMockButton } from "@/components/mock/mock-actions";
 import { DeviceNotice } from "@/components/mock/device-notice";
-import { cn } from "@/lib/utils";
+import { SectionRow } from "@/components/mock/section-menu";
 
 export const metadata = { title: "Mock exam" };
-
-const SECTIONS: { id: MockSection; label: string; icon: typeof Headphones; note: string }[] = [
-  { id: "listening", label: "Listening", icon: Headphones, note: "A short instruction video, then the recording. It plays once." },
-  { id: "reading", label: "Reading", icon: BookOpen, note: "A short instruction video, then the paper. Answers autosave." },
-  { id: "writing", label: "Writing", icon: PenLine, note: "A short instruction video, then Task 1 and Task 2 on one clock." },
-];
 
 export default async function MockOverviewPage({ params }: { params: Promise<{ mockId: string }> }) {
   const { mockId } = await params;
@@ -91,48 +85,28 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
       )}
 
       <ol className="space-y-3">
-        {SECTIONS.map((s, i) => {
-          const done = !!submittedAt[s.id];
-          const isCurrent = current === s.id && attempt.status !== "approved";
-          const Icon = s.icon;
+        {SECTION_ORDER.map((id, i) => {
+          const done = !!submittedAt[id];
+          const isCurrent = current === id && attempt.status !== "approved";
           return (
-            <li key={s.id}>
-              <Card
-                className={cn(
-                  "flex flex-wrap items-center justify-between gap-3",
-                  isCurrent && "border-primary/40",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-xl",
-                      done ? "bg-success/10 text-success" : "bg-primary/10 text-primary",
-                    )}
-                  >
-                    {done ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
-                  </span>
-                  <div>
-                    <p className="font-medium">
-                      {i + 1}. {s.label}
-                    </p>
-                    <p className="text-xs text-muted">{done ? "Submitted" : s.note}</p>
-                  </div>
-                </div>
-                {isCurrent && !refused ? (
-                  <Link
-                    // Never prefetch: rendering a section page starts its clock / records a reload.
-                    prefetch={false}
-                    href={`/mock/${mockId}/${s.id}`}
-                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                  >
-                    {attempt.current_minutes_left != null ? `Continue · ${attempt.current_minutes_left} min left` : "Open"}{" "}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                ) : (
-                  !done && <Lock className="h-4 w-4 text-muted" aria-label="Not open yet" />
-                )}
-              </Card>
+            <li key={id}>
+              <SectionRow
+                state={{ section: id, done, current: isCurrent }}
+                index={i}
+                action={
+                  isCurrent && !refused ? (
+                    <Link
+                      // Never prefetch: rendering a section page starts its clock / records a reload.
+                      prefetch={false}
+                      href={`/mock/${mockId}/${id}`}
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                    >
+                      {attempt.current_minutes_left != null ? `Continue · ${attempt.current_minutes_left} min left` : "Open"}{" "}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  ) : undefined
+                }
+              />
             </li>
           );
         })}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, Loader2, Send } from "lucide-react";
+import { CheckCircle2, Loader2, Send } from "lucide-react";
 import { saveMockSectionDraft, submitMockSection } from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
 import { useExamReport } from "@/components/mock/exam-guard";
@@ -34,7 +34,6 @@ export type PaperSectionProps = {
   section: "listening" | "reading";
   testId: string;
   title: string;
-  nextLabel: string;
   /** Server deadline, epoch ms. */
   deadline: number;
   draft: Answers;
@@ -43,8 +42,11 @@ export type PaperSectionProps = {
   mediaRef: React.MutableRefObject<HTMLMediaElement | null>;
   /** The section flow calls this on pagehide / Leave: a synchronous last save (v2.1). */
   flushRef: React.MutableRefObject<(() => void) | null>;
-  /** "Continue to <next>" — the section flow keeps fullscreen across the navigation. */
-  onNext: () => void;
+  /**
+   * The server CONFIRMED the hand-in. The section flow takes over from here and
+   * shows the between-sections menu. Never fired on a mere attempt to submit.
+   */
+  onSubmitted: (notice?: string) => void;
 };
 
 /** Best-effort save that survives the page going away (sendBeacon). */
@@ -82,13 +84,12 @@ export function PaperSection({
   section,
   testId,
   title,
-  nextLabel,
   deadline,
   draft,
   audioPos,
   mediaRef,
   flushRef,
-  onNext,
+  onSubmitted,
 }: PaperSectionProps) {
   const report = useExamReport();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -156,6 +157,7 @@ export function PaperSection({
               if (/already been submitted/i.test(res.error)) {
                 post({ type: "LOCK" });
                 setDone(true);
+                onSubmitted();
                 return;
               }
               // A refusal is the server's considered answer, not a blip: do not
@@ -168,8 +170,9 @@ export function PaperSection({
             post({ type: "LOCK" });
             // No router.refresh(): the section page redirects away from a submitted
             // section, which would unmount this screen before it is read.
-            if (auto) setNotice("Time is up — your answers were handed in.");
             setDone(true);
+            // The section flow takes it from here: the between-sections menu.
+            onSubmitted(auto ? "Time is up — your answers were handed in." : undefined);
             return;
           } catch {
             // Transport failure. Retry the automatic path; give the manual one
@@ -188,7 +191,7 @@ export function PaperSection({
         setSaving(false);
       }
     },
-    [mockId, section, post, label],
+    [mockId, section, post, label, onSubmitted],
   );
 
   const activate = useCallback(() => {
@@ -590,22 +593,13 @@ export function PaperSection({
         </div>
       )}
 
+      {/* Submitted: the section flow swaps to the between-sections menu, so this
+          screen shows only a brief hand-off rather than a dead-end card. */}
       {done && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-center shadow-xl">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success/10 text-success">
-              <CheckCircle2 className="h-7 w-7" />
-            </div>
-            <h2 className="mt-4 text-lg font-bold">{label} submitted</h2>
-            <p className="mt-1 text-sm text-muted">
-              {notice && /Time is up/.test(notice) ? `${notice} ` : ""}
-              Your answers are saved. Scores are not shown during the mock — your teacher releases the full result once
-              everything is marked.
-            </p>
-            <Button className="mt-6 w-full" onClick={onNext}>
-              {nextLabel} <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background p-4">
+          <span className="inline-flex items-center gap-2 text-sm text-muted">
+            <CheckCircle2 className="h-5 w-5 text-success" /> {label} submitted
+          </span>
         </div>
       )}
     </div>

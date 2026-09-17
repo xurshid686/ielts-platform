@@ -1311,6 +1311,45 @@ unavailable; the paper is 285 KB, so nothing to do with size.
   **push to `main`** (what triggers the DO rebuild), NOT `scripts/go-live.mjs`,
   which only deploys Vercel.
 
+### The between-sections menu (2026-09-17)
+
+"Continue to Reading" appeared to freeze for seconds and students thought the
+app had hung. Four stages followed the click and the first three were silent:
+a bare `router.push` with NO pending state (no `loading.tsx` covers this
+segment); an un-prefetched RSC render of ~7 sequential round trips in 5 serial
+stages; ExamGuard's unconditional 350 ms "Checking your device…"; and only then
+the `<video preload="auto">` mounting to pull a cold 5.7-9.1 MB MP4.
+
+- **The whole sitting now runs in one `SectionFlow`.** Phase gained `"menu"`.
+  Submitting a section calls `onSubmitted` (server-CONFIRMED only, auto-submit
+  included), which shows `components/mock/section-menu.tsx` inside the existing
+  guard. "Continue to <next>" swaps the section in place from a descriptor —
+  **no navigation, no second guard mount, no 350 ms wait.** Measured: menu up
+  833 ms after submit, Continue → instructions **90 ms**.
+- **`nextSectionDescriptor` (actions/mock.ts)** wraps `sectionView` and returns
+  an ALLOWLISTED shape (phase, minutes, video, videoPos, blocked). Never spread
+  the view — a paper, a prompt or a key must not reach the browser early. It
+  writes nothing and starts no clock.
+- **Do NOT fix this with route prefetching.** Rendering an ACTIVE section calls
+  `startSection`/`startWriting`, which record a reload — and a reload is one of
+  the three violations that auto-submit Writing. A prefetch BEFORE submission
+  also caches the wrong-section redirect. The overview's `prefetch={false}`
+  stays.
+- **The video is warmed with a detached `<video>` element** created after a
+  confirmed submit, never by mounting `InstructionVideo` out of sight: its
+  effects autoplay and post progress, which would start the server's video
+  stopwatch before the student saw a frame. Warming happens AFTER submission on
+  purpose — during Listening the recording is streaming and a 6-9 MB
+  side-download could make it stutter. R2 already serves these `immutable` with
+  versioned names and byte ranges, so the warm fill is reused as-is.
+- **`history.replaceState` keeps the URL on the section actually being shown.**
+  A reload must land on the right section or the server accounts for the wrong
+  one.
+- `SectionRow` in section-menu.tsx is shared with the overview page, so the
+  student sees the same three cards in both places. Writing is unchanged: it is
+  last and owns its own ending (PDF copy + a Back that leaves fullscreen on
+  purpose).
+
 ### Writing v3 — reference layout, 3 violations, prompt parser (owner decisions 2026-09-15)
 
 Modelled on writing-full-test-1.vercel.app. **The one place anything automatic happens:**

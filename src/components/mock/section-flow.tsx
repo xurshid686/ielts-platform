@@ -3,21 +3,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, LogOut, Loader2, Play, SkipForward } from "lucide-react";
-import { beginMockSection, finishMockVideo, saveMockVideoProgress } from "@/app/actions/mock";
+import {
+  beginMockSection,
+  finishMockVideo,
+  nextSectionDescriptor,
+  saveMockVideoProgress,
+  type SectionDescriptor,
+} from "@/app/actions/mock";
 import { Button } from "@/components/ui/button";
 import { ExamGuard, leaveExamFullscreen } from "@/components/mock/exam-guard";
 import { ExamClock, ExamTopBar, minutesLabel } from "@/components/mock/exam-top-bar";
 import { PaperSection } from "@/components/mock/mock-runner";
+import { SectionMenu, type SectionState } from "@/components/mock/section-menu";
 import { WritingSection, type WritingProps } from "@/components/mock/writing-exam";
-import type { MockSection } from "@/lib/mock-shared";
+import { SECTION_ORDER, type MockSection } from "@/lib/mock-shared";
 
 // One mock section, end to end (0054):
 //
 //   fullscreen → instruction video (skippable, no seek) → "Start <section>" → paper
+//   → submitted → the between-sections MENU → the next section, in place
 //
 // The section clock starts on the Start click (beginMockSection), never on page
 // open, and the client swaps straight to the paper — a navigation would be a
 // page render, which the server records as a reload.
+//
+// Since 2026-09-17 the WHOLE sitting runs in this one component: submitting a
+// section shows the menu and the next section is swapped in from a descriptor
+// action, so there is no navigation, no second guard mount, and nothing for the
+// student to stare at while a server render they cannot see grinds away.
 
 const LABEL: Record<MockSection, string> = { listening: "Listening", reading: "Reading", writing: "Writing" };
 
@@ -42,6 +55,8 @@ const NOTES: Record<MockSection, string[]> = {
   ],
 };
 
+type Phase = "video" | "ready" | "active" | "menu";
+
 type PaperPayload = { deadline: number; draft: Record<string, string>; audioPos: number; testId: string; title: string };
 type WritingPayload = Omit<WritingProps, "mockId" | "studentName">;
 
@@ -62,19 +77,38 @@ export type SectionFlowProps = {
   initialLongAway: number;
   nextHref: string;
   nextLabel: string;
+  /** Every section's state, for the between-sections menu. */
+  sectionStates: SectionState[];
   paper?: PaperPayload;
   writing?: WritingPayload;
 };
 
+/** Which section follows this one, or null after Writing. */
+function sectionAfter(s: MockSection): MockSection | null {
+  const i = SECTION_ORDER.indexOf(s);
+  return i >= 0 && i < SECTION_ORDER.length - 1 ? SECTION_ORDER[i + 1] : null;
+}
+
 export function SectionFlow(props: SectionFlowProps) {
-  const { mockId, attemptId, section, phase: initialPhase, video, blocked } = props;
-  const [phase, setPhase] = useState(initialPhase);
+  const { mockId, attemptId, phase: initialPhase, blocked } = props;
+  // The section being SHOWN. It moves on without a navigation once a section is
+  // submitted, so it is state, not just the prop.
+  const [section, setSection] = useState<MockSection>(props.section);
+  const [phase, setPhase] = useState<Phase>(initialPhase);
+  const [video, setVideo] = useState(props.video);
+  const [videoPos, setVideoPos] = useState(props.videoPos);
+  const [minutes, setMinutes] = useState(props.minutes);
+  const [states, setStates] = useState<SectionState[]>(props.sectionStates);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const nextUp = sectionAfter(section);
+  /** The next section's descriptor, once fetched. State, not a ref: the menu renders from it. */
+  const [ready, setReady] = useState<SectionDescriptor | null>(null);
   const [paper, setPaper] = useState<PaperPayload | undefined>(props.paper);
   const [writing, setWriting] = useState<WritingPayload | undefined>(props.writing);
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const wasPlaying = useRef(false);
   const flushRef = useRef<(() => void) | null>(null);
-  const router = useRouter();
   const [leaveAsked, setLeaveAsked] = useState(false);
 
   // Last-moment save whenever the page goes away (reload, close, Leave).
@@ -104,10 +138,76 @@ export function SectionFlow(props: SectionFlowProps) {
     window.location.assign(`/mock/${mockId}`);
   }, [mockId]);
 
-  // Next section: a client navigation, so fullscreen (on the document) carries over.
+  /**
+   * Fetch the next section's descriptor and start downloading its instruction
+   * video, while the student is looking at the menu.
+   *
+   * The video is warmed with a bare detached element, NOT by mounting
+   * InstructionVideo out of sight: that component autoplays and posts progress,
+   * which would start the server's video stopwatch before the student has seen
+   * a frame. This one only fills the browser cache; the real element later hits
+   * the same immutable URL.
+   */
+  const prepareNext = useCallback(async (target: MockSection) => {
+    setMenuLoading(true);
+    setMenuError(null);
+    try {
+      const d = await nextSectionDescriptor(mockId, target);
+      if (!d.ok) {
+        setMenuError(d.error);
+        return;
+      }
+      setReady(d);
+      if (d.video) {
+        const warm = document.createElement("video");
+        warm.preload = "auto";
+        warm.muted = true;
+        warm.src = d.video.url;
+        // Never appended to the document: it must not play, only cache.
+        warm.load();
+      }
+    } catch {
+      setMenuError("We couldn't reach the server. Your work is saved — check your connection.");
+    } finally {
+      setMenuLoading(false);
+    }
+  }, [mockId]);
+
+  /** A section was SUBMITTED (server-confirmed): show the menu, prepare the next. */
+  const onSubmitted = useCallback(() => {
+    const target = sectionAfter(section);
+    setStates((prev) => prev.map((s) => (s.section === section ? { ...s, done: true, current: false } : s)));
+    mediaRef.current = null;
+    flushRef.current = null;
+    setPhase("menu");
+    if (target) void prepareNext(target);
+  }, [prepareNext, section]);
+
+  /** "Continue to <next>": swap sections in place — no page render, no reload recorded. */
   const goNext = useCallback(() => {
-    router.push(props.nextHref);
-  }, [props.nextHref, router]);
+    const target = sectionAfter(section);
+    const d = ready;
+    if (!target || !d || !d.ok) return;
+    setReady(null);
+    setPaper(undefined);
+    setWriting(undefined);
+    setSection(target);
+    setVideo(d.video);
+    setVideoPos(d.videoPos);
+    setMinutes(d.minutes);
+    setStates((prev) => prev.map((s) => ({ ...s, current: s.section === target })));
+    setPhase(d.phase === "active" ? "ready" : d.phase);
+    // Keep the address bar honest: a reload must land on the section the student
+    // is actually in, or the server would account for the wrong one.
+    window.history.replaceState({ mockExamGuard: true }, "", `/mock/${mockId}/${target}`);
+  }, [mockId, ready, section]);
+
+  /** After Writing: the sitting is over. Leave fullscreen deliberately. */
+  const finish = useCallback(async () => {
+    flushRef.current?.();
+    await leaveExamFullscreen();
+    window.location.assign(`/mock/${mockId}`);
+  }, [mockId]);
 
   const onAway = useCallback(() => {
     const m = mediaRef.current;
@@ -121,15 +221,15 @@ export function SectionFlow(props: SectionFlowProps) {
 
   const label = LABEL[section];
   const readyText =
-    phase === "active"
+    phase === "active" || phase === "menu"
       ? undefined
       : phase === "video"
         ? {
             title: `${label} — instructions`,
-            body: props.videoPos > 1
+            body: videoPos > 1
               ? "Enter fullscreen to continue the instruction video from where you stopped. Your section clock has not started."
               : "Watch the short instruction video in fullscreen, or skip it. The section clock starts only when you click Start after it.",
-            button: props.videoPos > 1 ? "Enter fullscreen & continue" : "Enter fullscreen & watch",
+            button: videoPos > 1 ? "Enter fullscreen & continue" : "Enter fullscreen & watch",
           }
         : {
             title: `Start ${label}`,
@@ -151,13 +251,25 @@ export function SectionFlow(props: SectionFlowProps) {
         readyText={readyText}
         className="h-full"
       >
+        {phase === "menu" && (
+          <SectionMenu
+            mockTitle={props.mockTitle}
+            states={states}
+            nextSection={nextUp}
+            onContinue={goNext}
+            onFinish={() => void finish()}
+            loading={menuLoading || (!!nextUp && !ready)}
+            error={menuError}
+            onRetry={() => nextUp && void prepareNext(nextUp)}
+          />
+        )}
         {phase === "video" && video && (
           <InstructionVideo
             mockId={mockId}
             section={section}
             video={video}
-            startPos={props.videoPos}
-            minutes={props.minutes}
+            startPos={videoPos}
+            minutes={minutes}
             blocked={blocked}
             mediaRef={mediaRef}
             onDone={() => {
@@ -171,7 +283,7 @@ export function SectionFlow(props: SectionFlowProps) {
             mockId={mockId}
             section={section}
             mockTitle={props.mockTitle}
-            minutes={props.minutes}
+            minutes={minutes}
             blocked={blocked}
             onStarted={(p) => {
               if (p.kind === "paper") setPaper(p.payload);
@@ -187,16 +299,17 @@ export function SectionFlow(props: SectionFlowProps) {
             section={section}
             testId={paper.testId}
             title={paper.title}
-            nextLabel={props.nextLabel}
             deadline={paper.deadline}
             draft={paper.draft}
             audioPos={paper.audioPos}
             mediaRef={mediaRef}
             flushRef={flushRef}
-            onNext={goNext}
+            onSubmitted={onSubmitted}
           />
         )}
         {phase === "active" && section === "writing" && writing && (
+          /* Writing is last and owns its own ending (the PDF copy, and a Back
+             that leaves fullscreen on purpose), so it does not hand back here. */
           <WritingSection mockId={mockId} studentName={props.studentName} {...writing} flushRef={flushRef} />
         )}
       </ExamGuard>
@@ -421,8 +534,12 @@ function InstructionVideo({
                     <Play className="h-5 w-5" /> Play the instructions
                   </Button>
                 ) : (
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-sm text-white">
-                    <Loader2 className="h-4 w-4 animate-spin" /> {checking ? "One moment…" : "Loading…"}
+                  <span className="inline-flex max-w-sm flex-col items-center gap-1 rounded-lg bg-black/60 px-4 py-3 text-center text-sm text-white">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {checking ? "One moment…" : `Loading the ${LABEL[section]} instructions…`}
+                    </span>
+                    {!checking && <span className="text-xs opacity-80">Your timer has not started. You can skip.</span>}
                   </span>
                 )}
               </div>

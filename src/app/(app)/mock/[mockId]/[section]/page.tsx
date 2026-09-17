@@ -12,7 +12,7 @@ import {
   startWriting,
   writingDeadline,
 } from "@/lib/mock";
-import { nextSection } from "@/lib/mock-shared";
+import { SECTION_ORDER, nextSection, type MockSection } from "@/lib/mock-shared";
 import { SectionFlow } from "@/components/mock/section-flow";
 
 export const metadata = { title: "Mock exam" };
@@ -57,6 +57,18 @@ export default async function MockSectionPage({
 
   const nextHref = section === "listening" ? `/mock/${mockId}/reading` : section === "reading" ? `/mock/${mockId}/writing` : `/mock/${mockId}`;
   const nextLabel = section === "listening" ? "Continue to Reading" : "Continue to Writing";
+  // The whole sitting's shape, for the between-sections menu. Server-derived —
+  // the client is never asked what it has already submitted.
+  const submittedAt: Record<MockSection, string | null> = {
+    listening: attempt.listening_submitted_at,
+    reading: attempt.reading_submitted_at,
+    writing: attempt.writing_submitted_at,
+  };
+  const sectionStates = SECTION_ORDER.map((s) => ({
+    section: s,
+    done: !!submittedAt[s],
+    current: s === section,
+  }));
   const common = {
     mockId,
     attemptId: attempt.id,
@@ -69,6 +81,7 @@ export default async function MockSectionPage({
     blocked: view.blocked,
     nextHref,
     nextLabel,
+    sectionStates,
   } as const;
 
   if (view.phase !== "active") {
