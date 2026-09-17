@@ -259,8 +259,13 @@ async function main() {
     return;
   }
 
-  // One upsert per batch on the hash. `published` is only ever set upward here:
-  // a re-run without --publish leaves the owner's decision alone.
+  // One upsert per batch on the hash.
+  //
+  // `published` is sent on EVERY row, always. A batch upsert where some rows
+  // omit the column inserts NULL into it for the others — PostgREST builds one
+  // statement from the union of the keys — and the run dies on the NOT NULL.
+  // So a re-run carries the row's CURRENT value forward, which is what "the
+  // owner's publish decisions are theirs" actually means.
   const now = new Date().toISOString();
   let done = 0;
   for (let i = 0; i < chosen.length; i += 200) {
@@ -270,7 +275,7 @@ async function main() {
       source_hash: r.source_hash,
       appearances: r.appearances,
       updated_at: now,
-      ...(publish ? { published: true } : existing.has(r.source_hash) ? {} : { published: false }),
+      published: publish ? true : (existing.get(r.source_hash)?.published ?? false),
     }));
     const { error } = await supabase
       .from("writing_practice")
