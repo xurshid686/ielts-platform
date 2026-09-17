@@ -62,6 +62,50 @@
     radial-gradient(55rem 40rem at -10% 5%, rgba(154, 171, 130, 0.05), transparent 60%);
 }
 
+/* ----------------------------------------------------------------------------
+   Writing Task 2 practice — one accent per topic (src/lib/writing-practice-topics.ts).
+   Muted and warm enough to sit in this palette; light values read on cream,
+   dark values on espresso. The chip mixes them with `color-mix`, so each topic
+   is defined once here and nowhere else.
+---------------------------------------------------------------------------- */
+:root {
+  --t-education: #a9671f;
+  --t-environment: #4f7a3f;
+  --t-health: #b5473f;
+  --t-technology: #3f6f72;
+  --t-work: #8a5a33;
+  --t-family: #94466b;
+  --t-media: #c0572e;
+  --t-crime: #7d3a3a;
+  --t-government: #55606e;
+  --t-society: #8a7620;
+  --t-culture: #6d5091;
+  --t-economy: #9a7b22;
+  --t-travel: #2f7a63;
+  --t-transport: #4a5a8a;
+  --t-global: #2c6a86;
+  --t-unknown: #8a7d70;
+}
+
+.dark {
+  --t-education: #e3a95c;
+  --t-environment: #8fbb72;
+  --t-health: #e88b80;
+  --t-technology: #79b6b8;
+  --t-work: #cf9a68;
+  --t-family: #d98fb4;
+  --t-media: #e89a72;
+  --t-crime: #c98080;
+  --t-government: #9aa7b6;
+  --t-society: #d4c05c;
+  --t-culture: #b39ad6;
+  --t-economy: #d9b95e;
+  --t-travel: #79c3a8;
+  --t-transport: #96a6d6;
+  --t-global: #74b4cf;
+  --t-unknown: #a89a8b;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

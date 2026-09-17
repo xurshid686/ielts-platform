@@ -8,6 +8,7 @@ import { leaveExamFullscreen, useExamReport } from "@/components/mock/exam-guard
 import { ExamClock, ExamTopBar } from "@/components/mock/exam-top-bar";
 import { beaconDraft } from "@/components/mock/mock-runner";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
+import { WritingWorkspace } from "@/components/writing/writing-workspace";
 import { Button } from "@/components/ui/button";
 import { spendLine, wordsLine } from "@/lib/ielts/writing-prompt";
 import {
@@ -63,7 +64,6 @@ export function WritingSection(props: WritingProps) {
 type Done = null | "normal" | "violations";
 
 // Inspera tokens (see the reading/listening players).
-const INK = "#535353";
 const TEAL = "#2a6c96";
 
 function WritingBody({
@@ -95,10 +95,6 @@ function WritingBody({
   const [notice, setNotice] = useState<number | null>(
     !autoSubmitted && initialViolations > 0 ? initialViolations : null,
   );
-  const [leftPct, setLeftPct] = useState(50);
-  const [dragging, setDragging] = useState(false);
-  const splitRef = useRef<HTMLDivElement>(null);
-  const areaRef = useRef<HTMLTextAreaElement>(null);
 
   // Latest text for the timers, without re-arming them on every keystroke.
   const latest = useRef({ task1, task2 });
@@ -239,18 +235,6 @@ function WritingBody({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [send]);
 
-  // ---- divider -------------------------------------------------------------
-  function onDividerDown(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDragging(true);
-  }
-  function onDividerMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!dragging || !splitRef.current) return;
-    const r = splitRef.current.getBoundingClientRect();
-    setLeftPct(Math.min(75, Math.max(25, ((e.clientX - r.left) / r.width) * 100)));
-  }
-
   if (done) {
     return (
       <DoneScreen
@@ -299,51 +283,24 @@ function WritingBody({
         <p className="shrink-0 border-b border-danger/30 bg-danger/5 px-6 py-2 text-sm text-danger">{error}</p>
       )}
 
-      <div ref={splitRef} className="relative flex min-h-0 flex-1" style={{ cursor: dragging ? "col-resize" : undefined }}>
-        <section className="min-w-0 overflow-y-auto px-6 py-5" style={{ width: `${leftPct}%` }} aria-label={`Writing Task ${tab}`}>
-          <WritingPrompt task={tab} raw={tab === 1 ? task1Prompt : task2Prompt} imageUrl={tab === 1 ? task1ImageUrl : null} />
-        </section>
-
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize panels"
-          onPointerDown={onDividerDown}
-          onPointerMove={onDividerMove}
-          onPointerUp={() => setDragging(false)}
-          onPointerCancel={() => setDragging(false)}
-          className="relative w-2 shrink-0 cursor-col-resize bg-black/10 touch-none"
-        >
-          <div
-            className="absolute top-1/2 left-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[3px] bg-[#f9f9f9] text-sm select-none hover:bg-[#e1e1e1]"
-            style={{ border: `2px solid ${dragging ? TEAL : INK}`, color: dragging ? TEAL : INK }}
-            aria-hidden
-          >
-            ↔
-          </div>
-        </div>
-
-        <section className="flex min-w-0 flex-1 flex-col px-6 py-5">
-          <textarea
-            ref={areaRef}
-            key={tab}
-            value={tab === 1 ? task1 : task2}
-            onChange={(e) => (tab === 1 ? setTask1(e.target.value) : setTask2(e.target.value))}
-            disabled={timeUp}
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            aria-label={`Your answer to Task ${tab}`}
-            onPaste={(e) => onPasted(countWords(e.clipboardData.getData("text")))}
-            onDrop={(e) => onPasted(countWords(e.dataTransfer.getData("text")))}
-            className="min-h-0 w-full flex-1 resize-none rounded-[3px] bg-white p-3 text-[16px] leading-relaxed text-black outline-none focus:shadow-[0_0_0_2px_rgba(42,108,150,0.35)]"
-            style={{ border: `0.8px solid ${INK}` }}
+      <WritingWorkspace
+        promptLabel={`Writing Task ${tab}`}
+        prompt={
+          <WritingPrompt
+            task={tab}
+            raw={tab === 1 ? task1Prompt : task2Prompt}
+            imageUrl={tab === 1 ? task1ImageUrl : null}
           />
-          <p className={`mt-2 text-right text-sm tabular-nums ${words < min ? "text-[#b3261e]" : "text-[#535353]"}`}>
-            Words: {words}
-          </p>
-        </section>
-      </div>
+        }
+        value={tab === 1 ? task1 : task2}
+        onChange={(next) => (tab === 1 ? setTask1(next) : setTask2(next))}
+        words={words}
+        minWords={min}
+        disabled={timeUp}
+        answerLabel={`Your answer to Task ${tab}`}
+        answerKey={tab}
+        onPasteText={(text) => onPasted(countWords(text))}
+      />
 
       {/* Part footer */}
       <nav className="flex h-14 shrink-0 bg-white shadow-[0_0_45px_rgba(0,0,0,0.15)]" aria-label="Parts">

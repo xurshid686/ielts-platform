@@ -90,6 +90,7 @@ export function navItemsFor(
         { href: "/admin", label: "Overview" },
         { href: "/admin/mocks", label: "Mock exams" },
         { href: "/admin/discipline", label: "Discipline" },
+        { href: "/admin/writing-practice", label: "Writing practice" },
         { href: "/admin/tests", label: "Tests" },
         { href: "/admin/members", label: "Members & premium" },
         ...(profile.is_owner ? [{ href: "/admin/team", label: "Admins" }] : []),

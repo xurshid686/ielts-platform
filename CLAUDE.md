@@ -1505,6 +1505,116 @@ NOT built — a sitting is tens of emails.
   without Resend. The spy grew `POST /__fail` and `/__ok` toggles so one run
   exercises a refusal and the retry.
 
+# Writing Task 2 practice (migration 0057)
+
+A library of real IELTS Writing Task 2 questions — the @CDI_Report corpus, 606
+unique questions in 15 topics — that any signed-in student sits on their own.
+Built 2026-09-17. `/writing` stopped being a `ComingSoon` stub and became this.
+
+**It looks like the mock's Writing screen and behaves nothing like it.** That is
+the whole design, and every difference below is deliberate:
+
+| | Mock Writing (v3) | Task 2 practice |
+| --- | --- | --- |
+| Clock | server-enforced, hands the writing in at the deadline | **advisory**: counts down, clamps at 00:00, and NOTHING keys off it |
+| Fullscreen / device gate | ExamGuard, laptops only | none — it works on a phone |
+| Violations | away >= 5 s, paste > 10 words, reload; 3 = auto-submit | none. Leaving, pasting and reloading are all fine |
+| Access | request -> approve -> session window -> one sitting | any signed-in student, any number of times |
+| Result | band, release, email | none. A PDF and a history row |
+
+**Do not "unify" the two players.** The one thing they share is
+`components/writing/writing-workspace.tsx`, which is PRESENTATION ONLY: the
+split pane, the 25-75 % drag divider, the textarea and the word count, lifted
+verbatim out of writing-exam.tsx. No clock, no persistence, no guard, no submit
+lives in it. A `mode: "mock" | "practice"` prop was considered and rejected —
+it would make every exam rule conditional in a live, revenue-relevant screen.
+
+- **The easiest mistake here is copying the mock's `timeUp` branch.** In the
+  mock, time up disables the textarea, disables Submit and calls `send(true)`.
+  In practice there is no such branch at all: with `started_at` an hour in the
+  past the box still takes text and Submit still works.
+- **Nothing reuses `saveMockWriting`, `beaconDraft`, `/api/mock-draft` or
+  `/api/mock-events`.** Reusing any of them drags admission rules, a
+  server-enforced deadline or the violation counters back in.
+- **The chrome could not be reused as-is** either: `ExamTopBar` hardcodes
+  "Mock", `ExamClock` says "Official time", and the mock's `DoneScreen`
+  promises marking and an emailed result. Practice has its own.
+
+## Data and access
+
+`writing_practice` (question) and `writing_practice_attempts` (one sitting).
+**RLS on, zero policies, zero grants for anon/authenticated** — the mock tables'
+stance (0050) — so `src/lib/writing-practice.ts` is the only door.
+
+**Unlike `src/lib/mock.ts`, that module authorises ITSELF.** mock.ts is
+authorisation-free by contract because the Telegram bot calls it with the
+owner's id already checked; nothing here has a second caller like that, and the
+service role bypasses RLS, so the ownership checks in each function ARE the
+security boundary. Every attempt query carries `user_id` in its WHERE clause,
+taken from `requireProfile()`. Do not add a function that trusts an attempt id
+on its own.
+
+- **The attempt SNAPSHOTS `prompt` and `topic`.** Editing or hiding a question
+  must never rewrite what a student was actually asked; the read-only page and
+  the PDF both render the snapshot.
+- **`word_count` is counted on the server** (`countWords`), never sent by the
+  browser. Same rule as every other number the platform records.
+- **`revision` is compare-and-set.** A background tab holding older text gets a
+  conflict message instead of overwriting newer work. No BroadcastChannel block
+  — a message is enough for practice.
+- **Submitting is atomic** (text + count + `submitted_at` in one UPDATE) and a
+  draft write afterwards is refused.
+- **A question is unpublished, never deleted.** `practice_id` is
+  `on delete restrict`, so deleting one would mean deleting somebody's essay.
+- **Topics are a TS constant** (`src/lib/writing-practice-topics.ts`), not a
+  table or an enum: a fixed list of 15, pinned in the DB by a CHECK constraint.
+  Their colours are CSS variables in globals.css with a light and a dark value —
+  an inline hex cannot follow the theme — and a chip ALWAYS shows the topic's
+  name, so colour is never the only signal.
+
+## Importing the corpus
+
+`scripts/import-writing-practice.mjs`, reading
+`C:\Users\user\telegram-channel-map\wt2_topics.json`. The migration carries
+schema only: the corpus grows weekly and data inlined in a migration cannot be
+re-run.
+
+```
+node scripts/import-writing-practice.mjs --dry-run
+node scripts/import-writing-practice.mjs --only=1 --publish   # rank 1 = most reported
+node scripts/import-writing-practice.mjs                      # all of them, unpublished
+node scripts/import-writing-practice.mjs --publish-all
+node scripts/unpublish-practice.mjs <hash-prefix>
+```
+
+- **Identity is `source_hash`** — sha256 of the NFC-normalised,
+  whitespace-collapsed prompt. Case, punctuation and wording preserved; topic
+  and counts excluded. A re-run updates `appearances` and `topic` and KEEPS
+  `published`. Collisions are reported, never merged. **Editing the wording
+  changes the hash**, so a correction imports as a new row and the old one must
+  be hidden by hand — deliberate, not a bug.
+- **Only two corpus artefacts are cleaned**: a trailing channel tag (`#CDI`) and
+  invisible bidi/zero-width marks. Spelling, grammar and wording are imported
+  exactly as reported — that is what a student is actually asked.
+- `in.(...)` goes in the PostgREST URL: 500 sha256s overflowed it and came back
+  as a bare "Bad Request". The existence lookup batches **50**.
+- `--only=<n>` is a RANK; a hash needs >= 6 hex characters. `--only=1` used to
+  match the first sha256 starting with "1".
+- **Pre-flight**: every prompt is run past the app's own boilerplate stripper and
+  a copy of its question-sentence test, and anything suspicious is printed. Of
+  606, the real `parseTask2()` leaves **5** without a separate question line
+  (they still render — the whole text lands in the bold box). **The shared
+  parser is NOT adjusted to fit them**: it is load-bearing for the live mock.
+
+## Running a migration on this machine
+
+`scripts/apply-migration.mjs <file>` — the `pg`-driver-on-the-pooler recipe every
+migration since 0040 has used, now written down instead of retyped. One
+transaction, and `loadEnv()` prints the target first.
+`scripts/check-0057.mjs` is the companion check, and it verifies the thing that
+matters: an **anon key is refused** on both tables, and the topic CHECK fires.
+Verify a schema change with the anon key, not by loading a page.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**
