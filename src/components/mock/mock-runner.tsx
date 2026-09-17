@@ -19,8 +19,14 @@ function parseAnswers(value: unknown): Answers {
 }
 
 const SNAPSHOT_MS = 15_000;
-/** How long to wait for the paper's READY before driving it anyway. */
+/** How long to wait for the paper to report a WORKING boot before retrying it. */
 const READY_TIMEOUT_MS = 15_000;
+/** A time-up submit has nobody to press the button again, so it retries itself. */
+const SUBMIT_RETRIES = 5;
+const SUBMIT_BACKOFF_MS = 2_000;
+/** Automatic reloads of a paper that failed to load, before we ask the student. */
+const MAX_PAPER_RETRIES = 3;
+const PAPER_BACKOFF_MS = 1_500;
 
 export type PaperSectionProps = {
   mockId: string;
@@ -94,6 +100,15 @@ export function PaperSection({
   // the server draft with a blank page. Nothing to restore = safe from the start.
   const restoreDone = useRef(Object.keys(draft).length === 0);
   const activated = useRef(false);
+  /** The newest answers the parent has seen — survives a reload of the paper. */
+  const liveAnswers = useRef<Answers>(draft);
+  const paperRetries = useRef(0);
+  /** When the paper first failed, so the outage can be reported with a duration. */
+  const outageAt = useRef<number | null>(null);
+  const [frameKey, setFrameKey] = useState(0);
+  const [paperFailed, setPaperFailed] = useState(false);
+  /** Render-visible mirror of `paperRetries` (a ref cannot be read during render). */
+  const [retrying, setRetrying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -112,32 +127,68 @@ export function PaperSection({
     }
   }, []);
 
+  /**
+   * Hand the section in.
+   *
+   * `handled` is set BEFORE the await so a double click cannot submit twice —
+   * which means every exit path has to put it back, including a THROW. It used
+   * not to: a server action that rejected (a 503 from the host does exactly
+   * that) left `handled` true and `saving` true for good, so the student could
+   * never submit again and neither could the time-up path. The draft was still
+   * graded by the expiry sweep, but the student sat in front of a dead spinner.
+   *
+   * An `auto` submit has no human to press the button again, so it retries.
+   * `submitSection` refuses a second submit and grades the server draft once the
+   * clock is past, so retrying is safe.
+   */
   const submit = useCallback(
     async (answers: Answers, auto: boolean) => {
       if (handled.current) return;
       handled.current = true;
       setSaving(true);
       setError(null);
-      const res = await submitMockSection(mockId, section, answers);
-      setSaving(false);
-      if (!res.ok) {
-        if (/already been submitted/i.test(res.error)) {
-          post({ type: "LOCK" });
-          setDone(true);
-          return;
+      const attempts = auto ? SUBMIT_RETRIES : 1;
+      try {
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const res = await submitMockSection(mockId, section, answers);
+            if (!res.ok) {
+              if (/already been submitted/i.test(res.error)) {
+                post({ type: "LOCK" });
+                setDone(true);
+                return;
+              }
+              // A refusal is the server's considered answer, not a blip: do not
+              // retry it, hand it back to the student.
+              handled.current = false;
+              finalizing.current = null;
+              setError(res.error);
+              return;
+            }
+            post({ type: "LOCK" });
+            // No router.refresh(): the section page redirects away from a submitted
+            // section, which would unmount this screen before it is read.
+            if (auto) setNotice("Time is up — your answers were handed in.");
+            setDone(true);
+            return;
+          } catch {
+            // Transport failure. Retry the automatic path; give the manual one
+            // back to the student straight away so they can press it again.
+            if (i === attempts - 1) throw new Error("transport");
+            await new Promise((r) => setTimeout(r, SUBMIT_BACKOFF_MS * (i + 1)));
+          }
         }
+      } catch {
         handled.current = false;
         finalizing.current = null;
-        setError(res.error);
-        return;
+        setError(
+          `We couldn't hand in your ${label}. Your answers are saved — check your connection and press Submit ${label} again.`,
+        );
+      } finally {
+        setSaving(false);
       }
-      post({ type: "LOCK" });
-      // No router.refresh(): the section page redirects away from a submitted
-      // section, which would unmount this screen before it is read.
-      if (auto) setNotice("Time is up — your answers were handed in.");
-      setDone(true);
     },
-    [mockId, section, post],
+    [mockId, section, post, label],
   );
 
   const activate = useCallback(() => {
@@ -145,6 +196,79 @@ export function PaperSection({
     activated.current = true;
     if (section === "listening") post({ type: "ACTIVATE" });
   }, [post, section]);
+
+  /**
+   * Is OUR adapted paper the document currently in the frame?
+   *
+   * The frame is same-origin, so this inspects the real document rather than
+   * guessing. A `fetch` probe cannot answer this: it is a different request
+   * that may land on a different instance, so a 200 there says nothing about
+   * what is already on screen. `__IELTS_MOCK_HARVEST__` is installed near the
+   * top of the adapter, so by `load` it is there iff our paper booted.
+   */
+  const adapterPresent = useCallback(() => {
+    try {
+      const w = iframeRef.current?.contentWindow as (Window & { __IELTS_MOCK_HARVEST__?: unknown }) | null;
+      return typeof w?.__IELTS_MOCK_HARVEST__ === "function";
+    } catch {
+      return false;
+    }
+  }, []);
+
+  /** Put the paper back the way the student left it, then let it run. */
+  const restoreAndActivate = useCallback(() => {
+    // The LATEST answers, not the `draft` prop — after a reload mid-section the
+    // prop is stale and restoring it would throw away everything since.
+    const answers = liveAnswers.current;
+    if (Object.keys(answers).length) post({ type: "RESTORE", answers });
+    else activate();
+  }, [activate, post]);
+
+  /**
+   * The document in the frame is not a working paper (the host served an error
+   * page, or the adapter failed to boot). Reload it.
+   *
+   * A working paper is NEVER reloaded. After MAX_PAPER_RETRIES we stop and fall
+   * back to the old behaviour — drive whatever is there — rather than stranding
+   * the student, and offer them a manual retry.
+   */
+  const retryPaper = useCallback(() => {
+    if (handled.current || done) return;
+    if (outageAt.current == null) outageAt.current = Date.now();
+    if (paperRetries.current >= MAX_PAPER_RETRIES) {
+      setPaperFailed(true);
+      if (adapterPresent()) {
+        readySeen.current = true;
+        setLoading(false);
+        restoreAndActivate();
+        window.setTimeout(() => {
+          restoreDone.current = true;
+        }, 8000);
+      }
+      return;
+    }
+    paperRetries.current += 1;
+    setRetrying(true);
+    readySeen.current = false;
+    activated.current = false;
+    setLoading(true);
+    window.setTimeout(
+      () => setFrameKey((k) => k + 1),
+      PAPER_BACKOFF_MS * paperRetries.current,
+    );
+  }, [adapterPresent, done, restoreAndActivate]);
+
+  /** A working paper arrived. Close off any outage we were in the middle of. */
+  const paperIsUp = useCallback(() => {
+    setPaperFailed(false);
+    setRetrying(false);
+    paperRetries.current = 0;
+    if (outageAt.current != null) {
+      const ms = Date.now() - outageAt.current;
+      outageAt.current = null;
+      if (ms > 1500) report({ type: "paper_unavailable", ms });
+    }
+  }, [report]);
 
   // Messages from the adapter inside the paper.
   useEffect(() => {
@@ -157,9 +281,17 @@ export function PaperSection({
       if (d.type === "READY") {
         if (readySeen.current) return;
         readySeen.current = true;
+        paperIsUp();
         setLoading(false);
-        if (Object.keys(draft).length) post({ type: "RESTORE", answers: draft });
-        else activate();
+        // NOTE: `payload.started` is deliberately NOT used to trigger a reload.
+        // The adapter gives up waiting after ~6 s and sends READY with
+        // started:false even for papers that are in fact fine, so reloading on
+        // it would burn exam time on a working paper. A 503 produces no READY
+        // at all, which is what the timeout and the onLoad check catch.
+        restoreAndActivate();
+      } else if (d.type === "ADAPTER_ERROR") {
+        // The adapter itself failed inside a document that did load.
+        if (!readySeen.current) retryPaper();
       } else if (d.type === "RESTORED") {
         restoreDone.current = true;
         const missing = Array.isArray(payload.missing) ? (payload.missing as number[]) : [];
@@ -173,6 +305,7 @@ export function PaperSection({
         void submit(parseAnswers(payload.answers), false);
       } else if (d.type === "SNAPSHOT") {
         const answers = parseAnswers(payload.answers);
+        if (Object.keys(answers).length) liveAnswers.current = answers;
         if (finalizing.current) void submit(answers, finalizing.current === "auto");
         else if (!handled.current && restoreDone.current) void saveMockSectionDraft(mockId, section, answers, section === "listening" ? maxPos.current : null);
       } else if (d.type === "REQUEST_SUBMIT") {
@@ -193,23 +326,33 @@ export function PaperSection({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [activate, draft, mockId, post, section, submit]);
+  }, [activate, mockId, paperIsUp, post, restoreAndActivate, retryPaper, section, submit]);
 
-  // A paper that never says READY is still driven, so a student is never stuck.
+  /**
+   * Nothing from the paper in time. Two very different causes:
+   *
+   *  - our adapter IS in the frame but stayed quiet — drive it anyway, exactly
+   *    as before, so a merely undertalkative paper is never made unusable;
+   *  - our adapter is NOT there, so the frame holds something else (the host's
+   *    503 page). Reload it.
+   */
   useEffect(() => {
     const t = setTimeout(() => {
       if (readySeen.current) return;
+      if (!adapterPresent()) {
+        retryPaper();
+        return;
+      }
       readySeen.current = true;
       setLoading(false);
-      if (Object.keys(draft).length) post({ type: "RESTORE", answers: draft });
-      activate();
+      restoreAndActivate();
       // No RESTORED either: stop holding autosave back after a further grace.
       setTimeout(() => {
         restoreDone.current = true;
       }, 8000);
     }, READY_TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [activate, draft, post]);
+  }, [adapterPresent, restoreAndActivate, retryPaper, frameKey]);
 
   // Autosave.
   useEffect(() => {
@@ -274,6 +417,13 @@ export function PaperSection({
 
   // Guard the recording once the paper has loaded.
   const onLoad = useCallback(() => {
+    // The frame finished loading SOMETHING. If it is not our paper, it is an
+    // error page from the host — catch it now rather than after the 15 s
+    // readiness timeout, so recovery takes seconds instead of a lost section.
+    if (!adapterPresent()) {
+      retryPaper();
+      return;
+    }
     if (section !== "listening") return;
     let tries = 0;
     let lastSeekReport = 0;
@@ -311,7 +461,7 @@ export function PaperSection({
         }
       });
     }, 1000);
-  }, [mediaRef, report, section]);
+  }, [adapterPresent, mediaRef, report, retryPaper, section]);
 
   const remaining = Math.max(0, deadline - now);
 
@@ -346,18 +496,53 @@ export function PaperSection({
       )}
 
       <div className="relative min-h-0 flex-1">
+        {/* `key` remounts the frame, which is the reliable way to force a fresh
+            document (and a fresh contentWindow, so stale postMessages from the
+            replaced one fail the `e.source` check). */}
         <iframe
+          key={frameKey}
           ref={iframeRef}
-          src={`/api/test-html/${testId}?mock=${attemptId}`}
+          src={`/api/test-html/${testId}?mock=${attemptId}${frameKey ? `&g=${frameKey}` : ""}`}
           title={title}
           onLoad={onLoad}
           allow="autoplay"
           className="h-full w-full bg-white"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
         />
+        {/* OPAQUE: a translucent overlay let the host's raw 503 page show through. */}
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 text-sm text-muted">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Opening the {label} paper…
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background text-sm text-muted">
+            <span className="inline-flex items-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {retrying ? `Reconnecting to the ${label} paper…` : `Opening the ${label} paper…`}
+            </span>
+            {retrying && (
+              <span className="text-xs">Your answers are safe. Your clock is still running.</span>
+            )}
+          </div>
+        )}
+        {paperFailed && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background p-6">
+            <div className="max-w-md space-y-3 rounded-2xl border border-danger/40 bg-danger/5 p-5 text-center text-sm">
+              <p className="font-medium">The {label} paper didn&apos;t load.</p>
+              <p className="text-muted">
+                This is a problem on our side, not yours, and it has been recorded for your teacher. Your answers are
+                saved — but your clock is still running, so try again now.
+              </p>
+              <Button
+                onClick={() => {
+                  paperRetries.current = 0;
+                  setPaperFailed(false);
+                  setRetrying(true);
+                  readySeen.current = false;
+                  activated.current = false;
+                  setLoading(true);
+                  setFrameKey((k) => k + 1);
+                }}
+              >
+                Reload the paper
+              </Button>
+            </div>
           </div>
         )}
       </div>

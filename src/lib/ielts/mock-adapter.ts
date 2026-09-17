@@ -196,6 +196,7 @@ ${RESTORE_ANSWERS_JS}
 
   // ---- 2. Results never render; a native submit is reported, once. --------
   var submitted = false;
+  var activated = false;
   function reportSubmit(via) {
     if (submitted) return;
     submitted = true;
@@ -415,7 +416,9 @@ ${RESTORE_ANSWERS_JS}
         var missing = restoreAnswers(d.answers || {});
         post("RESTORED", { missing: missing });
       } else if (d.type === "ACTIVATE") {
-        if (isListeningPlayer) activateListening();
+        // Idempotent: the parent may re-send this after reloading a paper that
+        // failed to load, and starting the recording twice would be a disaster.
+        if (isListeningPlayer && !activated) { activated = true; activateListening(); }
       } else if (d.type === "LOCK") {
         submitted = true;
       } else if (SELFTEST && d.type === "SELFTEST_FILL") {

@@ -222,6 +222,40 @@ describe("integrity", () => {
     expect(integrityVerdict(i).level).toBe("clear");
   });
 
+  it("records a platform outage without blaming the student", () => {
+    const clean = applyIntegrityEvents(emptyIntegrity(), [{ type: "device", section: "listening", ua: "x" }], now);
+    const i = applyIntegrityEvents(clean, [{ type: "paper_unavailable", section: "listening", ms: 82_000 }], now);
+    expect(i.events.at(-1)).toMatchObject({ type: "paper_unavailable", section: "listening", ms: 82_000 });
+    // Evidence about the platform: no misconduct counter moves, verdict stays clear.
+    expect(i.counters).toEqual(clean.counters);
+    expect(integrityVerdict(i).level).toBe("clear");
+  });
+
+  it("forgives away time that coincided with the paper being down", () => {
+    const base = applyIntegrityEvents(emptyIntegrity(), [{ type: "device", section: "listening", ua: "x" }], now);
+    // 82 s away — on its own that is over the 60 s "review" line.
+    const away = applyIntegrityEvents(base, [{ type: "away", section: "listening", ms: 82_000, kind: "fullscreen" }], now);
+    expect(integrityVerdict(away).level).toBe("review");
+
+    // The same 82 s, recorded at the same moment as an outage of the same length.
+    const excused = applyIntegrityEvents(away, [{ type: "paper_unavailable", section: "listening", ms: 82_000 }], now);
+    const v = integrityVerdict(excused);
+    expect(v.level).toBe("clear");
+    expect(v.notes?.[0]).toMatch(/coincided with the paper failing to load/);
+    // History is NOT rewritten: the away event and its counters are still there.
+    expect(excused.counters.away_ms).toBe(82_000);
+    expect(excused.events.some((e) => e.type === "away")).toBe(true);
+  });
+
+  it("does not forgive away time from a different moment", () => {
+    const base = applyIntegrityEvents(emptyIntegrity(), [{ type: "device", section: "listening", ua: "x" }], now);
+    const away = applyIntegrityEvents(base, [{ type: "away", section: "listening", ms: 82_000, kind: "fullscreen" }], now);
+    // An outage an hour later cannot excuse it.
+    const later = new Date(Date.parse(now) + 60 * 60_000).toISOString();
+    const other = applyIntegrityEvents(away, [{ type: "paper_unavailable", section: "listening", ms: 5_000 }], later);
+    expect(integrityVerdict(other).level).toBe("review");
+  });
+
   it("survives malformed stored data", () => {
     expect(asIntegrity("nope").counters.away).toBe(0);
     expect(asIntegrity({ counters: { away: "7", reloads: -3 } }).counters).toMatchObject({ away: 7, reloads: 0 });

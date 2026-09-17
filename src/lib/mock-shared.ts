@@ -261,7 +261,8 @@ export type IntegrityEventType =
   | "timeout"
   | "violation"
   | "auto_submit"
-  | "video_skip";
+  | "video_skip"
+  | "paper_unavailable";
 
 /** Writing v3: three violations hand the writing in automatically (Writing only). */
 export const WRITING_MAX_VIOLATIONS = 3;
@@ -402,6 +403,15 @@ export function applyIntegrityEvents(current: Integrity, raw: unknown[], now: st
         c.seek_back++;
         ev = { t: now, type: "seek_back", section };
         break;
+      // The PLATFORM failed, not the student: the paper would not load and the
+      // runner had to reload it. It moves no misconduct counter — it exists so
+      // the teacher can see the gap, and so integrityVerdict can forgive an
+      // `away` that merely coincided with it.
+      case "paper_unavailable": {
+        const ms = clampInt(e.ms, 3 * 60 * 60 * 1000);
+        ev = { t: now, type: "paper_unavailable", section, ms };
+        break;
+      }
       default:
         break;
     }
@@ -468,7 +478,12 @@ export function recordTimeout(current: Integrity, section: MockSection, now: str
   return next;
 }
 
-export type IntegrityVerdict = { level: "clear" | "review" | "incomplete"; reasons: string[] };
+export type IntegrityVerdict = {
+  level: "clear" | "review" | "incomplete";
+  reasons: string[];
+  /** Context that is NOT misconduct and never drives the level (e.g. a platform outage). */
+  notes?: string[];
+};
 
 export type SectionTiming = {
   section: MockSection;
@@ -482,13 +497,59 @@ export type SectionTiming = {
  * "Incomplete" means monitoring did not run (no device report) — e.g. an attempt
  * from before 0052, or scripts blocked — so the absence of flags proves nothing.
  */
+/** An event that carries a duration covers [t - ms, t]. */
+function windowOf(e: IntegrityEvent): [number, number] | null {
+  const end = Date.parse(e.t);
+  if (!Number.isFinite(end)) return null;
+  const ms = typeof e.ms === "number" && e.ms > 0 ? e.ms : 0;
+  return [end - ms, end];
+}
+
+/**
+ * The two events are recorded by different paths (the guard's queue vs the
+ * runner), so their clocks can disagree by a few seconds. Overlap is judged
+ * with this much slack.
+ */
+const OVERLAP_SLACK_MS = 5_000;
+
+/**
+ * Away time that coincided with the paper being unavailable.
+ *
+ * A 503 does not prove WHY fullscreen ended, so the stored `away` event is left
+ * exactly as recorded — history is not rewritten. What changes is the
+ * JUDGEMENT: time the student spent staring at a paper the platform could not
+ * serve them must not be counted as them wandering off.
+ */
+export function excusedAwayByOutage(integrity: Integrity): { ms: number; long: number } {
+  const outages = integrity.events.filter((e) => e.type === "paper_unavailable").map(windowOf).filter(Boolean) as [number, number][];
+  if (!outages.length) return { ms: 0, long: 0 };
+  let ms = 0;
+  let long = 0;
+  for (const e of integrity.events) {
+    if (e.type !== "away") continue;
+    const w = windowOf(e);
+    if (!w) continue;
+    const hit = outages.some(([s, en]) => w[0] - OVERLAP_SLACK_MS <= en && s <= w[1] + OVERLAP_SLACK_MS);
+    if (!hit) continue;
+    ms += e.ms ?? 0;
+    if ((e.ms ?? 0) >= LONG_AWAY_MS) long++;
+  }
+  return { ms, long };
+}
+
 export function integrityVerdict(integrity: Integrity, timings: SectionTiming[] = []): IntegrityVerdict {
   const c = integrity.counters;
   const reasons: string[] = [];
+  const excused = excusedAwayByOutage(integrity);
+  const awayMs = Math.max(0, c.away_ms - excused.ms);
+  const longAway = Math.max(0, c.long_away - excused.long);
+  const notes = excused.ms
+    ? [`${Math.round(excused.ms / 1000)} s of the away time coincided with the paper failing to load (a platform fault, not the student).`]
+    : [];
   if (c.writing_auto_submitted) reasons.push(`Writing auto-submitted after ${WRITING_MAX_VIOLATIONS} violations`);
   else if (c.writing_violations > 0) reasons.push(`Writing violations: ${c.writing_violations} of ${WRITING_MAX_VIOLATIONS}`);
-  if (c.long_away >= 3) reasons.push(`Left fullscreen or the tab ${c.long_away} times`);
-  if (c.away_ms >= 60_000) reasons.push(`${Math.round(c.away_ms / 1000)} s away from the exam in total`);
+  if (longAway >= 3) reasons.push(`Left fullscreen or the tab ${longAway} times`);
+  if (awayMs >= 60_000) reasons.push(`${Math.round(awayMs / 1000)} s away from the exam in total`);
   if (c.second_tab > 0) reasons.push("Opened the exam in a second tab");
   if (c.listening_reloads > 0) reasons.push(`Reloaded during Listening (${c.listening_reloads}×)`);
   if (c.largest_paste_words >= 100) reasons.push(`Pasted ${c.largest_paste_words} words at once in Writing`);
@@ -500,9 +561,9 @@ export function integrityVerdict(integrity: Integrity, timings: SectionTiming[] 
       reasons.push(`Finished ${s.section} in ${Math.max(1, Math.round(took / 60_000))} min of ${s.minutes}`);
     }
   }
-  if (reasons.length) return { level: "review", reasons };
-  if (!integrity.device) return { level: "incomplete", reasons: ["No monitoring data was received for this attempt"] };
-  return { level: "clear", reasons: [] };
+  if (reasons.length) return { level: "review", reasons, notes };
+  if (!integrity.device) return { level: "incomplete", reasons: ["No monitoring data was received for this attempt"], notes };
+  return { level: "clear", reasons: [], notes };
 }
 
 /**

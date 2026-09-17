@@ -38,7 +38,9 @@ type ReportEvent =
   | { type: "paste"; words: number; task: 1 | 2 }
   | { type: "seek_back" }
   | { type: "second_tab" }
-  | { type: "device"; ua: string; screen: string };
+  | { type: "device"; ua: string; screen: string }
+  /** The PLATFORM failed to serve the paper — never counted against the student. */
+  | { type: "paper_unavailable"; ms: number };
 
 const ReportContext = createContext<(e: ReportEvent) => void>(() => {});
 
@@ -48,6 +50,8 @@ export function useExamReport() {
 }
 
 const FLUSH_MS = 15_000;
+/** Failed batches stay queued, so the queue needs a ceiling. */
+const MAX_QUEUE = 200;
 
 /**
  * Set while the PLATFORM ends fullscreen on purpose (mock finished, Leave), so
@@ -102,6 +106,8 @@ export function ExamGuard({
   const awaySince = useRef<number | null>(null);
   const hiddenSince = useRef<number | null>(null);
   const queue = useRef<Record<string, unknown>[]>([]);
+  /** One flush in flight at a time, or a retry could send the same batch twice. */
+  const sending = useRef(false);
   const onAwayRef = useRef(onAway);
   const onReturnRef = useRef(onReturn);
   useEffect(() => {
@@ -110,18 +116,46 @@ export function ExamGuard({
   }, [onAway, onReturn]);
 
   // ---- reporting --------------------------------------------------------
+  /**
+   * Send queued integrity events.
+   *
+   * The events used to be `splice`d off the queue BEFORE the POST, which was
+   * never checked (`void fetch`) — so exactly when the platform was failing,
+   * the evidence of it failing was thrown away. Now a batch is only dropped
+   * once the server has accepted it; a failed send goes back on the front of
+   * the queue for the next flush.
+   *
+   * The `pagehide` beacon stays fire-and-forget: nothing can be awaited there.
+   */
   const flush = useCallback(
-    (beacon = false) => {
-      if (!queue.current.length) return;
-      const body = JSON.stringify({ mockId, events: queue.current.splice(0, 50) });
-      try {
-        if (beacon && typeof navigator.sendBeacon === "function") {
-          navigator.sendBeacon("/api/mock-events", new Blob([body], { type: "application/json" }));
-        } else {
-          void fetch("/api/mock-events", { method: "POST", body, keepalive: true, headers: { "Content-Type": "application/json" } });
+    async (beacon = false) => {
+      if (!queue.current.length || sending.current) return;
+      const batch = queue.current.slice(0, 50);
+      const body = JSON.stringify({ mockId, events: batch });
+      if (beacon && typeof navigator.sendBeacon === "function") {
+        try {
+          if (navigator.sendBeacon("/api/mock-events", new Blob([body], { type: "application/json" }))) {
+            queue.current.splice(0, batch.length);
+          }
+        } catch {
+          /* reporting must never break the exam */
         }
+        return;
+      }
+      sending.current = true;
+      try {
+        const res = await fetch("/api/mock-events", {
+          method: "POST",
+          body,
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+        });
+        // Only now is it safe to forget them.
+        if (res.ok) queue.current.splice(0, batch.length);
       } catch {
-        /* reporting must never break the exam */
+        /* keep the batch queued and try again on the next flush */
+      } finally {
+        sending.current = false;
       }
     },
     [mockId],
@@ -129,20 +163,23 @@ export function ExamGuard({
 
   const report = useCallback(
     (e: ReportEvent) => {
+      // Bounded: a long outage must not grow this without limit now that failed
+      // batches stay queued. The oldest go first — the newest are the useful ones.
+      if (queue.current.length >= MAX_QUEUE) queue.current.splice(0, queue.current.length - MAX_QUEUE + 1);
       queue.current.push({ ...e, section });
-      if (queue.current.length >= 20) flush();
+      if (queue.current.length >= 20) void flush();
     },
     [flush, section],
   );
 
   useEffect(() => {
-    const t = setInterval(() => flush(), FLUSH_MS);
-    const onHide = () => flush(true);
+    const t = setInterval(() => void flush(), FLUSH_MS);
+    const onHide = () => void flush(true);
     window.addEventListener("pagehide", onHide);
     return () => {
       clearInterval(t);
       window.removeEventListener("pagehide", onHide);
-      flush(true);
+      void flush(true);
     };
   }, [flush]);
 

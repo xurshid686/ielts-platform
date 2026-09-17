@@ -1256,6 +1256,61 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
 - Overview shows "Continue · N min left" (`current_minutes_left`, computed in
   lib — `Date.now()` in a server component trips the react purity lint).
 
+### Surviving a host outage (2026-09-17)
+
+A transient DigitalOcean 503 on the paper iframe mid-Listening exposed four
+defects. The 503 itself was ~90 s of a single App Platform instance being
+unavailable; the paper is 285 KB, so nothing to do with size.
+
+- **A throw used to lock a student out of submitting FOREVER.** `submit()` in
+  mock-runner.tsx sets `handled.current = true` before the await so a double
+  click cannot submit twice — but there was no `try/catch`, so a REJECTED server
+  action (what a 503 does) never put it back, and `saving` stayed true. Every
+  later attempt, including the time-up auto-submit, returned early. Now
+  try/catch/**finally**, and the `auto` path retries (`SUBMIT_RETRIES`) because
+  it has no human to press the button again. `submitSection` refuses a second
+  submit and grades the server draft after expiry, so retrying is safe. A
+  server REFUSAL is never retried — only a transport failure.
+- **READY does not mean the paper works.** The adapter's `boot()` gives up after
+  ~6 s (`tries > 40`) and sends READY with `started:false` even for papers that
+  are fine. So `payload.started` is deliberately NOT a reload trigger — doing
+  that would burn exam time reloading working papers. A 503 produces **no READY
+  at all**, which is the signal that matters.
+- **Detect a bad document by inspecting it, not by probing.** A `fetch` probe is
+  a different request that may hit a different instance, so a 200 says nothing
+  about what is in the frame. The frame is same-origin, so the runner checks for
+  `window.__IELTS_MOCK_HARVEST__` (installed near the top of the adapter): on
+  `onLoad` without it, the frame holds someone else's error page → reload. That
+  catches a 503 in ~a second instead of after the 15 s readiness timeout.
+  Reload = bump the iframe's `key` (a fresh document AND a fresh contentWindow,
+  so stale postMessages fail the existing `e.source` check).
+  **A working paper is never reloaded**; after `MAX_PAPER_RETRIES` the runner
+  falls back to the old "drive whatever is there" behaviour rather than
+  stranding the student, and offers a manual Reload card. The loading overlay is
+  now OPAQUE — it was `bg-background/80`, so the host's 503 showed through.
+  Restores use `liveAnswers` (the newest SNAPSHOT), never the stale `draft`
+  prop, and `ACTIVATE` is idempotent in the adapter so the recording cannot
+  start twice.
+- **The outage was billed to the student, and evidence was being dropped.** It
+  landed as an 82 s `away`/`fullscreen` event. Now the runner reports a
+  `paper_unavailable` event (duration, **no misconduct counter**), and
+  `integrityVerdict` subtracts away time that OVERLAPS an outage window before
+  judging, adding a `notes` line. History is not rewritten — the `away` event
+  and its counters stay exactly as recorded; only the judgement changes.
+  `excusedAwayByOutage()` is pure and unit-tested. Note `applyIntegrityEvents`
+  silently DISCARDS unknown event types, so a new one must be added there too.
+  Separately, `flush()` in exam-guard.tsx used to `splice` events off the queue
+  BEFORE an unchecked `void fetch` — so evidence of the platform failing was
+  destroyed by the platform failing. It now drops a batch only on `res.ok`,
+  keeps one send in flight at a time, and caps the queue (`MAX_QUEUE`).
+- **Still open (the owner's):** the app appears to run ONE DigitalOcean
+  instance, so a single restart takes every live exam down. Two instances plus a
+  health check is the real fix, and lives in the DO console — there is no
+  `.do/app.yaml` in the repo. Also unbuilt: audited per-section "extra minutes"
+  compensation (needs a migration), and a deploy guard — which must gate the
+  **push to `main`** (what triggers the DO rebuild), NOT `scripts/go-live.mjs`,
+  which only deploys Vercel.
+
 ### Writing v3 — reference layout, 3 violations, prompt parser (owner decisions 2026-09-15)
 
 Modelled on writing-full-test-1.vercel.app. **The one place anything automatic happens:**

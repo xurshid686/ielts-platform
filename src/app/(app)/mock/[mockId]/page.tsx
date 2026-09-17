@@ -77,7 +77,7 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
           <h2 className="font-semibold">Before you start</h2>
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
             <li>You get ONE attempt. A submitted section cannot be reopened.</li>
-            <li>Each section begins with a short <b>instruction video</b>. It cannot be skipped; the section clock starts when you click Start after it.</li>
+            <li>Each section begins with a short <b>instruction video</b>. You can skip it; the section clock starts when you click Start after it.</li>
             <li>The sections go in exam order: Listening, Reading, then Writing.</li>
             <li>Use a <b>laptop or desktop computer</b> (phones are not supported), headphones and a quiet room.</li>
             <li>Each section runs in <b>fullscreen</b>. Leaving fullscreen hides the test; <b>the clock keeps running</b> (Listening audio pauses until you return).</li>

@@ -306,6 +306,8 @@ const EVENT_TEXT: Record<string, (e: IntegrityEvent) => string> = {
   seek_back: () => "Tried to rewind the recording",
   timeout: () => "Time ran out — handed in automatically from the saved draft",
   video_skip: () => "Skipped the instruction video",
+  paper_unavailable: (e) =>
+    `The paper failed to load for ${Math.max(1, Math.round((e.ms ?? 0) / 1000))} s — our fault, not the student's`,
 };
 
 /**
@@ -354,6 +356,16 @@ function IntegrityCard({
         <ul className="list-disc space-y-0.5 pl-5 text-sm">
           {verdict.reasons.map((r) => (
             <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* Context that is NOT misconduct — e.g. away time that coincided with the
+          platform failing to serve the paper. Never drives the verdict. */}
+      {verdict.notes && verdict.notes.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted">
+          {verdict.notes.map((n) => (
+            <li key={n}>{n}</li>
           ))}
         </ul>
       )}

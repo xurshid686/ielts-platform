@@ -230,6 +230,9 @@ export function SectionFlow(props: SectionFlowProps) {
 // ------------------------------------------------------------------ the video
 
 const PROGRESS_MS = 5_000;
+/** A failed Start may already have stamped the clock, so it retries itself. */
+const START_RETRIES = 3;
+const START_BACKOFF_MS = 1_500;
 
 function InstructionVideo({
   mockId,
@@ -483,11 +486,29 @@ function StartPanel({
     return () => clearInterval(t);
   }, [blocked, router]);
 
+  /**
+   * A transport failure here is dangerous in a way a refusal is not: the server
+   * may ALREADY have stamped the section, so the clock is running while the
+   * student is still looking at the Start button. `beginSection` keeps the
+   * original timestamp on a repeat call, so retrying is idempotent — do it
+   * automatically rather than waiting for the student to notice.
+   */
+  async function beginWithRetry() {
+    for (let i = 0; ; i++) {
+      try {
+        return await beginMockSection(mockId, section);
+      } catch (e) {
+        if (i >= START_RETRIES - 1) throw e;
+        await new Promise((r) => setTimeout(r, START_BACKOFF_MS * (i + 1)));
+      }
+    }
+  }
+
   async function start() {
     setPending(true);
     setError(null);
     try {
-      const res = await beginMockSection(mockId, section);
+      const res = await beginWithRetry();
       if (!res.ok) {
         setError(res.error);
         return;
@@ -511,7 +532,9 @@ function StartPanel({
         });
       }
     } catch {
-      setError("Couldn't reach the server. Check your connection and try again.");
+      setError(
+        "Couldn't reach the server. Check your connection and press Start again — if the section did start, you will pick it up where it is.",
+      );
     } finally {
       setPending(false);
     }
