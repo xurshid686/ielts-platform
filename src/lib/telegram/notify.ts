@@ -173,3 +173,25 @@ export async function notifyMockFinished(input: {
     console.error("[telegram] notifyMockFinished failed", e);
   }
 }
+
+/** A premium member took a place on a mock themselves — no approval needed, so no buttons. */
+export async function notifyMockJoined(input: {
+  name: string | null;
+  email: string | null;
+  mockTitle: string;
+}): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    await push(
+      [
+        `⭐ <b>Premium student joined a mock</b>`,
+        escapeHtml(input.mockTitle),
+        "",
+        escapeHtml(input.name || "(no name)"),
+        escapeHtml(input.email || "(no email)"),
+      ].join("\n"),
+    );
+  } catch (e) {
+    console.error("[telegram] notifyMockJoined failed", e);
+  }
+}

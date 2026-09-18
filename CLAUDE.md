@@ -973,6 +973,16 @@ attempt. Everything below exists to hold that:
   section the student is currently on (`nextSection()`); after submit it is a
   404, which is what makes it one sitting.
 
+## Premium members join without a request (owner, 2026-09-18)
+
+A student with an active `premium_until` sees **Join this mock** instead of
+Request: `joinMock` (actions/mock.ts) re-reads the membership server-side, then
+`selfJoinMock` (mock-admin.ts) gives the place through the same `createAttempt`
+an approval uses — same snapshots, readiness check and notification, and the
+0051 trigger closes any request they sent before. Only the place is instant:
+the session start, one attempt and release are unchanged. Free students keep
+request → approve. The owner gets an info-only Telegram (`notifyMockJoined`).
+
 ## Records survive account deletion
 
 `mock_attempts.user_id` is `on delete set null` with name/email snapshotted, and

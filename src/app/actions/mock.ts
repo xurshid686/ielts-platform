@@ -46,6 +46,7 @@ import {
   reopenMockSession,
   reprofilePaper,
   saveMock,
+  selfJoinMock,
   setMockPublished,
   setMockVideo,
   setPaperDefaultMinutes,
@@ -58,7 +59,8 @@ import {
   type PaperUploadResult,
 } from "@/lib/mock-admin";
 import { MAX_REQUEST_MESSAGE, SECTION_ORDER, WRITING_MAX_VIOLATIONS, type MockSection } from "@/lib/mock-shared";
-import { notifyMockFinished, notifyMockRequest } from "@/lib/telegram/notify";
+import { notifyMockFinished, notifyMockJoined, notifyMockRequest } from "@/lib/telegram/notify";
+import { isPremiumActive } from "@/lib/premium";
 
 // Server actions for the Mock exam section (migration 0050).
 //
@@ -126,6 +128,42 @@ export async function requestMock(mockId: string, message: string): Promise<Mock
       email: who.email ?? user.email ?? null,
       mockTitle: mock?.title ?? "a mock",
       message: note.trim(),
+    }),
+  );
+
+  refreshStudent(mockId);
+  revalidatePath("/admin/mocks");
+  return { ok: true };
+}
+
+/**
+ * A PREMIUM member takes a place directly — no request, no approval (owner,
+ * 2026-09-18). Free students still go through requestMock. Membership is read
+ * here with the service role from the verified session, never from the client.
+ */
+export async function joinMock(mockId: string): Promise<MockActionResult> {
+  const { user } = await sessionUser();
+  if (!user) return { ok: false, error: "Sign in to join a mock." };
+
+  const { data: prof } = await createAdminClient()
+    .from("profiles")
+    .select("name, email, premium_until")
+    .eq("id", user.id)
+    .maybeSingle();
+  const who = (prof as { name?: string | null; email?: string | null; premium_until?: string | null } | null) ?? {};
+  if (!isPremiumActive({ premium_until: who.premium_until ?? null })) {
+    return { ok: false, error: "Premium members only — send a request instead." };
+  }
+
+  const res = await selfJoinMock(user.id, mockId);
+  if (!res.ok) return res;
+
+  const mock = await getMock(mockId);
+  after(() =>
+    notifyMockJoined({
+      name: who.name ?? null,
+      email: who.email ?? user.email ?? null,
+      mockTitle: mock?.title ?? "a mock",
     }),
   );
 

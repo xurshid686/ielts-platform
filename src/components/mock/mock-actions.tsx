@@ -4,14 +4,61 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { beginMock, requestMock } from "@/app/actions/mock";
+import { beginMock, joinMock, requestMock } from "@/app/actions/mock";
 import { MAX_REQUEST_MESSAGE, type MockRequestStatus } from "@/lib/mock-shared";
 
 /**
  * "Request this mock" — or the state of a request already sent.
  * Hand-rolled overlay in the house style (there is no dialog library here).
+ * Premium members get "Join this mock" instead: a place at once, no request.
  */
 export function MockRequestButton({
+  mockId,
+  mockTitle,
+  status,
+  isPremium = false,
+}: {
+  mockId: string;
+  mockTitle: string;
+  status: MockRequestStatus | null;
+  isPremium?: boolean;
+}) {
+  if (isPremium) return <MockJoinButton mockId={mockId} />;
+  return <RequestFlow mockId={mockId} mockTitle={mockTitle} status={status} />;
+}
+
+/** Premium: one click takes the place. The server re-checks the membership. */
+function MockJoinButton({ mockId }: { mockId: string }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Button
+        disabled={pending}
+        onClick={() => {
+          setError(null);
+          startTransition(async () => {
+            const res = await joinMock(mockId);
+            if (!res.ok) {
+              setError(res.error);
+              return;
+            }
+            router.refresh();
+          });
+        }}
+      >
+        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+        Join this mock
+      </Button>
+      <p className="text-xs text-muted">Premium — no approval needed.</p>
+      {error && <p className="text-sm text-danger">{error}</p>}
+    </div>
+  );
+}
+
+function RequestFlow({
   mockId,
   mockTitle,
   status,

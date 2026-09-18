@@ -1163,6 +1163,27 @@ export async function grantByEmail(email: string, mockId: string, adminId: strin
   return placed.alreadyHad ? { ok: false, error: "That student already has a place on this mock." } : { ok: true };
 }
 
+/**
+ * A PREMIUM member takes a place themselves — no request, no approval (owner,
+ * 2026-09-18). The caller (joinMock) has already checked the session and the
+ * membership; this only gives the place, through the same createAttempt as an
+ * approval, so the snapshots, readiness check and notification cannot drift.
+ * Everything after the place — session start, one attempt, release — is unchanged.
+ */
+export async function selfJoinMock(userId: string, mockId: string): Promise<LibResult> {
+  if (!UUID.test(mockId)) return { ok: false, error: "That mock isn't available." };
+  const mock = await getMock(mockId);
+  if (!mock || !mock.published) return { ok: false, error: "That mock isn't available." };
+  if (mock.session_state === "closed") return { ok: false, error: "This mock's session has ended." };
+  const placed = await createAttempt(userId, mockId, null, null);
+  if (!placed.ok) {
+    // createAttempt's wording is written for the owner; keep the details out of a student's view.
+    console.error(`[mock] self-join refused for ${mockId}: ${placed.error}`);
+    return { ok: false, error: "This mock isn't ready yet. Try again later." };
+  }
+  return { ok: true };
+}
+
 export async function cancelAttempt(attemptId: string): Promise<LibResult> {
   const { data, error } = await db()
     .from("mock_attempts")

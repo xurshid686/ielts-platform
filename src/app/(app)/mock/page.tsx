@@ -3,6 +3,7 @@ import { ArrowRight, ClipboardCheck, Headphones, BookOpen, PenLine, Award } from
 import { requireProfile } from "@/lib/auth";
 import { listMocksForStudent } from "@/lib/mock";
 import { STATUS_LABEL } from "@/lib/mock-shared";
+import { isPremiumActive } from "@/lib/premium";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MockRequestButton } from "@/components/mock/mock-actions";
@@ -13,6 +14,7 @@ export const metadata = { title: "Mock exam" };
 export default async function MockListPage() {
   const profile = await requireProfile();
   const cards = await listMocksForStudent(profile.id);
+  const isPremium = isPremiumActive(profile);
 
   return (
     <div className="space-y-6">
@@ -24,7 +26,8 @@ export default async function MockListPage() {
           <h1 className="text-2xl font-bold">Mock exam</h1>
           <p className="text-sm text-muted">
             A full IELTS mock — Listening, Reading, then Writing — sat once, in exam conditions.
-            Request a place; your teacher approves it and releases your result after marking.
+            Premium members join instantly; others request a place and your teacher approves it.
+            Your result is released after marking.
           </p>
         </div>
       </header>
@@ -61,6 +64,7 @@ export default async function MockListPage() {
                     mockId={mock.id}
                     mockTitle={mock.title}
                     status={request?.status ?? null}
+                    isPremium={isPremium}
                   />
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-3">
