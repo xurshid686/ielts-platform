@@ -981,7 +981,7 @@ Request: `joinMock` (actions/mock.ts) re-reads the membership server-side, then
 an approval uses — same snapshots, readiness check and notification, and the
 0051 trigger closes any request they sent before. Only the place is instant:
 the session start, one attempt and release are unchanged. Free students keep
-request → approve. The owner gets an info-only Telegram (`notifyMockJoined`).
+request → approve, and their card also offers **Buy premium** (the Telegram link from lib/site.ts — there is no checkout). The owner gets an info-only Telegram (`notifyMockJoined`).
 
 ## Records survive account deletion
 

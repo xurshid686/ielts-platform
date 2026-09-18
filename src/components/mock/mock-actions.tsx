@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Loader2, Play, X } from "lucide-react";
+import { Clock, Crown, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { beginMock, joinMock, requestMock } from "@/app/actions/mock";
 import { MAX_REQUEST_MESSAGE, type MockRequestStatus } from "@/lib/mock-shared";
+import { PREMIUM_TELEGRAM_URL } from "@/lib/site";
 
 /**
  * "Request this mock" — or the state of a request already sent.
@@ -58,6 +59,21 @@ function MockJoinButton({ mockId }: { mockId: string }) {
   );
 }
 
+/** Buying Premium is arranged on Telegram — there is no checkout (lib/site.ts). */
+function BuyPremiumLink() {
+  return (
+    <a
+      href={PREMIUM_TELEGRAM_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+    >
+      <Crown className="h-4 w-4" /> Buy premium
+    </a>
+  );
+}
+
+/** Free members: buy Premium (and join instantly) or request a place. */
 function RequestFlow({
   mockId,
   mockTitle,
@@ -76,9 +92,15 @@ function RequestFlow({
 
   if (status === "pending" || sent) {
     return (
-      <p className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted">
-        <Clock className="h-4 w-4" /> Waiting for approval
-      </p>
+      <div className="flex flex-col items-start gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-muted">
+            <Clock className="h-4 w-4" /> Waiting for approval
+          </p>
+          <BuyPremiumLink />
+        </div>
+        <p className="text-xs text-muted">Premium members join instantly — no approval needed.</p>
+      </div>
     );
   }
 
@@ -99,9 +121,13 @@ function RequestFlow({
   return (
     <>
       <div className="flex flex-col items-start gap-1">
-        <Button onClick={() => setOpen(true)}>
-          {status === "rejected" ? "Ask again" : "Request this mock"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <BuyPremiumLink />
+          <Button variant="outline" onClick={() => setOpen(true)}>
+            {status === "rejected" ? "Ask again" : "Request this mock"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted">Premium members join instantly — no approval needed.</p>
         {status === "rejected" && (
           <p className="text-xs text-muted">Your last request was not approved. You can ask again.</p>
         )}
