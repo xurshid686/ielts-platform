@@ -6,6 +6,7 @@ import { parseTask2 } from "@/lib/ielts/writing-prompt";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TopicChip } from "@/components/writing/topic-chip";
+import { KIND_LABEL, wordsSummary } from "@/components/writing/practice-attempt-view";
 
 export const metadata = { title: "My writing practice" };
 
@@ -23,7 +24,7 @@ export default async function WritingHistoryPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">My writing practice</h1>
           <p className="text-sm text-muted">
-            Every Task 2 you have written here. Open one to read it back or download it as a PDF.
+            Everything you have written here — Task 1, Task 2 and full tests. Open one to read it back or download it as a PDF.
           </p>
         </div>
         <Link
@@ -38,7 +39,7 @@ export default async function WritingHistoryPage() {
         <EmptyState
           icon={<PenLine />}
           title="Nothing written yet"
-          desc="Pick a question and write your first Task 2 — it will be saved here."
+          desc="Pick a question and write your first answer — it will be saved here."
           action={
             <Link
               href="/writing"
@@ -52,14 +53,21 @@ export default async function WritingHistoryPage() {
         <ul className="space-y-3">
           {attempts.map((a) => {
             const { statement } = parseTask2(a.prompt);
-            const href = a.submitted_at ? `/writing/history/${a.id}` : `/writing/practice/${a.practice_id}`;
+            const href = a.submitted_at
+              ? `/writing/history/${a.id}`
+              : `/writing/practice/${a.practice_id}?kind=${a.kind}`;
             return (
               <li key={a.id}>
                 <Link href={href} className="block">
                   <Card interactive className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
+                    <span className="rounded-md bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted">
+                      {KIND_LABEL[a.kind]}
+                    </span>
                     <TopicChip topic={a.topic} />
-                    <p className="min-w-[14rem] flex-1 truncate text-sm font-medium">{statement || a.prompt}</p>
-                    <span className="text-xs tabular-nums text-muted">{a.word_count} words</span>
+                    <p className="min-w-[14rem] flex-1 truncate text-sm font-medium">
+                      {a.kind === "task2" ? statement || a.prompt : a.prompt}
+                    </p>
+                    <span className="text-xs tabular-nums text-muted">{wordsSummary(a)}</span>
                     <span className="text-xs text-muted">
                       {new Date(a.submitted_at ?? a.started_at).toLocaleDateString()}
                     </span>

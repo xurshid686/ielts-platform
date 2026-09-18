@@ -2,10 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
-import { getAttemptForAdmin } from "@/lib/writing-practice";
-import { WritingPrompt } from "@/components/mock/writing-prompt";
-import { Card } from "@/components/ui/card";
+import { getAttemptForAdmin, signedPracticeImage } from "@/lib/writing-practice";
 import { TopicChip } from "@/components/writing/topic-chip";
+import { KIND_LABEL, PracticeAttemptView, wordsSummary } from "@/components/writing/practice-attempt-view";
 
 export const metadata = { title: "Writing practice · Admin" };
 
@@ -26,6 +25,7 @@ export default async function AdminPracticeAttemptPage({
 
   const attempt = await getAttemptForAdmin(id);
   if (!attempt) notFound();
+  const imageUrl = await signedPracticeImage(attempt.image_path);
 
   return (
     <div className="space-y-6">
@@ -36,30 +36,23 @@ export default async function AdminPracticeAttemptPage({
         >
           <ArrowLeft className="h-4 w-4" /> Practice
         </Link>
+        <span className="rounded-md bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted">
+          {KIND_LABEL[attempt.kind]}
+        </span>
         <TopicChip topic={attempt.topic} />
         <div>
           <p className="text-sm font-medium">{attempt.student ?? "Deleted account"}</p>
           {attempt.email && <p className="text-xs text-muted">{attempt.email}</p>}
         </div>
         <span className="ml-auto text-sm text-muted">
-          {attempt.word_count} words ·{" "}
+          {wordsSummary(attempt)} ·{" "}
           {attempt.submitted_at
             ? `submitted ${new Date(attempt.submitted_at).toLocaleString()}`
             : `draft, started ${new Date(attempt.started_at).toLocaleString()}`}
         </span>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="bg-white p-6">
-          <WritingPrompt task={2} raw={attempt.prompt} />
-        </Card>
-        <Card className="p-6">
-          <h2 className="text-sm font-medium text-muted">The student&rsquo;s answer</h2>
-          <div className="mt-3 space-y-3 text-[15px] leading-relaxed whitespace-pre-wrap">
-            {attempt.answer || <span className="text-muted">Nothing was written.</span>}
-          </div>
-        </Card>
-      </div>
+      <PracticeAttemptView attempt={attempt} imageUrl={imageUrl} answerHeading="The student&rsquo;s answer" />
     </div>
   );
 }

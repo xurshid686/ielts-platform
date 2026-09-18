@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { PracticePdfInput } from "@/lib/writing-practice-pdf";
 
 /**
  * Downloads the student's own copy of a submitted practice. Everything it needs
@@ -10,15 +11,7 @@ import { Button } from "@/components/ui/button";
  * the same whether it is made a second after submitting or a year later, even
  * if the question has since been reworded or unpublished.
  */
-export function PracticePdfButton(props: {
-  studentName: string;
-  topic: string;
-  prompt: string;
-  answer: string;
-  words: number;
-  submittedAt: string | null;
-  variant?: "primary" | "outline";
-}) {
+export function PracticePdfButton(props: PracticePdfInput & { variant?: "primary" | "outline" }) {
   const [making, setMaking] = useState(false);
   const { variant = "outline", ...input } = props;
   return (

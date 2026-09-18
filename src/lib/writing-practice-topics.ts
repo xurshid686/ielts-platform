@@ -74,9 +74,42 @@ export function isTopicId(value: unknown): value is TopicId {
   return typeof value === "string" && BY_ID.has(value as TopicId);
 }
 
-/** The topic, or a grey fallback — an unknown id must render, never throw. */
-export function topicOf(id: string): Topic {
-  return BY_ID.get(id as TopicId) ?? { id: id as TopicId, source: id, label: id, cssVar: "--t-unknown" };
+// ---------------------------------------------------------------- Task 1 kinds
+//
+// What a Task 1 picture is (migration 0058). The database pins the same ids with
+// a CHECK on writing_practice.chart. They borrow topic colours rather than adding
+// fourteen new CSS variables; the chip always shows the name, so a shared colour
+// is never ambiguous.
+
+export type ChartId = "pie" | "bar" | "line" | "table" | "map" | "process" | "mixed";
+
+export const CHARTS: readonly { id: ChartId; label: string; cssVar: string }[] = [
+  { id: "pie", label: "Pie chart", cssVar: "--t-media" },
+  { id: "bar", label: "Bar chart", cssVar: "--t-transport" },
+  { id: "line", label: "Line graph", cssVar: "--t-environment" },
+  { id: "table", label: "Table", cssVar: "--t-economy" },
+  { id: "map", label: "Map", cssVar: "--t-travel" },
+  { id: "process", label: "Process", cssVar: "--t-culture" },
+  { id: "mixed", label: "Mixed charts", cssVar: "--t-government" },
+] as const;
+
+const CHART_BY_ID = new Map(CHARTS.map((c) => [c.id, c]));
+
+export function isChartId(value: unknown): value is ChartId {
+  return typeof value === "string" && CHART_BY_ID.has(value as ChartId);
+}
+
+/**
+ * The topic (or Task 1 chart kind), or a grey fallback — an unknown id must
+ * render, never throw.
+ */
+export function topicOf(id: string | null | undefined): Topic {
+  const key = id ?? "";
+  const topic = BY_ID.get(key as TopicId);
+  if (topic) return topic;
+  const chart = CHART_BY_ID.get(key as ChartId);
+  if (chart) return { id: key as TopicId, source: chart.label, label: chart.label, cssVar: chart.cssVar };
+  return { id: key as TopicId, source: key, label: key || "Task 1", cssVar: "--t-unknown" };
 }
 
 /** Maps the corpus's own topic name ("Work & Careers") to our id. */
@@ -89,7 +122,7 @@ export function topicFromSource(source: string): Topic | undefined {
  * so one definition follows the theme. Tailwind v4 already requires a browser
  * with `color-mix`.
  */
-export function topicStyle(id: string): { color: string; background: string; borderColor: string } {
+export function topicStyle(id: string | null | undefined): { color: string; background: string; borderColor: string } {
   const v = `var(${topicOf(id).cssVar})`;
   return {
     color: v,

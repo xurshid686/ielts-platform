@@ -1625,6 +1625,45 @@ transaction, and `loadEnv()` prints the target first.
 matters: an **anon key is refused** on both tables, and the topic CHECK fires.
 Verify a schema change with the anon key, not by loading a page.
 
+## Task 1 and the Full test (migration 0058, owner 2026-09-18)
+
+`/writing` has three menus — **Task 1 · Task 2 · Full test** — as
+`?kind=task1|task2|full`. No kind means task2, so every pre-0058 link still works.
+Same practice rules for all three. The advisory clock is 20 / 40 / 60 minutes
+(`minutesOf()`), with nothing at zero.
+
+- **A question is `task` 1 or 2** (`writing_practice.task`, default 2). A Task 1
+  question has `image_path` (private bucket **`writing-practice`**, signed URLs
+  only) and `chart` (pie/bar/line/table/map/process/mixed, `CHARTS` in
+  writing-practice-topics.ts), and a null `topic`. A CHECK pins that shape.
+- **Every catalogue read MUST filter `task`.** Pre-0058 code lists every published
+  row, and a chart would appear inside the Task 2 list. The same trap is why a new
+  Task 1 must not be published while an older build is live.
+- **A Full test is not a question.** It is an attempt (`kind = 'full'`) on a
+  TASK 1 question. `openPractice(…, "full")` pairs it with a random published
+  Task 2 the student hasn't submitted yet (any Task 2 once they have done them all). The
+  owner chose random pairing. The pair is snapshotted (`practice2_id`, `prompt2`,
+  `topic2`), and `answer2`/`word_count2` hold the Task 2 half, so one sitting is one
+  row. A reload resumes the same pair, because the open attempt is looked up by
+  (user, question, kind).
+- `savePractice` only writes `answer2` to a `full` row (it adds `.eq("kind","full")`).
+- **Adding Task 1 questions:** the "Add Task 1" form on /admin/writing-practice
+  (Task 1 tab) supports drop, click or Ctrl+V for the picture, plus the sentence and
+  the chart kind. It saves unpublished. From this machine, use
+  `node scripts/add-task1-practice.mjs --image=… --chart=pie --prompt="…" [--publish]`.
+  Both use the same `source_hash` (`task1\n` + normalised sentence + `\n` + the
+  picture's bytes), so a double upload is refused. The owner types only the
+  sentence; the Cambridge lines around it come from `lib/ielts/writing-prompt.ts`.
+- **Attempt `topic` holds the chart kind for task1/full**, so the chip renders.
+  `topicOf()` resolves topic ids and chart ids alike.
+- The Full screen's Part 1 / Part 2 footer is COPIED from writing-exam.tsx, not
+  shared. That screen is the live mock and stays untouched. The PDF shares only
+  `toDataUrl`/`fit` from lib/writing-pdf.ts.
+- `ATTEMPT_COLUMNS` must stay ONE string literal. supabase-js parses the select
+  string's type, and a `+` concatenation makes every row a `GenericStringError`.
+- The clock display is clamped to the allowance, because `started_at` is the
+  database's clock, which runs about 1 s ahead of the browser (it showed 20:01).
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**

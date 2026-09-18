@@ -11,7 +11,8 @@ export function TopicChip({
   count,
   className,
 }: {
-  topic: string;
+  /** A topic id, or a Task 1 chart kind (0058). */
+  topic: string | null;
   count?: number;
   className?: string;
 }) {

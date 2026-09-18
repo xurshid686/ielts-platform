@@ -170,8 +170,12 @@ type PendingTables = {
   // 0057 — Writing Task 2 practice
   writing_practice: PendingTable<{
     id: string;
-    topic: string;
+    topic: string | null;
     prompt: string;
+    // 0058
+    task: number;
+    image_path: string | null;
+    chart: string | null;
     source_hash: string;
     appearances: number;
     published: boolean;
@@ -183,10 +187,18 @@ type PendingTables = {
     user_id: string | null;
     practice_id: string;
     prompt: string;
-    topic: string;
+    topic: string | null;
     answer: string;
     word_count: number;
     revision: number;
+    // 0058
+    kind: string;
+    image_path: string | null;
+    practice2_id: string | null;
+    prompt2: string | null;
+    topic2: string | null;
+    answer2: string;
+    word_count2: number;
     started_at: string;
     saved_at: string | null;
     submitted_at: string | null;

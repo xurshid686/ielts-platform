@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireProfile } from "@/lib/auth";
 import {
+  createTask1Question,
   savePractice,
   setPracticePublished,
   type SaveResult,
 } from "@/lib/writing-practice";
 
-// Writing Task 2 practice — the server actions.
+// Writing practice (Task 1, Task 2, Full) — the server actions.
 //
 // These are the ONLY mutation path, and every one of them starts by reading the
 // user from the verified session; the attempt id from the browser is never
@@ -31,9 +32,24 @@ export async function savePracticeAnswer(
   answer: string,
   revision: number,
   final: boolean,
+  /** Full tests only: the Task 2 answer. */
+  answer2?: string | null,
 ): Promise<SaveResult> {
   const profile = await requireProfile();
-  return savePractice(profile.id, attemptId, answer, Math.max(0, Math.floor(revision)), final);
+  return savePractice(profile.id, attemptId, answer, Math.max(0, Math.floor(revision)), final, answer2 ?? null);
+}
+
+/** The owner's "Add Task 1" form: picture + sentence + chart kind, saved unpublished. */
+export async function createTask1PracticeAction(formData: FormData) {
+  await requireAdmin();
+  const file = formData.get("image");
+  const res = await createTask1Question({
+    prompt: String(formData.get("prompt") ?? ""),
+    chart: String(formData.get("chart") ?? ""),
+    file: file instanceof File ? file : null,
+  });
+  if (res.ok) revalidatePath("/admin/writing-practice");
+  return res;
 }
 
 export async function setPracticeQuestionPublished(id: string, published: boolean) {

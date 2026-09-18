@@ -88,12 +88,12 @@ export async function downloadWritingPdf(input: {
   doc.save(`IELTS_Writing_${safe || "student"}.pdf`);
 }
 
-function fit(w: number, h: number, maxW: number, maxH: number) {
+export function fit(w: number, h: number, maxW: number, maxH: number) {
   const k = Math.min(maxW / w, maxH / h, 1e9);
   return { w: w * k, h: h * k };
 }
 
-async function toDataUrl(url: string): Promise<{ data: string; format: "JPEG"; w: number; h: number } | null> {
+export async function toDataUrl(url: string): Promise<{ data: string; format: "JPEG"; w: number; h: number } | null> {
   try {
     const blob = await (await fetch(url)).blob();
     const src = URL.createObjectURL(blob);
