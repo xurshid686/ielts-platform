@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rows, type TablesUpdate } from "@/types/database";
 import { MAX_ESSAY_CHARS, countWords } from "@/lib/mock-shared";
 import { isChartId, isTopicId, type ChartId, type TopicId } from "@/lib/writing-practice-topics";
+import { classifyTask2, isTask2Type, matchesSearch, searchTokens } from "@/lib/ielts/task2-question-type";
 
 // Writing practice (migrations 0057 + 0058), in one place: Task 1, Task 2 and
 // the Full test (a Task 1 plus a random Task 2, in one sitting).
@@ -135,8 +136,15 @@ export type CatalogueEntry = PracticeRow & {
 
 export type Catalogue = {
   entries: CatalogueEntry[];
-  /** Published counts per topic id (Task 2) or chart kind (Task 1) — the chips' numbers. */
+  /**
+   * Published counts per topic id (Task 2) or chart kind (Task 1), after the
+   * search and question-type filters — the chips' numbers.
+   */
   counts: Record<string, number>;
+  /** Task 2 only: counts per question type, after the search and topic filters. */
+  typeCounts: Record<string, number>;
+  /** Every published question in this menu, before any filter. */
+  libraryTotal: number;
   total: number;
   page: number;
   pages: number;
@@ -147,51 +155,66 @@ export type Catalogue = {
  * (Task 1), with this student's own progress folded in. An ordinary paginated
  * server read: nothing is cached, because half of what it returns is one
  * student's private history.
+ *
+ * The whole menu is read once and filtered in memory: the question type is
+ * DERIVED from the wording (classifyTask2), so it cannot be a WHERE clause, and
+ * at a few hundred short rows that is cheaper than a column plus a backfill.
+ * Counts are faceted, so every chip's number is what clicking it shows.
  */
 export async function loadCatalogue(
   userId: string,
-  opts: { kind?: PracticeKind; topic?: string | null; page?: number } = {},
+  opts: { kind?: PracticeKind; topic?: string | null; type?: string | null; q?: string | null; page?: number } = {},
 ): Promise<Catalogue> {
   const supabase = db();
   const kind = opts.kind ?? "task2";
   const task = taskOfKind(kind);
   // The filter is a topic in Task 2 and a chart kind in Task 1 / Full.
   const filter = task === 2 ? (isTopicId(opts.topic) ? opts.topic : null) : isChartId(opts.topic) ? opts.topic : null;
+  const type = task === 2 && isTask2Type(opts.type) ? opts.type : null;
+  const tokens = searchTokens(opts.q);
   const page = Math.max(1, Math.floor(opts.page ?? 1));
 
-  // Every published question of this task, for the chips. Small, and it has to
-  // be the WHOLE library rather than the current page. `task` MUST be filtered:
-  // without it a chart lands in the Task 2 list.
-  const { data: allRows, error: countErr } = await supabase
-    .from("writing_practice")
-    .select("topic, chart")
-    .eq("published", true)
-    .eq("task", task);
-  if (countErr) throw new Error(countErr.message);
-
-  const all = rows<{ topic: string | null; chart: string | null }>(allRows);
-  const counts: Record<string, number> = {};
-  for (const r of all) {
-    const key = task === 2 ? r.topic : r.chart;
-    if (key) counts[key] = (counts[key] ?? 0) + 1;
+  // `task` MUST be filtered: without it a chart lands in the Task 2 list.
+  // Paged by hand — PostgREST caps a response at 1000 rows even without .limit().
+  const library: PracticeRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("writing_practice")
+      .select(PRACTICE_COLUMNS)
+      .eq("published", true)
+      .eq("task", task)
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw new Error(error.message);
+    const batch = rows<PracticeRow>(data);
+    library.push(...batch);
+    if (batch.length < 1000) break;
   }
-  const total = filter ? (counts[filter] ?? 0) : all.length;
+  library.sort(
+    (a, b) =>
+      b.appearances - a.appearances ||
+      (task === 2 ? a.created_at.localeCompare(b.created_at) : b.created_at.localeCompare(a.created_at)) ||
+      a.id.localeCompare(b.id),
+  );
+
+  const facetOf = (r: PracticeRow) => (task === 2 ? r.topic : r.chart);
+  const typeOf = new Map(task === 2 ? library.map((r) => [r.id, classifyTask2(r.prompt)]) : []);
+  const found = tokens.length ? library.filter((r) => matchesSearch(r.prompt, tokens)) : library;
+
+  const counts: Record<string, number> = {};
+  const typeCounts: Record<string, number> = {};
+  for (const r of found) {
+    const f = facetOf(r);
+    const t = typeOf.get(r.id);
+    if (f && (!type || t === type)) counts[f] = (counts[f] ?? 0) + 1;
+    if (t && (!filter || f === filter)) typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+  }
+
+  const matching = found.filter((r) => (!filter || facetOf(r) === filter) && (!type || typeOf.get(r.id) === type));
+  const total = matching.length;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = (Math.min(page, pages) - 1) * PAGE_SIZE;
-
-  let q = supabase
-    .from("writing_practice")
-    .select(PRACTICE_COLUMNS)
-    .eq("published", true)
-    .eq("task", task)
-    .order("appearances", { ascending: false })
-    .order("created_at", { ascending: task === 2 })
-    .range(from, from + PAGE_SIZE - 1);
-  if (filter) q = q.eq(task === 2 ? "topic" : "chart", filter);
-
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  const entries = rows<PracticeRow>(data);
+  const entries = matching.slice(from, from + PAGE_SIZE);
 
   // This student's attempts of THIS kind on exactly the questions on screen.
   const ids = entries.map((e) => e.id);
@@ -225,6 +248,8 @@ export async function loadCatalogue(
       imageUrl: (e.image_path && images.get(e.image_path)) || null,
     })),
     counts,
+    typeCounts,
+    libraryTotal: library.length,
     total,
     page: Math.min(page, pages),
     pages,
