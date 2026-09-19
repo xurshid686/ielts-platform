@@ -1661,8 +1661,14 @@ Same practice rules for all three. The advisory clock is 20 / 40 / 60 minutes
   `toDataUrl`/`fit` from lib/writing-pdf.ts.
 - `ATTEMPT_COLUMNS` must stay ONE string literal. supabase-js parses the select
   string's type, and a `+` concatenation makes every row a `GenericStringError`.
-- The clock display is clamped to the allowance, because `started_at` is the
-  database's clock, which runs about 1 s ahead of the browser (it showed 20:01).
+- **The clock times the SITTING, not the attempt** (`useOpenedAt` in
+  practice-exam.tsx: it starts when the page opens, per attempt id). Anchoring it to
+  `started_at` showed 00:00 and "past the exam allowance" the instant a student
+  reopened a draft from days earlier (owner report 2026-09-19). A reload restarts
+  it, which is fine: practice has no time rule to protect.
+- `scripts/import-task1-practice.mjs` bulk-imports the @CDI_Report Task 1 set
+  (telegram-channel-map `build_t1.py` output). Label chart kinds FROM THE PICTURE:
+  guessing them from the sentence was wrong on 26 of 143.
 
 # Every test page must be linked — `Discovered - currently not indexed`
 

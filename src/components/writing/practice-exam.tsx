@@ -51,7 +51,6 @@ export function PracticeExam({
   initialAnswer,
   initialAnswer2,
   initialRevision,
-  startedAt,
 }: {
   kind: PracticeKind;
   attemptId: string;
@@ -67,8 +66,6 @@ export function PracticeExam({
   initialAnswer: string;
   initialAnswer2: string;
   initialRevision: number;
-  /** ISO. The advisory clock counts from here. */
-  startedAt: string;
 }) {
   const full = kind === "full";
   // In a Full test, part 1 is Task 1 (answer) and part 2 is Task 2 (answer2).
@@ -82,6 +79,7 @@ export function PracticeExam({
   const [pending, startTransition] = useTransition();
 
   const now = useNow();
+  const openedAt = useOpenedAt(attemptId);
   const revision = useRef(initialRevision);
   const latest = useRef({ answer, answer2 });
   const lastSent = useRef({ answer: initialAnswer, answer2: initialAnswer2 });
@@ -167,13 +165,15 @@ export function PracticeExam({
   const onTask2Half = full && part === 2;
   const minutes = MINUTES[kind];
 
-  // Clamped to [0, allowance] — started_at is the DATABASE's clock, which can
-  // run a second ahead of the browser's — and nothing reads it but the badge
-  // and the note below.
+  // The clock times THIS SITTING: it starts when the page opens, not when the
+  // draft was first created. Anchoring it to the attempt's started_at showed
+  // 00:00 and "past the allowance" the moment a student came back to a draft
+  // from two days earlier (owner report, 2026-09-19). Clamped to [0, allowance],
+  // and nothing reads it but the badge and the note below.
   const remaining =
-    now == null
+    now == null || openedAt == null
       ? minutes * 60_000
-      : Math.min(minutes * 60_000, Math.max(0, new Date(startedAt).getTime() + minutes * 60_000 - now));
+      : Math.min(minutes * 60_000, Math.max(0, openedAt + minutes * 60_000 - now));
   const overtime = remaining === 0;
 
   return (
@@ -336,6 +336,24 @@ function useNow(): number | null {
       return () => clearInterval(id);
     },
     () => Math.floor(Date.now() / 1000) * 1000,
+    () => null,
+  );
+}
+
+/**
+ * When this sitting's page was opened, per attempt, in the browser. An external
+ * store for the same hydration reason as useNow (null on the server). Kept per
+ * attempt id so moving between questions inside the app starts each clock
+ * fresh; a full reload starts it again too — practice has no rule to protect.
+ */
+const openedAtByAttempt = new Map<string, number>();
+function useOpenedAt(attemptId: string): number | null {
+  return useSyncExternalStore(
+    () => () => {},
+    () => {
+      if (!openedAtByAttempt.has(attemptId)) openedAtByAttempt.set(attemptId, Date.now());
+      return openedAtByAttempt.get(attemptId)!;
+    },
     () => null,
   );
 }

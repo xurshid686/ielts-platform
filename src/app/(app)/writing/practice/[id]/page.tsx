@@ -16,8 +16,9 @@ export const metadata = { title: "Writing practice" };
  * for exactly those reasons.) For a Full test, starting is also when the random
  * Task 2 is picked, and a reload resumes the same pair.
  *
- * The advisory clock runs from the attempt's own `started_at`, so a reload
- * shows the same time left rather than a fresh allowance.
+ * The advisory clock times the sitting: it starts when this page opens (see
+ * useOpenedAt in practice-exam.tsx), so coming back to an old draft gives a
+ * fresh allowance instead of an instant 00:00.
  */
 export default async function WritingPracticeSittingPage({
   params,
@@ -55,7 +56,6 @@ export default async function WritingPracticeSittingPage({
         initialAnswer={attempt.answer}
         initialAnswer2={attempt.answer2}
         initialRevision={attempt.revision}
-        startedAt={attempt.started_at}
       />
     </div>
   );
