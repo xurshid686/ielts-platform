@@ -1670,6 +1670,32 @@ Same practice rules for all three. The advisory clock is 20 / 40 / 60 minutes
   (telegram-channel-map `build_t1.py` output). Label chart kinds FROM THE PICTURE:
   guessing them from the sentence was wrong on 26 of 143.
 
+## Search and the Task 2 question-type filter (2026-09-19)
+
+`/writing` takes `q` (all three menus) and `type` (Task 2 only) next to `kind`,
+`topic` and `page`. Every link is built by the page's one `href()` helper, so the
+filters survive each other and any change drops back to page 1.
+
+- **The question type is DERIVED from the wording, never stored.** `classifyTask2()`
+  in `lib/ielts/task2-question-type.ts` (imports nothing, unit-tested) uses ordered
+  regexes that tolerate the corpus's typos ("Discuss both sides", "To what extend",
+  "overweigh"). There's no column, migration or backfill: a better rule re-files
+  every question at once. On 2026-09-19 the 606 split as agree 242, discuss 142,
+  positive/negative 72, causes/problems + solutions 65, advantages 46,
+  two-part 33, other 6.
+- **The filter labels are the FULL exam instruction** ("To what extent do you agree
+  or disagree?"), not a short name. That was the owner's explicit ask.
+- `loadCatalogue` therefore reads the whole menu once (paged by 1000, the
+  PostgREST cap), then sorts, filters and pages in memory. **Counts are faceted**:
+  topic chips count after search + type, type pills after search + topic, so a
+  chip's number is exactly what clicking it shows.
+- **The filter links are `prefetch={false}`.** Each prefetch is a full catalogue
+  render, and a page shows ~30 filter links.
+- Local `next start` never commits a client Link navigation on this page. The RSC
+  arrives and the URL never changes, even for the pre-existing menu tabs. It is
+  the same localhost artifact as the mock grade page above. Check clicks on the
+  dev preview.
+
 # Every test page must be linked — `Discovered - currently not indexed`
 
 On 2026-09-07 Search Console reported **136 URLs "Found, not indexed"**
