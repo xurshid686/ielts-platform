@@ -9,6 +9,7 @@ import {
   Crown,
   Target,
   ClipboardCheck,
+  FileUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
@@ -127,6 +128,22 @@ export default async function AdminPage() {
             Open <ArrowRight className="h-4 w-4" />
           </Link>
         </Card>
+        {me.is_owner && (
+          <Card className="flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <FileUp className="h-4 w-4 text-primary" /> PDF converter
+              </h2>
+              <p className="text-sm text-muted">Turn a reading PDF into a CDI paper.</p>
+            </div>
+            <Link
+              href="/admin/converter"
+              className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-[var(--shadow-primary)]"
+            >
+              Open <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Card>
+        )}
         {me.is_owner && (
           <Card className="flex items-center justify-between">
             <div>

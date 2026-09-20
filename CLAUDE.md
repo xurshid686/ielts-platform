@@ -1032,8 +1032,8 @@ only deletes an unstarted place.
   grace, then the saved draft is handed in).
 - Bands: writing = (T1 + 2×T2)/3, overall = mean of L/R/W, IELTS rounding.
 - Telegram: `notifyMockRequest` (Approve/Reject buttons) and `notifyMockFinished`.
-- `src/types/database.ts` carries PENDING overrides for 0050–0054. Run
-  `npm run types` and delete them.
+- The PENDING type overrides this section used to ask for are GONE — the
+  types were regenerated on 2026-09-20 and `database.ts` says so.
 
 ## Admin-side rules (0051 + the 2026-09-15 Codex review)
 
@@ -1227,8 +1227,8 @@ top bar. Papers are uploaded **inside the mock form**, parsed, and live-checked.
   file hash; `readinessIssues` requires a passing check for the CURRENT hash
   plus all three videos. Papers uploaded before 0054 get "Check paper"
   (`reprofilePaper`).
-- `src/types/database.ts` PENDING overrides now cover 0050–0054 (including three
-  `tests` columns via `PatchedGenTables`).
+- `src/types/database.ts` has NO overrides any more. `mocks` and the other six
+  tables are generated, and so are 0054's three `tests` columns.
 
 ### v2.1 — submit, leaving and refresh (owner decisions 2026-09-15)
 
@@ -1756,6 +1756,62 @@ flag off until indexing recovers.
 Indexing is not instant: expect the 136 to clear over the following weeks as
 Google re-crawls, and judge the fix by the Discovered-not-indexed count falling,
 not by any single URL.
+
+# PDF -> CDI converter (migration 0059, owner 2026-09-20)
+
+`/admin/converter`, **owner only**. Upload a reading PDF; a worker on the
+owner's machine builds the CDI player, runs every gate, and sends it back. The
+owner reviews and presses Publish.
+
+## The site does not convert anything, and cannot
+
+The pipeline is `X:\CDI READING PROJECT\cdi`. It needs Python with PyMuPDF, a
+real Chrome for its browser gate, and `agy.exe` — a desktop-only Gemini CLI that
+supplies the free cross-family second opinion on the answer key. None of that
+exists on App Platform. Moving the pipeline to a server would cost that second
+derivation and about $0.10 a paper, so the split is deliberate: the site holds a
+queue and two files, and **the owner's machine must be running the worker**.
+
+    cd "X:\CDI READING PROJECT\cdi"
+    python service/worker.py          # polls every 5s; --once takes one job
+
+## Shape
+
+- `conversion_jobs` (0059) — RLS on, **no policies, no grants**, the stance 0050
+  and 0057 take. Private bucket `conversions` holds the PDF in and the player out.
+- `src/lib/converter.ts` — service role, authorisation-free, gated by its callers.
+- `src/app/actions/converter.ts` — **every action re-checks owner itself.** The
+  page gate is not the security boundary; a server action is reachable by anyone
+  who can guess its id.
+- The worker claims a job conditionally (`status=eq.queued`) so two workers
+  cannot build into the same `tests/<id>/`, and re-queues anything left
+  `running` for 90 minutes.
+
+## Rules
+
+- **Nothing publishes itself.** `passed` is terminal until `publishJob()` is
+  called, and that goes through `createTestFromHtml()` — the one shared path —
+  so the answer-key refusal cannot drift.
+- **Kind and passage number come from the built file, not the form**, so a full
+  test cannot be published as a single passage by mis-clicking. Tier, track and
+  level are genuine editorial choices and stay on the form.
+- **The structure check is written back before anything is spent.** The worker
+  runs `convert.py --plan --json` first and stores the result, so a misread
+  paper is visible on the page while the build is still running. If the passage
+  count, titles or paragraph counts look wrong, the rest is worthless.
+- **The source PDF is deleted on success.** Keeping one per paper would add
+  ~1.5 GB a year; the player and the test row are what matter.
+- **`errata.json` is the thing to read.** The printed key always ships — the
+  owner's standing decision, and what the corpus already does. A model
+  disagreeing with the book is recorded, never adopted.
+- **Diagram-labelling questions are not trustworthy yet.** The labels are pixels
+  inside the figure bitmap, so neither derivation can read them; on a paper with
+  one, those questions come back as errata with the models guessing. Fixing it
+  needs a vision pass on the cropped PNG.
+
+Cost, measured: **$0.14** for a full 3-passage test, **$0.06** for a single
+passage. On the pilot paper the derived key agreed with the hand-authored build
+40/40.
 
 # Patterns deliberately removed — do not reintroduce
 

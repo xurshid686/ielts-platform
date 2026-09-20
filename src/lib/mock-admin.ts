@@ -591,7 +591,12 @@ export async function saveMock(
     return { ok: false, error: "This mock isn't ready to publish.", issues };
   }
 
-  const row: TablesUpdate<"mocks"> = {
+  // Inferred, not annotated as TablesUpdate<"mocks">. Once ./supabase.ts
+  // actually carried `mocks` (2026-09-20), annotating the literal made
+  // supabase-js compare it against a structurally identical but nominally
+  // different Update type - "two different types with this name exist".
+  // The literal on its own checks cleanly against the real column set.
+  const row = {
     title,
     description: norm(input.description) || null,
     published: input.published,

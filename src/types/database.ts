@@ -19,225 +19,36 @@
 //
 // Regenerate ./supabase.ts after every migration — see its header.
 
-import type { Database as GeneratedDatabase, Json } from "./supabase";
+import type { Database as GeneratedDatabase } from "./supabase";
 
 export type { Json } from "./supabase";
 
-// PENDING SCHEMA OVERRIDES — migrations 0050–0057 ONLY.
+// The hand-written schema overrides are GONE, and this note is here so the
+// pattern is not reintroduced by habit. `PendingTables` stood in for the
+// seven tables migrations 0050-0058 created (the Mock exam section and
+// Writing practice) and `PendingTestsColumns` for 0054's three columns on
+// `tests`, because ./supabase.ts had not been regenerated since before 0050.
 //
-// Hand-written stand-ins for the tables migration 0050 (the Mock exam section)
-// creates, which ./supabase.ts has not seen yet because regenerating it needs a
-// Supabase personal access token. 0050 was applied to Frankfurt on 2026-09-15.
+// It was regenerated on 2026-09-20 and now carries all of them, so the
+// overrides were deleted the moment they stopped being true - which is the
+// rule the block itself stated. They were not harmless while they lasted:
+// intersecting a hand-written `Update: Partial<Row>` with the real generated
+// Update made `mocks.title` both optional and required, and lib/mock-admin.ts
+// stopped compiling the instant the true shape arrived.
 //
-// ⚠️ TEMPORARY. Run `SUPABASE_ACCESS_TOKEN=<token> npm run types` and DELETE
-// this block. An override that outlives its migration is worse than no
-// override, because it hides the real shape instead of failing the build.
-//
-// The pattern is not new — it covered 0040, 0042, 0046, 0047 until 2026-09-05
-// and 0049 briefly. Keep entries scoped to one migration.
-
-type PendingTable<Row> = {
-  Row: Row;
-  Insert: Partial<Row>;
-  Update: Partial<Row>;
-  Relationships: [];
-};
-
-type PendingTables = {
-  mocks: PendingTable<{
-    id: string;
-    title: string;
-    description: string | null;
-    listening_test_id: string | null;
-    reading_test_id: string | null;
-    writing_task1_prompt: string | null;
-    writing_task1_image_path: string | null;
-    writing_task2_prompt: string | null;
-    writing_minutes: number;
-    listening_minutes: number;
-    reading_minutes: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-    // 0054
-    session_state: string;
-    session_started_at: string | null;
-    session_started_by: string | null;
-    session_closed_at: string | null;
-    session_closed_by: string | null;
-  }>;
-  mock_requests: PendingTable<{
-    id: string;
-    user_id: string;
-    mock_id: string;
-    status: string;
-    message: string | null;
-    created_at: string;
-    decided_at: string | null;
-    decided_by: string | null;
-  }>;
-  mock_attempts: PendingTable<{
-    id: string;
-    user_id: string | null;
-    student_name: string | null;
-    student_email: string | null;
-    mock_id: string;
-    request_id: string | null;
-    status: string;
-    approved_at: string;
-    approved_by: string | null;
-    started_at: string | null;
-    listening_test_id: string | null;
-    reading_test_id: string | null;
-    listening_answers: Json | null;
-    listening_raw: number | null;
-    listening_total: number | null;
-    listening_band: number | null;
-    listening_submitted_at: string | null;
-    reading_answers: Json | null;
-    reading_raw: number | null;
-    reading_total: number | null;
-    reading_band: number | null;
-    reading_submitted_at: string | null;
-    writing_task1_prompt: string | null;
-    writing_task2_prompt: string | null;
-    writing_task1: string | null;
-    writing_task2: string | null;
-    writing_started_at: string | null;
-    writing_saved_at: string | null;
-    writing_submitted_at: string | null;
-    writing_task1_band: number | null;
-    writing_task2_band: number | null;
-    writing_band: number | null;
-    writing_feedback: string | null;
-    graded_at: string | null;
-    graded_by: string | null;
-    overall_band: number | null;
-    submitted_at: string | null;
-    released_at: string | null;
-    released_by: string | null;
-    created_at: string;
-    // 0051
-    writing_minutes: number | null;
-    writing_task1_image_path: string | null;
-    listening_key: Json | null;
-    reading_key: Json | null;
-    // 0052
-    listening_started_at: string | null;
-    reading_started_at: string | null;
-    listening_minutes: number | null;
-    reading_minutes: number | null;
-    listening_draft: Json | null;
-    reading_draft: Json | null;
-    listening_audio_pos: number | null;
-    integrity: Json;
-    // 0053
-    integrity_rev: number;
-    // 0054
-    listening_video_pos: number | null;
-    listening_video_started_at: string | null;
-    listening_video_done_at: string | null;
-    reading_video_pos: number | null;
-    reading_video_started_at: string | null;
-    reading_video_done_at: string | null;
-    writing_video_pos: number | null;
-    writing_video_started_at: string | null;
-    writing_video_done_at: string | null;
-    // 0055
-    result_email_sent_at: string | null;
-    result_email_to: string | null;
-    result_email_error: string | null;
-    receipt_email_sent_at: string | null;
-    // 0056
-    result_email_status: string | null;
-  }>;
-  // 0056 — the email log behind the status bar
-  mock_messages: PendingTable<{
-    id: string;
-    attempt_id: string;
-    mock_id: string;
-    kind: string;
-    to_email: string;
-    provider_id: string | null;
-    status: string;
-    error: string | null;
-    attempts: number;
-    created_at: string;
-    sent_at: string | null;
-    delivered_at: string | null;
-    updated_at: string;
-  }>;
-  // 0057 — Writing Task 2 practice
-  writing_practice: PendingTable<{
-    id: string;
-    topic: string | null;
-    prompt: string;
-    // 0058
-    task: number;
-    image_path: string | null;
-    chart: string | null;
-    source_hash: string;
-    appearances: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-  }>;
-  writing_practice_attempts: PendingTable<{
-    id: string;
-    user_id: string | null;
-    practice_id: string;
-    prompt: string;
-    topic: string | null;
-    answer: string;
-    word_count: number;
-    revision: number;
-    // 0058
-    kind: string;
-    image_path: string | null;
-    practice2_id: string | null;
-    prompt2: string | null;
-    topic2: string | null;
-    answer2: string;
-    word_count2: number;
-    started_at: string;
-    saved_at: string | null;
-    submitted_at: string | null;
-  }>;
-  // 0054
-  mock_videos: PendingTable<{
-    section: string;
-    url: string;
-    duration_s: number;
-    updated_at: string;
-    updated_by: string | null;
-  }>;
-};
-
-/** 0054 columns added to the generated `tests` table. */
-type PendingTestsColumns = {
-  mock_profile: Json | null;
-  mock_selftest: Json | null;
-  default_minutes: number | null;
-};
+// If a future migration lands before you have a token, prefer waiting over
+// writing the shape by hand.
 
 /** The generated schema, passed to every Supabase client. */
 type GenTables = GeneratedDatabase["public"]["Tables"];
-type PatchedGenTables = Omit<GenTables, "tests"> & {
-  tests: {
-    Row: GenTables["tests"]["Row"] & PendingTestsColumns;
-    Insert: GenTables["tests"]["Insert"] & Partial<PendingTestsColumns>;
-    Update: GenTables["tests"]["Update"] & Partial<PendingTestsColumns>;
-    Relationships: GenTables["tests"]["Relationships"];
-  };
-};
 
 export type Database = Omit<GeneratedDatabase, "public"> & {
   public: Omit<GeneratedDatabase["public"], "Tables"> & {
-    Tables: PatchedGenTables & PendingTables;
+    Tables: GenTables;
   };
 };
 
-type Tables = PatchedGenTables & PendingTables;
+type Tables = GenTables;
 type Views = GeneratedDatabase["public"]["Views"];
 
 /** A table's row, exactly as the database returns it. */

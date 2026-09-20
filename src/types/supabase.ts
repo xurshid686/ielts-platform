@@ -112,6 +112,106 @@ export type Database = {
           },
         ]
       }
+      conversion_jobs: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          created_by: string
+          errata: Json | null
+          html_path: string | null
+          id: string
+          log: string | null
+          pdf_path: string | null
+          published_test_id: string | null
+          report: Json | null
+          shape: Json | null
+          stage: string | null
+          status: string
+          test_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          created_by: string
+          errata?: Json | null
+          html_path?: string | null
+          id?: string
+          log?: string | null
+          pdf_path?: string | null
+          published_test_id?: string | null
+          report?: Json | null
+          shape?: Json | null
+          stage?: string | null
+          status?: string
+          test_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          created_by?: string
+          errata?: Json | null
+          html_path?: string | null
+          id?: string
+          log?: string | null
+          pdf_path?: string | null
+          published_test_id?: string | null
+          report?: Json | null
+          shape?: Json | null
+          stage?: string | null
+          status?: string
+          test_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversion_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversion_jobs_published_test_id_fkey"
+            columns: ["published_test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discipline_completions: {
         Row: {
           completed_at: string
@@ -342,6 +442,770 @@ export type Database = {
             foreignKeyName: "discipline_members_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mock_attempts: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          created_at: string
+          graded_at: string | null
+          graded_by: string | null
+          id: string
+          integrity: Json
+          integrity_rev: number
+          listening_answers: Json | null
+          listening_audio_pos: number | null
+          listening_band: number | null
+          listening_draft: Json | null
+          listening_key: Json | null
+          listening_minutes: number | null
+          listening_raw: number | null
+          listening_started_at: string | null
+          listening_submitted_at: string | null
+          listening_test_id: string | null
+          listening_total: number | null
+          listening_video_done_at: string | null
+          listening_video_pos: number | null
+          listening_video_started_at: string | null
+          mock_id: string
+          overall_band: number | null
+          reading_answers: Json | null
+          reading_band: number | null
+          reading_draft: Json | null
+          reading_key: Json | null
+          reading_minutes: number | null
+          reading_raw: number | null
+          reading_started_at: string | null
+          reading_submitted_at: string | null
+          reading_test_id: string | null
+          reading_total: number | null
+          reading_video_done_at: string | null
+          reading_video_pos: number | null
+          reading_video_started_at: string | null
+          receipt_email_sent_at: string | null
+          released_at: string | null
+          released_by: string | null
+          request_id: string | null
+          result_email_error: string | null
+          result_email_sent_at: string | null
+          result_email_status: string | null
+          result_email_to: string | null
+          started_at: string | null
+          status: string
+          student_email: string | null
+          student_name: string | null
+          submitted_at: string | null
+          user_id: string | null
+          writing_band: number | null
+          writing_feedback: string | null
+          writing_minutes: number | null
+          writing_saved_at: string | null
+          writing_started_at: string | null
+          writing_submitted_at: string | null
+          writing_task1: string | null
+          writing_task1_band: number | null
+          writing_task1_image_path: string | null
+          writing_task1_prompt: string | null
+          writing_task2: string | null
+          writing_task2_band: number | null
+          writing_task2_prompt: string | null
+          writing_video_done_at: string | null
+          writing_video_pos: number | null
+          writing_video_started_at: string | null
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          graded_at?: string | null
+          graded_by?: string | null
+          id?: string
+          integrity?: Json
+          integrity_rev?: number
+          listening_answers?: Json | null
+          listening_audio_pos?: number | null
+          listening_band?: number | null
+          listening_draft?: Json | null
+          listening_key?: Json | null
+          listening_minutes?: number | null
+          listening_raw?: number | null
+          listening_started_at?: string | null
+          listening_submitted_at?: string | null
+          listening_test_id?: string | null
+          listening_total?: number | null
+          listening_video_done_at?: string | null
+          listening_video_pos?: number | null
+          listening_video_started_at?: string | null
+          mock_id: string
+          overall_band?: number | null
+          reading_answers?: Json | null
+          reading_band?: number | null
+          reading_draft?: Json | null
+          reading_key?: Json | null
+          reading_minutes?: number | null
+          reading_raw?: number | null
+          reading_started_at?: string | null
+          reading_submitted_at?: string | null
+          reading_test_id?: string | null
+          reading_total?: number | null
+          reading_video_done_at?: string | null
+          reading_video_pos?: number | null
+          reading_video_started_at?: string | null
+          receipt_email_sent_at?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          request_id?: string | null
+          result_email_error?: string | null
+          result_email_sent_at?: string | null
+          result_email_status?: string | null
+          result_email_to?: string | null
+          started_at?: string | null
+          status?: string
+          student_email?: string | null
+          student_name?: string | null
+          submitted_at?: string | null
+          user_id?: string | null
+          writing_band?: number | null
+          writing_feedback?: string | null
+          writing_minutes?: number | null
+          writing_saved_at?: string | null
+          writing_started_at?: string | null
+          writing_submitted_at?: string | null
+          writing_task1?: string | null
+          writing_task1_band?: number | null
+          writing_task1_image_path?: string | null
+          writing_task1_prompt?: string | null
+          writing_task2?: string | null
+          writing_task2_band?: number | null
+          writing_task2_prompt?: string | null
+          writing_video_done_at?: string | null
+          writing_video_pos?: number | null
+          writing_video_started_at?: string | null
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          graded_at?: string | null
+          graded_by?: string | null
+          id?: string
+          integrity?: Json
+          integrity_rev?: number
+          listening_answers?: Json | null
+          listening_audio_pos?: number | null
+          listening_band?: number | null
+          listening_draft?: Json | null
+          listening_key?: Json | null
+          listening_minutes?: number | null
+          listening_raw?: number | null
+          listening_started_at?: string | null
+          listening_submitted_at?: string | null
+          listening_test_id?: string | null
+          listening_total?: number | null
+          listening_video_done_at?: string | null
+          listening_video_pos?: number | null
+          listening_video_started_at?: string | null
+          mock_id?: string
+          overall_band?: number | null
+          reading_answers?: Json | null
+          reading_band?: number | null
+          reading_draft?: Json | null
+          reading_key?: Json | null
+          reading_minutes?: number | null
+          reading_raw?: number | null
+          reading_started_at?: string | null
+          reading_submitted_at?: string | null
+          reading_test_id?: string | null
+          reading_total?: number | null
+          reading_video_done_at?: string | null
+          reading_video_pos?: number | null
+          reading_video_started_at?: string | null
+          receipt_email_sent_at?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          request_id?: string | null
+          result_email_error?: string | null
+          result_email_sent_at?: string | null
+          result_email_status?: string | null
+          result_email_to?: string | null
+          started_at?: string | null
+          status?: string
+          student_email?: string | null
+          student_name?: string | null
+          submitted_at?: string | null
+          user_id?: string | null
+          writing_band?: number | null
+          writing_feedback?: string | null
+          writing_minutes?: number | null
+          writing_saved_at?: string | null
+          writing_started_at?: string | null
+          writing_submitted_at?: string | null
+          writing_task1?: string | null
+          writing_task1_band?: number | null
+          writing_task1_image_path?: string | null
+          writing_task1_prompt?: string | null
+          writing_task2?: string | null
+          writing_task2_band?: number | null
+          writing_task2_prompt?: string | null
+          writing_video_done_at?: string | null
+          writing_video_pos?: number | null
+          writing_video_started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_attempts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_listening_test_id_fkey"
+            columns: ["listening_test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_mock_id_fkey"
+            columns: ["mock_id"]
+            isOneToOne: false
+            referencedRelation: "mocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_reading_test_id_fkey"
+            columns: ["reading_test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "mock_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mock_messages: {
+        Row: {
+          attempt_id: string
+          attempts: number
+          created_at: string
+          delivered_at: string | null
+          error: string | null
+          id: string
+          kind: string
+          mock_id: string
+          provider_id: string | null
+          sent_at: string | null
+          status: string
+          to_email: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_id: string
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          mock_id: string
+          provider_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_email: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_id?: string
+          attempts?: number
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          mock_id?: string
+          provider_id?: string | null
+          sent_at?: string | null
+          status?: string
+          to_email?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_messages_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "mock_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_messages_mock_id_fkey"
+            columns: ["mock_id"]
+            isOneToOne: false
+            referencedRelation: "mocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mock_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          message: string | null
+          mock_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          message?: string | null
+          mock_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          message?: string | null
+          mock_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_mock_id_fkey"
+            columns: ["mock_id"]
+            isOneToOne: false
+            referencedRelation: "mocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mock_videos: {
+        Row: {
+          duration_s: number
+          section: string
+          updated_at: string
+          updated_by: string | null
+          url: string
+        }
+        Insert: {
+          duration_s: number
+          section: string
+          updated_at?: string
+          updated_by?: string | null
+          url: string
+        }
+        Update: {
+          duration_s?: number
+          section?: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mock_videos_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_videos_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_videos_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_videos_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mock_videos_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mocks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          listening_minutes: number
+          listening_test_id: string | null
+          published: boolean
+          reading_minutes: number
+          reading_test_id: string | null
+          session_closed_at: string | null
+          session_closed_by: string | null
+          session_started_at: string | null
+          session_started_by: string | null
+          session_state: string
+          title: string
+          updated_at: string
+          writing_minutes: number
+          writing_task1_image_path: string | null
+          writing_task1_prompt: string | null
+          writing_task2_prompt: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          listening_minutes?: number
+          listening_test_id?: string | null
+          published?: boolean
+          reading_minutes?: number
+          reading_test_id?: string | null
+          session_closed_at?: string | null
+          session_closed_by?: string | null
+          session_started_at?: string | null
+          session_started_by?: string | null
+          session_state?: string
+          title: string
+          updated_at?: string
+          writing_minutes?: number
+          writing_task1_image_path?: string | null
+          writing_task1_prompt?: string | null
+          writing_task2_prompt?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          listening_minutes?: number
+          listening_test_id?: string | null
+          published?: boolean
+          reading_minutes?: number
+          reading_test_id?: string | null
+          session_closed_at?: string | null
+          session_closed_by?: string | null
+          session_started_at?: string | null
+          session_started_by?: string | null
+          session_state?: string
+          title?: string
+          updated_at?: string
+          writing_minutes?: number
+          writing_task1_image_path?: string | null
+          writing_task1_prompt?: string | null
+          writing_task2_prompt?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mocks_listening_test_id_fkey"
+            columns: ["listening_test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_reading_test_id_fkey"
+            columns: ["reading_test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_closed_by_fkey"
+            columns: ["session_closed_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_closed_by_fkey"
+            columns: ["session_closed_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_closed_by_fkey"
+            columns: ["session_closed_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_closed_by_fkey"
+            columns: ["session_closed_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_closed_by_fkey"
+            columns: ["session_closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mocks_session_started_by_fkey"
+            columns: ["session_started_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -912,6 +1776,7 @@ export type Database = {
           answer_key: Json | null
           created_at: string
           created_by: string | null
+          default_minutes: number | null
           difficulty: number
           file_path: string
           file_url: string
@@ -919,6 +1784,8 @@ export type Database = {
           is_public: boolean
           kind: string
           level: string | null
+          mock_profile: Json | null
+          mock_selftest: Json | null
           passage: number | null
           question_types: string[]
           skill: string
@@ -933,6 +1800,7 @@ export type Database = {
           answer_key?: Json | null
           created_at?: string
           created_by?: string | null
+          default_minutes?: number | null
           difficulty?: number
           file_path: string
           file_url: string
@@ -940,6 +1808,8 @@ export type Database = {
           is_public?: boolean
           kind?: string
           level?: string | null
+          mock_profile?: Json | null
+          mock_selftest?: Json | null
           passage?: number | null
           question_types?: string[]
           skill: string
@@ -954,6 +1824,7 @@ export type Database = {
           answer_key?: Json | null
           created_at?: string
           created_by?: string | null
+          default_minutes?: number | null
           difficulty?: number
           file_path?: string
           file_url?: string
@@ -961,6 +1832,8 @@ export type Database = {
           is_public?: boolean
           kind?: string
           level?: string | null
+          mock_profile?: Json | null
+          mock_selftest?: Json | null
           passage?: number | null
           question_types?: string[]
           skill?: string
@@ -1159,6 +2032,126 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      writing_practice: {
+        Row: {
+          appearances: number
+          chart: string | null
+          created_at: string
+          id: string
+          image_path: string | null
+          prompt: string
+          published: boolean
+          source_hash: string
+          task: number
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          appearances?: number
+          chart?: string | null
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          prompt: string
+          published?: boolean
+          source_hash: string
+          task?: number
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appearances?: number
+          chart?: string | null
+          created_at?: string
+          id?: string
+          image_path?: string | null
+          prompt?: string
+          published?: boolean
+          source_hash?: string
+          task?: number
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      writing_practice_attempts: {
+        Row: {
+          answer: string
+          answer2: string
+          id: string
+          image_path: string | null
+          kind: string
+          practice_id: string
+          practice2_id: string | null
+          prompt: string
+          prompt2: string | null
+          revision: number
+          saved_at: string | null
+          started_at: string
+          submitted_at: string | null
+          topic: string | null
+          topic2: string | null
+          user_id: string | null
+          word_count: number
+          word_count2: number
+        }
+        Insert: {
+          answer?: string
+          answer2?: string
+          id?: string
+          image_path?: string | null
+          kind?: string
+          practice_id: string
+          practice2_id?: string | null
+          prompt: string
+          prompt2?: string | null
+          revision?: number
+          saved_at?: string | null
+          started_at?: string
+          submitted_at?: string | null
+          topic?: string | null
+          topic2?: string | null
+          user_id?: string | null
+          word_count?: number
+          word_count2?: number
+        }
+        Update: {
+          answer?: string
+          answer2?: string
+          id?: string
+          image_path?: string | null
+          kind?: string
+          practice_id?: string
+          practice2_id?: string | null
+          prompt?: string
+          prompt2?: string | null
+          revision?: number
+          saved_at?: string | null
+          started_at?: string
+          submitted_at?: string | null
+          topic?: string | null
+          topic2?: string | null
+          user_id?: string | null
+          word_count?: number
+          word_count2?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_practice_attempts_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "writing_practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "writing_practice_attempts_practice2_id_fkey"
+            columns: ["practice2_id"]
+            isOneToOne: false
+            referencedRelation: "writing_practice"
             referencedColumns: ["id"]
           },
         ]
