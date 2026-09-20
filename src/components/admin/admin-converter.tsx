@@ -301,6 +301,19 @@ export function AdminConverter({ jobs, selfId }: { jobs: Job[]; selfId: string }
                         className="flex flex-wrap items-end gap-3 border-t border-border pt-4"
                       >
                         <input type="hidden" name="id" value={job.id} />
+                        {errata.some((e) => e.severity === "high") && (
+                          <label className="flex w-full items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2 text-xs">
+                            <input type="checkbox" name="acknowledged" className="mt-0.5" />
+                            <span>
+                              I have checked Q
+                              {errata
+                                .filter((e) => e.severity === "high")
+                                .map((e) => e.q)
+                                .join(", Q")}{" "}
+                              against the book. The printed key ships either way.
+                            </span>
+                          </label>
+                        )}
                         <label className="text-xs">
                           <span className="mb-1 block font-medium">Tier</span>
                           <select

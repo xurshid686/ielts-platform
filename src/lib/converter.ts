@@ -197,7 +197,32 @@ export type PublishInput = {
   track: Track;
   level: string | null;
   createdBy: string;
+  /** Set only when the owner has ticked the box for a high-severity erratum. */
+  acknowledged?: boolean;
 };
+
+type Erratum = { q: number; severity?: string };
+
+/**
+ * Questions where every model that looked disagreed with the printed key, or
+ * where the paper printed no key at all.
+ *
+ * Codex reviewed the answer pipeline on 2026-09-20 and made the point this
+ * guards: the design faithfully reproduces the book, so when the book is wrong
+ * it ships the wrong answer and merely logs it. Two independent derivations
+ * agreeing against the key is the strongest evidence available that a question
+ * is wrong, and it was reaching Publish as one line in a list.
+ *
+ * It still ships the printed key - that is the owner's standing decision, and
+ * what the corpus already does. What changes is that it cannot be published
+ * without someone having looked.
+ */
+function highSeverity(errata: Json | null): number[] {
+  if (!Array.isArray(errata)) return [];
+  return (errata as Erratum[])
+    .filter((e) => e && e.severity === "high")
+    .map((e) => e.q);
+}
 
 export type PublishResult = { ok: true; testId: string } | { ok: false; error: string };
 
@@ -216,6 +241,18 @@ export async function publishJob(input: PublishInput): Promise<PublishResult> {
   if (!job) return { ok: false, error: "No such job." };
   if (job.status !== "passed") {
     return { ok: false, error: `Only a job that passed every gate can be published (this one is ${job.status}).` };
+  }
+
+  const flagged = highSeverity(job.errata);
+  if (flagged.length && !input.acknowledged) {
+    return {
+      ok: false,
+      error:
+        `Q${flagged.join(", Q")} ${flagged.length === 1 ? "is" : "are"} flagged: ` +
+        "every model that answered disagreed with the printed key, or the paper " +
+        "printed none. The printed key will ship. Check those question(s) against " +
+        "the book, then tick the box to publish.",
+    };
   }
 
   const html = await downloadHtml(job);

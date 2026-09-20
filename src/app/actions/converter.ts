@@ -94,6 +94,7 @@ export async function publishConversion(formData: FormData): Promise<PublishResu
     track,
     level: levelRaw || null,
     createdBy: gate.userId,
+    acknowledged: formData.get("acknowledged") === "on",
   });
   if (out.ok) {
     revalidatePath("/admin/converter");
