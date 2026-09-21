@@ -257,17 +257,36 @@ ${RESTORE_ANSWERS_JS}
 
   // Hide the report while the key is absent — it could only render a wrong 0/N.
   // Removed again the instant the real data arrives.
+  //
+  // Retake is hidden by a SEPARATE style, because it is the only way out of a
+  // finished session: the test's loadState() calls disableAll() on a stored
+  // isSubmitted, which sets draggable="false" on every heading/drag token and
+  // disables every input. Hiding Retake with the report meant that a key fetch
+  // which failed (offline, a 5xx, an expired membership) left the student
+  // looking at a paper where nothing responds — reported as "I touch a heading
+  // and nothing happens" — with no control to start over. See unhideRetake().
   var hideStyle = null;
+  var retakeHideStyle = null;
   try {
     hideStyle = document.createElement("style");
     // #printReportBtn stays hidden for good: the html2pdf library is stripped
     // from the file, so that button would silently do nothing.
-    hideStyle.textContent = "#submissionModal{display:none!important}#headerRetakeBtn{display:none!important}#printReportBtn{display:none!important}";
+    hideStyle.textContent = "#submissionModal{display:none!important}#printReportBtn{display:none!important}";
     (document.head || document.documentElement).appendChild(hideStyle);
+    retakeHideStyle = document.createElement("style");
+    retakeHideStyle.textContent = "#headerRetakeBtn{display:none!important}";
+    (document.head || document.documentElement).appendChild(retakeHideStyle);
   } catch (e) {}
+
+  function unhideRetake() {
+    try {
+      if (retakeHideStyle && retakeHideStyle.parentNode) retakeHideStyle.parentNode.removeChild(retakeHideStyle);
+    } catch (e) {}
+  }
 
   function unhideReport() {
     try { if (hideStyle && hideStyle.parentNode) hideStyle.parentNode.removeChild(hideStyle); } catch (e) {}
+    unhideRetake();
     try {
       var keepPdfHidden = document.createElement("style");
       keepPdfHidden.textContent = "#printReportBtn{display:none!important}";
@@ -346,7 +365,13 @@ ${RESTORE_ANSWERS_JS}
         // Couldn't get the key: leave the report hidden rather than show a
         // broken 0/N. The platform still grades and saves the attempt, and the
         // student gets the full breakdown on the review page.
+        //
+        // But a RESTORED session (hideModal) is already locked by the test's own
+        // disableAll() — no drag token lifts, no input takes a keystroke — so
+        // without Retake the student has no way to sit the paper again. Reveal
+        // it even though the report stays hidden.
         restored = false;
+        if (hideModal) unhideRetake();
         return;
       }
       seed(literals);
