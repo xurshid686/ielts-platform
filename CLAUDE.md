@@ -1589,6 +1589,16 @@ on its own.
 schema only: the corpus grows weekly and data inlined in a migration cannot be
 re-run.
 
+**The import is no longer the only way in.** The Task 2 tab of
+/admin/writing-practice has an "Add Task 2" form (2026-09-21), the sibling of
+"Add Task 1": wording + topic, a preview of `parseTask2()`'s split, saved
+unpublished. `createTask2Question()` writes **the import script's `source_hash`,
+byte for byte** — sha256 of the NFC, whitespace-collapsed wording, with NO task
+prefix — so a question typed by hand and later reported in the corpus is ONE row
+the import updates (preserving `published`), not a duplicate. Do not "improve"
+that hash on either side without changing both. Task 1 hashes differently on
+purpose: its picture is part of its identity.
+
 ```
 node scripts/import-writing-practice.mjs --dry-run
 node scripts/import-writing-practice.mjs --only=1 --publish   # rank 1 = most reported
