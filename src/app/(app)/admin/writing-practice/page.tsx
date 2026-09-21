@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TopicChip } from "@/components/writing/topic-chip";
 import { PublishToggle } from "@/components/writing/publish-toggle";
 import { Task1UploadForm } from "@/components/writing/task1-upload-form";
+import { Task2AddForm } from "@/components/writing/task2-add-form";
 import { KIND_LABEL, wordsSummary } from "@/components/writing/practice-attempt-view";
 
 export const metadata = { title: "Writing practice · Admin" };
@@ -18,10 +19,12 @@ export const metadata = { title: "Writing practice · Admin" };
  * library, what is published, and what students have written.
  *
  * There is nothing to grade here — practice is never marked, so this page has
- * no Release, no band and no queue. Task 2 questions are loaded by
- * `scripts/import-writing-practice.mjs`; Task 1 questions are added with the
- * "Add Task 1" form (0058). A Full test is not a question of its own — it
- * pairs a Task 1 with a random Task 2 when a student starts it.
+ * no Release, no band and no queue. Questions are added one at a time with the
+ * "Add Task 1" / "Add Task 2" form on the matching tab, and Task 2 in bulk by
+ * `scripts/import-writing-practice.mjs` — both write the same `source_hash`, so
+ * a typed question the corpus later reports stays one row. A Full test is not a
+ * question of its own — it pairs a Task 1 with a random Task 2 when a student
+ * starts it.
  *
  * `tab`, `task` and `topic` live in the URL, like the mock panel's filters.
  */
@@ -91,7 +94,7 @@ export default async function AdminWritingPracticePage({
             ))}
           </div>
 
-          {task === 1 && <Task1UploadForm />}
+          {task === 1 ? <Task1UploadForm /> : <Task2AddForm />}
 
           <p className="text-sm text-muted">
             {published} of {questions.length} published
@@ -120,7 +123,7 @@ export default async function AdminWritingPracticePage({
               title={task === 2 ? "No questions imported yet" : "No Task 1 questions yet"}
               desc={
                 task === 2
-                  ? "Load them with scripts/import-writing-practice.mjs, then publish here."
+                  ? "Add one with the form above or load the corpus with scripts/import-writing-practice.mjs, then publish here."
                   : "Add one with the form above, then publish it here."
               }
             />

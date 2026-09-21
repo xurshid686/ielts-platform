@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin, requireProfile } from "@/lib/auth";
 import {
   createTask1Question,
+  createTask2Question,
   savePractice,
   setPracticePublished,
   type SaveResult,
@@ -47,6 +48,17 @@ export async function createTask1PracticeAction(formData: FormData) {
     prompt: String(formData.get("prompt") ?? ""),
     chart: String(formData.get("chart") ?? ""),
     file: file instanceof File ? file : null,
+  });
+  if (res.ok) revalidatePath("/admin/writing-practice");
+  return res;
+}
+
+/** The owner's "Add Task 2" form: wording + topic, saved unpublished. */
+export async function createTask2PracticeAction(formData: FormData) {
+  await requireAdmin();
+  const res = await createTask2Question({
+    prompt: String(formData.get("prompt") ?? ""),
+    topic: String(formData.get("topic") ?? ""),
   });
   if (res.ok) revalidatePath("/admin/writing-practice");
   return res;

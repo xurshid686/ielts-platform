@@ -613,3 +613,67 @@ export async function createTask1Question(input: {
   }
   return { ok: true, id: (data as { id: string }).id };
 }
+
+/**
+ * Adds a Task 2 question by hand, next to the corpus import.
+ *
+ * `source_hash` IS THE IMPORT SCRIPT'S, byte for byte: sha256 of the NFC,
+ * whitespace-collapsed, trimmed wording, with no task prefix
+ * (scripts/import-writing-practice.mjs). That is deliberate — the same question
+ * typed here and later reported in the @CDI_Report corpus must be ONE row, so
+ * the import updates it (and preserves `published`) instead of duplicating it.
+ * Task 1 hashes differently because a picture is part of its identity.
+ *
+ * The prompt is stored AS TYPED apart from invisible marks and a trailing
+ * channel tag: a blank line the owner typed is how parseTask2() splits the
+ * statement from the question, and collapsing it would throw that away.
+ *
+ * Saved UNPUBLISHED; the owner publishes it from the list. `appearances` is 1 —
+ * a hand-added question has not been reported, and the import will raise it if
+ * it ever is.
+ */
+export async function createTask2Question(input: {
+  prompt: string;
+  topic: string;
+}): Promise<LibResult<{ id: string }>> {
+  const prompt = String(input.prompt ?? "")
+    // Invisible bidi / zero-width marks pasted from a phone keyboard: they
+    // render as nothing but break sentence splitting and word counts.
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "")
+    .replace(/\s*#\w+\s*$/, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!prompt) return { ok: false, error: "Type the Task 2 question." };
+  if (prompt.length > 2000) return { ok: false, error: "That question is too long." };
+  if (!isTopicId(input.topic)) return { ok: false, error: "Pick the topic." };
+
+  const sourceHash = createHash("sha256")
+    .update(prompt.normalize("NFC").replace(/\s+/g, " ").trim(), "utf8")
+    .digest("hex");
+
+  const supabase = db();
+  const { data: dupe } = await supabase
+    .from("writing_practice")
+    .select("id")
+    .eq("source_hash", sourceHash)
+    .maybeSingle();
+  if (dupe) return { ok: false, error: "This question is already in the library." };
+
+  const { data, error } = await supabase
+    .from("writing_practice")
+    .insert({
+      task: 2,
+      topic: input.topic,
+      chart: null,
+      image_path: null,
+      prompt,
+      source_hash: sourceHash,
+      appearances: 1,
+      published: false,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, id: (data as { id: string }).id };
+}
