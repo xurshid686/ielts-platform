@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { promptLines } from "@/lib/ielts/writing-prompt";
 import { countWords, tashkent } from "@/lib/mock-shared";
 
+import { fileStore } from "@/lib/storage";
 // The saveable mock result (owner, 2026-09-16): one report, two formats.
 //
 // Built on the SERVER so the student's own download, the owner's download of any
@@ -319,7 +320,7 @@ export function imageReader() {
     if (seen.has(path)) return seen.get(path)!;
     let meta: ReportImage | null = null;
     try {
-      const { data } = await admin.storage.from("mock-assets").download(path);
+      const { data } = await fileStore("mock-assets", admin).download(path);
       if (data) meta = imageMeta(Buffer.from(await data.arrayBuffer()));
     } catch {
       meta = null;

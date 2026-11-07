@@ -12,6 +12,7 @@ import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 
 loadEnv();
@@ -156,14 +157,13 @@ if (!ex) {
 console.log(`Extracted key: ${ex.total} questions (${Object.keys(ex.key).join(", ")}).`);
 
 const storagePath = `${skill}/public-${randomUUID()}.html`;
-const { error: upErr } = await supabase.storage
-  .from("tests")
+const { error: upErr } = await fileStore("tests", supabase)
   .upload(storagePath, buf, { contentType: "text/html", upsert: false });
 if (upErr) {
   console.error(`Upload failed: ${upErr.message}`);
   process.exit(1);
 }
-const { data: pub } = supabase.storage.from("tests").getPublicUrl(storagePath);
+const { data: pub } = fileStore("tests", supabase).getPublicUrl(storagePath);
 
 // De-dupe on re-run: remove any prior row with the same title + skill.
 await supabase.from("tests").delete().eq("title", title).eq("skill", skill);
@@ -188,7 +188,7 @@ const { data: inserted, error: insErr } = await supabase
   .select("id")
   .single();
 if (insErr) {
-  await supabase.storage.from("tests").remove([storagePath]);
+  await fileStore("tests", supabase).remove([storagePath]);
   console.error(`Insert failed: ${insErr.message}`);
   process.exit(1);
 }

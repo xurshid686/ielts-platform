@@ -7,6 +7,7 @@ import { rows } from "@/types/database";
 import { createTestFromHtml, type Track } from "@/lib/tests/create";
 import { attachTestToDay } from "@/lib/discipline";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
+import { fileStore } from "@/lib/storage";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -306,7 +307,7 @@ export async function deleteTest(id: string): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   if (test?.file_path) {
-    const { error: rmErr } = await supabase.storage.from("tests").remove([test.file_path]);
+    const { error: rmErr } = await fileStore("tests", supabase).remove([test.file_path]);
     // The test is gone from the student's point of view, so this is not a
     // failed action — but the orphan needs to be visible to someone.
     if (rmErr) {

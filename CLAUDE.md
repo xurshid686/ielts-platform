@@ -1823,6 +1823,38 @@ Cost, measured: **$0.14** for a full 3-passage test, **$0.06** for a single
 passage. On the pilot paper the derived key agreed with the hand-authored build
 40/40.
 
+# File storage: one door, two backends (2026-11-07)
+
+**Every storage call goes through `fileStore(bucket, client)` in `src/lib/storage/`**
+(scripts: `scripts/storage.mjs`). Never write `client.storage.from(...)` again.
+
+**Why:** on ~2026-11-03 Supabase restricted the live Frankfurt project for
+`exceed_cached_egress_quota` — auth, REST and storage all answered 402 and the
+site went down. Cached egress is file downloads. The biggest source was
+`/api/test-video/[id]`, which pulled the 5.6 MB intro MP4 from Supabase on every
+test open with `no-store`; test HTML and signed images added the rest.
+
+- `STORAGE_BACKEND=r2` moves every bucket at once to ONE private R2 bucket,
+  `mockonline-files` (EEUR), keyed `<old supabase bucket>/<path>`. Every
+  `file_path` in the database is therefore valid on both sides — no row changes.
+  Unset = Supabase. Switching and rolling back are env changes.
+- The bucket is private: no r2.dev URL. Browsers only get presigned GET URLs
+  (same TTLs as the old Supabase signed URLs). CORS admits only our hosts —
+  add a new host to the bucket's CORS rule or its videos/images will not load.
+- `/api/test-video` keeps `resolveTestAccess` and then 302s to a 2-minute
+  presigned URL, so the MP4 never passes through DigitalOcean.
+- Storage RLS does NOT exist on R2. Nothing relied on it (every path is built or
+  read server-side from the verified session / RLS-scoped rows) — keep it so.
+- `scripts/migrate-storage-to-r2.mjs` copies objects and PROVES each one: the
+  MD5 must equal `storage.objects.metadata.eTag`, then it re-reads from R2 and
+  compares sha256. Sources: `--dir=` (backups, local originals, matched by path
+  or MD5) and `--from-supabase`. Idempotent; never deletes. **Do not set
+  `STORAGE_BACKEND=r2` anywhere until it prints N/N.**
+- The converter worker (`X:\CDI READING PROJECT\cdi\service\worker.py`) reads
+  the same `STORAGE_BACKEND` + `R2_*` names from its `.env`.
+- Supabase copies are kept as the rollback. Files uploaded after the switch
+  exist only in R2.
+
 # Patterns deliberately removed — do not reintroduce
 
 ## Schema-probe fallbacks

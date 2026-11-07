@@ -6,6 +6,7 @@ import { SPEAKING_TOPICS } from "@/lib/ielts/speaking-prompts";
 import { FeedbackView } from "@/components/speaking/feedback-view";
 import type { SpeakingSubmission } from "@/types/database";
 
+import { fileStore } from "@/lib/storage";
 export default async function SpeakingPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
@@ -23,8 +24,7 @@ export default async function SpeakingPage() {
   const signed = new Map<string, string>();
   const allPaths = sessions.flatMap((s) => s.audio_paths ?? []);
   if (allPaths.length) {
-    const { data: urls } = await supabase.storage
-      .from("speaking")
+    const { data: urls } = await fileStore("speaking", supabase)
       .createSignedUrls(allPaths, 3600);
     urls?.forEach((u) => {
       if (u.signedUrl && u.path) signed.set(u.path, u.signedUrl);

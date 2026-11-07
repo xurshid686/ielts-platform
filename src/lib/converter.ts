@@ -5,6 +5,7 @@ import { createTestFromHtml, type Kind, type Tier, type Track } from "@/lib/test
 import { inferQuestionTypes } from "@/lib/ielts/infer-question-types";
 import type { Json } from "@/types/database";
 
+import { fileStore } from "@/lib/storage";
 // The owner's side of the PDF → CDI converter (migration 0059).
 //
 // Same contract as lib/mock-admin.ts and lib/tests/create.ts: service role,
@@ -105,8 +106,7 @@ export async function submitJob(input: SubmitInput): Promise<SubmitResult> {
   }
 
   const path = `${testId}/${Date.now()}-source.pdf`;
-  const { error: upErr } = await db.storage
-    .from(BUCKET)
+  const { error: upErr } = await fileStore(BUCKET, db)
     .upload(path, await input.pdf.arrayBuffer(), {
       contentType: "application/pdf",
       upsert: false,
@@ -128,7 +128,7 @@ export async function submitJob(input: SubmitInput): Promise<SubmitResult> {
 
   if (error || !data) {
     // Do not leave the object behind when the row it belongs to never existed.
-    await db.storage.from(BUCKET).remove([path]);
+    await fileStore(BUCKET, db).remove([path]);
     return { ok: false, error: error?.message ?? "Could not queue the job." };
   }
   return { ok: true, id: data.id };
@@ -177,7 +177,7 @@ export async function deleteJob(id: string): Promise<{ ok: boolean; error?: stri
     return { ok: false, error: "This job is being built right now." };
   }
   const paths = [job.pdf_path, job.html_path].filter(Boolean) as string[];
-  if (paths.length) await db.storage.from(BUCKET).remove(paths);
+  if (paths.length) await fileStore(BUCKET, db).remove(paths);
   const { error } = await db.from("conversion_jobs").delete().eq("id", id);
   return error ? { ok: false, error: error.message } : { ok: true };
 }
@@ -186,7 +186,7 @@ export async function deleteJob(id: string): Promise<{ ok: boolean; error?: stri
 export async function downloadHtml(job: ConversionJob): Promise<string | null> {
   if (!job.html_path) return null;
   const db = createAdminClient();
-  const { data, error } = await db.storage.from(BUCKET).download(job.html_path);
+  const { data, error } = await fileStore(BUCKET, db).download(job.html_path);
   if (error || !data) return null;
   return await data.text();
 }

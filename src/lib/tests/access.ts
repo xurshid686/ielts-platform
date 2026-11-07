@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import { canOpenMockPaper } from "@/lib/mock";
+import { fileStore } from "@/lib/storage";
 
 export type TestRow = {
   file_path?: string;
@@ -172,7 +173,7 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
 /** Downloads a test's HTML from the private bucket with the service-role client. */
 export async function downloadTestHtml(filePath: string): Promise<string | null> {
   const admin = createAdminClient();
-  const { data: blob, error } = await admin.storage.from("tests").download(filePath);
+  const { data: blob, error } = await fileStore("tests", admin).download(filePath);
   if (error || !blob) return null;
   return blob.text();
 }

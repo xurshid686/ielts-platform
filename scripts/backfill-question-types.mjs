@@ -18,6 +18,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { inferQuestionTypes } from "../src/lib/ielts/infer-question-types.ts";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 loadEnv();
 
@@ -62,7 +63,7 @@ const resolved = [];
 let failed = 0;
 
 for (const t of targets) {
-  const { data: blob, error: dlErr } = await db.storage.from("tests").download(t.file_path);
+  const { data: blob, error: dlErr } = await fileStore("tests", db).download(t.file_path);
   if (dlErr || !blob) {
     failed++;
     console.log(`  DOWNLOAD FAILED  ${t.title}  (${dlErr?.message ?? "no blob"})`);

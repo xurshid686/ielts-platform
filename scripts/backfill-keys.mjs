@@ -9,6 +9,7 @@
 // tested). The CDI answer-key format is frozen, so the two stay in sync.
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 
 loadEnv();
@@ -138,7 +139,7 @@ for (const t of tests) {
     // over plain HTTP, which only worked because the bucket was public —
     // migration 0035 closed that, and file_url is no longer written.
     if (!t.file_path) { console.error(`No file_path (${t.title})`); failed++; continue; }
-    const { data: blob, error: dlErr } = await supabase.storage.from("tests").download(t.file_path);
+    const { data: blob, error: dlErr } = await fileStore("tests", supabase).download(t.file_path);
     if (dlErr || !blob) { console.error(`Download failed (${t.title}): ${dlErr?.message ?? "no data"}`); failed++; continue; }
     const html = await blob.text();
     const ex = extractAnswerKey(html);

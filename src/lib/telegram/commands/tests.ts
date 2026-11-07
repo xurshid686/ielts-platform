@@ -6,6 +6,7 @@ import { escapeHtml, clamp, num, date } from "../format";
 import { encodeCb } from "../callback";
 import type { InlineKeyboard } from "../types";
 
+import { fileStore } from "@/lib/storage";
 // Browse, rename and delete the test catalogue.
 
 const PAGE = 8;
@@ -192,7 +193,7 @@ export async function deleteTest(id: string): Promise<{ ok: boolean; note: strin
   if (error) return { ok: false, note: error.message };
 
   if (t.file_path) {
-    const { error: rmErr } = await db.storage.from("tests").remove([t.file_path]);
+    const { error: rmErr } = await fileStore("tests", db).remove([t.file_path]);
     if (rmErr) {
       console.error(`[telegram] test ${id} deleted, storage object left behind: ${rmErr.message}`);
     }

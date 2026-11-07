@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 const SRC = "C:/Users/user/telegram-channel-map";
 const DRY = process.argv.includes("--dry-run");
@@ -72,7 +73,7 @@ for (const q of questions) {
     continue;
   }
   const path = `task1/${randomUUID()}.png`;
-  const { error: upErr } = await supabase.storage.from("writing-practice").upload(path, bytes, { contentType: "image/png", upsert: false });
+  const { error: upErr } = await fileStore("writing-practice", supabase).upload(path, bytes, { contentType: "image/png", upsert: false });
   if (upErr) {
     console.log(`upload failed #${q.id}: ${upErr.message}`);
     bad++;
@@ -89,7 +90,7 @@ for (const q of questions) {
     published: PUBLISH,
   });
   if (error) {
-    await supabase.storage.from("writing-practice").remove([path]);
+    await fileStore("writing-practice", supabase).remove([path]);
     console.log(`insert failed #${q.id}: ${error.message}`);
     bad++;
     continue;

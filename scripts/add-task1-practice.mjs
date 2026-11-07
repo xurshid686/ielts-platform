@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 const CHARTS = ["pie", "bar", "line", "table", "map", "process", "mixed"];
 const TYPES = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif" };
@@ -67,7 +68,7 @@ if (dupe) {
 }
 
 const path = `task1/${randomUUID()}${extname(image).toLowerCase()}`;
-const { error: upErr } = await supabase.storage.from("writing-practice").upload(path, bytes, { contentType, upsert: false });
+const { error: upErr } = await fileStore("writing-practice", supabase).upload(path, bytes, { contentType, upsert: false });
 if (upErr) throw new Error(upErr.message);
 
 const { data, error } = await supabase
@@ -85,7 +86,7 @@ const { data, error } = await supabase
   .select("id")
   .single();
 if (error) {
-  await supabase.storage.from("writing-practice").remove([path]);
+  await fileStore("writing-practice", supabase).remove([path]);
   throw new Error(error.message);
 }
 console.log(`Added ${data.id} (${chart}, ${publish ? "PUBLISHED" : "unpublished"}), picture at ${path}.`);

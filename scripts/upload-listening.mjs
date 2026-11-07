@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 
 loadEnv();
@@ -89,9 +90,9 @@ const supabase = createClient(url, serviceKey, { auth: { persistSession: false }
 const skill = "listening";
 const storagePath = `${skill}/${randomUUID()}.html`;
 
-const { error: upErr } = await supabase.storage.from("tests").upload(storagePath, Buffer.from(html, "utf8"), { contentType: "text/html", upsert: false });
+const { error: upErr } = await fileStore("tests", supabase).upload(storagePath, Buffer.from(html, "utf8"), { contentType: "text/html", upsert: false });
 if (upErr) { console.error("Upload failed:", upErr.message); process.exit(1); }
-const { data: pub } = supabase.storage.from("tests").getPublicUrl(storagePath);
+const { data: pub } = fileStore("tests", supabase).getPublicUrl(storagePath);
 
 // Remove any earlier copy with the same title so re-runs don't duplicate.
 await supabase.from("tests").delete().eq("title", title).eq("skill", skill);
@@ -111,7 +112,7 @@ const row = {
 };
 let { error: insErr } = await supabase.from("tests").insert(row);
 if (insErr && /track/.test(insErr.message)) { delete row.track; ({ error: insErr } = await supabase.from("tests").insert(row)); }
-if (insErr) { await supabase.storage.from("tests").remove([storagePath]); console.error("Insert failed:", insErr.message); process.exit(1); }
+if (insErr) { await fileStore("tests", supabase).remove([storagePath]); console.error("Insert failed:", insErr.message); process.exit(1); }
 
 console.log(`\n✅ Uploaded "${title}" (${skill}, full, ${extracted.total} questions).`);
 console.log(`   storage: ${storagePath}`);

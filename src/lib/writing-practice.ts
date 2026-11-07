@@ -7,6 +7,7 @@ import { MAX_ESSAY_CHARS, countWords } from "@/lib/mock-shared";
 import { isChartId, isTopicId, type ChartId, type TopicId } from "@/lib/writing-practice-topics";
 import { classifyTask2, isTask2Type, matchesSearch, searchTokens } from "@/lib/ielts/task2-question-type";
 
+import { fileStore } from "@/lib/storage";
 // Writing practice (migrations 0057 + 0058), in one place: Task 1, Task 2 and
 // the Full test (a Task 1 plus a random Task 2, in one sitting).
 //
@@ -110,7 +111,7 @@ const ATTEMPT_COLUMNS =
 /** A Task 1 picture, signed for three hours (a long sitting plus a PDF). */
 export async function signedPracticeImage(path: string | null): Promise<string | null> {
   if (!path) return null;
-  const { data } = await db().storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 3);
+  const { data } = await fileStore(BUCKET, db()).createSignedUrl(path, 60 * 60 * 3);
   return data?.signedUrl ?? null;
 }
 
@@ -118,7 +119,7 @@ async function signedPracticeImages(paths: string[]): Promise<Map<string, string
   const out = new Map<string, string>();
   const unique = [...new Set(paths.filter(Boolean))];
   if (!unique.length) return out;
-  const { data } = await db().storage.from(BUCKET).createSignedUrls(unique, 60 * 60);
+  const { data } = await fileStore(BUCKET, db()).createSignedUrls(unique, 60 * 60);
   for (const d of data ?? []) if (d.path && d.signedUrl) out.set(d.path, d.signedUrl);
   return out;
 }
@@ -587,8 +588,7 @@ export async function createTask1Question(input: {
 
   const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
   const path = `task1/${randomUUID()}.${ext}`;
-  const { error: upErr } = await supabase.storage
-    .from(BUCKET)
+  const { error: upErr } = await fileStore(BUCKET, supabase)
     .upload(path, bytes, { contentType: file.type, upsert: false });
   if (upErr) return { ok: false, error: upErr.message };
 
@@ -608,7 +608,7 @@ export async function createTask1Question(input: {
     .single();
   if (error) {
     // Nothing points at the picture yet, so it is safe to take back.
-    await supabase.storage.from(BUCKET).remove([path]);
+    await fileStore(BUCKET, supabase).remove([path]);
     return { ok: false, error: error.message };
   }
   return { ok: true, id: (data as { id: string }).id };

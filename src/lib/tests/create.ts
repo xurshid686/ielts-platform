@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { TablesInsert } from "@/types/database";
 import { extractAnswerKey } from "@/lib/ielts/extract-key";
 
+import { fileStore } from "@/lib/storage";
 // The one place a test row and its storage object are created.
 //
 // Lifted out of uploadTest() in app/actions/admin.ts so the Telegram bot can
@@ -88,8 +89,7 @@ export async function createTestFromHtml(input: CreateTestInput): Promise<Create
 
   const path = `${skill}/${crypto.randomUUID()}.html`;
 
-  const { error: upErr } = await db.storage
-    .from("tests")
+  const { error: upErr } = await fileStore("tests", db)
     .upload(path, new Blob([html], { type: "text/html" }), {
       contentType: "text/html",
       upsert: false,
@@ -127,7 +127,7 @@ export async function createTestFromHtml(input: CreateTestInput): Promise<Create
   if (insErr) {
     // Best-effort cleanup of the orphaned object. The row is what makes a test
     // exist, so failing here leaves storage cost and nothing else.
-    await db.storage.from("tests").remove([path]);
+    await fileStore("tests", db).remove([path]);
     return { ok: false, error: `Saving test failed: ${insErr.message}` };
   }
 

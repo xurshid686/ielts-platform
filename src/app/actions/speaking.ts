@@ -10,6 +10,7 @@ import {
   type SpeakingAudioPart,
 } from "@/lib/ai/gemini";
 import type { SpeakingFeedback } from "@/types/database";
+import { fileStore } from "@/lib/storage";
 
 export type SubmitSpeakingResult =
   | {
@@ -52,8 +53,7 @@ export async function submitSpeakingMock(
 
   for (const { part, file } of files) {
     const path = `${user.id}/${sessionId}/part${part}.wav`;
-    const { error: upErr } = await supabase.storage
-      .from("speaking")
+    const { error: upErr } = await fileStore("speaking", supabase)
       .upload(path, file, { contentType: "audio/wav", upsert: false });
     if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
     audioPaths.push(path);

@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTestAccess } from "@/lib/tests/access";
+import { storageBackend } from "@/lib/storage";
+import { presign } from "@/lib/storage/r2";
 
 const BUCKET = "test-media";
 const OBJECT = "reading-intro.mp4";
@@ -26,6 +28,20 @@ export async function GET(
 
   const access = await resolveTestAccess(id);
   if (!access.ok) return new Response(access.message, { status: access.status });
+
+  // On R2 the bytes never pass through this server: after the same gate, the
+  // player is redirected to a presigned URL that dies in two minutes. That is
+  // the whole point of the move — this 5.6 MB file on every test open is what
+  // exhausted Supabase's cached egress in November 2026. The player's
+  // `fetch(VIDEO_URL)` follows the 302; the bucket's CORS rule admits our
+  // origins, and Content-Length still arrives, so the gate keeps its percentage.
+  if (storageBackend() === "r2") {
+    const url = await presign(BUCKET, OBJECT, 120);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: url, "Cache-Control": "private, no-store, must-revalidate" },
+    });
+  }
 
   const admin = createAdminClient();
   const { data, error } = await admin.storage.from(BUCKET).download(OBJECT);

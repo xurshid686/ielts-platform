@@ -34,6 +34,7 @@ import {
   type IntegrityVerdict,
 } from "@/lib/mock-shared";
 
+import { fileStore } from "@/lib/storage";
 // The OWNER's side of the Mock exam section (0050/0051).
 //
 // Same contract as lib/mock.ts: service role, authorisation-free, gated by its
@@ -684,8 +685,7 @@ export async function uploadTask1Image(mockId: string, file: File): Promise<LibR
   // old review.
   const path = `${mockId}/task1-${Date.now()}.${ext}`;
   const client = db();
-  const { error } = await client.storage
-    .from("mock-assets")
+  const { error } = await fileStore("mock-assets", client)
     .upload(path, await file.arrayBuffer(), { contentType: file.type, upsert: false });
   if (error) return { ok: false, error: error.message };
 
@@ -735,8 +735,8 @@ export async function deleteMock(mockId: string, expectTitle?: string): Promise<
 
   // Task 1 pictures live under <mockId>/ and belong to this mock alone.
   try {
-    const { data: objs } = await client.storage.from("mock-assets").list(mockId);
-    if (objs?.length) await client.storage.from("mock-assets").remove(objs.map((o) => `${mockId}/${o.name}`));
+    const { data: objs } = await fileStore("mock-assets", client).list(mockId);
+    if (objs?.length) await fileStore("mock-assets", client).remove(objs.map((o) => `${mockId}/${o.name}`));
   } catch {
     /* an orphaned picture is harmless; the row going is what matters */
   }

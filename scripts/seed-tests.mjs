@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -31,15 +32,14 @@ for (const t of manifest) {
   const buf = readFileSync(join(root, t.path));
   const storagePath = `${t.skill}/seed-${t.slug}.html`;
 
-  const { error: upErr } = await supabase.storage
-    .from("tests")
+  const { error: upErr } = await fileStore("tests", supabase)
     .upload(storagePath, buf, { contentType: "text/html", upsert: true });
   if (upErr) {
     console.error(`Upload failed (${t.title}): ${upErr.message}`);
     continue;
   }
 
-  const { data: pub } = supabase.storage.from("tests").getPublicUrl(storagePath);
+  const { data: pub } = fileStore("tests", supabase).getPublicUrl(storagePath);
 
   // Avoid duplicates on re-run: delete any existing row with the same title+skill.
   await supabase.from("tests").delete().eq("title", t.title).eq("skill", t.skill);

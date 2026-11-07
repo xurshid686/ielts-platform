@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 loadEnv();
 const dir = process.argv[2];
@@ -35,18 +36,18 @@ for (const id of wanted) {
   catch { console.log(`  ERR   ${id} — no local file`); bad++; continue; }
 
   const newPath = `${row.skill}/patched-${randomUUID()}.html`;
-  const { error: up } = await supabase.storage.from("tests")
+  const { error: up } = await fileStore("tests", supabase)
     .upload(newPath, buf, { contentType: "text/html", upsert: false });
   if (up) { console.log(`  ERR   ${row.title} — upload: ${up.message}`); bad++; continue; }
-  const { data: pub } = supabase.storage.from("tests").getPublicUrl(newPath);
+  const { data: pub } = fileStore("tests", supabase).getPublicUrl(newPath);
   const { error: updErr } = await supabase.from("tests")
     .update({ file_path: newPath, file_url: pub.publicUrl }).eq("id", id);
   if (updErr) {
-    await supabase.storage.from("tests").remove([newPath]);
+    await fileStore("tests", supabase).remove([newPath]);
     console.log(`  ERR   ${row.title} — update: ${updErr.message}`); bad++; continue;
   }
   if (row.file_path && row.file_path !== newPath) {
-    await supabase.storage.from("tests").remove([row.file_path]);
+    await fileStore("tests", supabase).remove([row.file_path]);
   }
   console.log(`  OK    ${row.title.slice(0, 50)}`);
   ok++;

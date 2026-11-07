@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 loadEnv();
 const APPLY = process.argv.includes("--apply");
@@ -87,7 +88,7 @@ let changed = 0, skipped = 0, failed = 0;
 for (const t of rows) {
   if (ONLY && t.id !== ONLY) continue;
   if (!t.file_path) { skipped++; continue; }
-  const { data: blob, error: dl } = await supabase.storage.from("tests").download(t.file_path);
+  const { data: blob, error: dl } = await fileStore("tests", supabase).download(t.file_path);
   if (dl || !blob) { console.log(`  ERR   ${t.title} — cannot download`); failed++; continue; }
   const txt = await blob.text();
   const label = `${t.tier}/${t.skill} ${t.title}`.slice(0, 56).padEnd(58);
@@ -105,17 +106,17 @@ for (const t of rows) {
   writeFileSync(join(backupDir, `${t.id}.html`), txt, "utf8");
   const out = txt.slice(0, idx) + block + txt.slice(idx);
   const newPath = `${t.skill}/patched-${randomUUID()}.html`;
-  const { error: up } = await supabase.storage.from("tests")
+  const { error: up } = await fileStore("tests", supabase)
     .upload(newPath, Buffer.from(out, "utf8"), { contentType: "text/html", upsert: false });
   if (up) { console.log(`  ERR   ${label} upload: ${up.message}`); failed++; continue; }
-  const { data: pub } = supabase.storage.from("tests").getPublicUrl(newPath);
+  const { data: pub } = fileStore("tests", supabase).getPublicUrl(newPath);
   const { error: updErr } = await supabase.from("tests")
     .update({ file_path: newPath, file_url: pub.publicUrl }).eq("id", t.id);
   if (updErr) {
-    await supabase.storage.from("tests").remove([newPath]);
+    await fileStore("tests", supabase).remove([newPath]);
     console.log(`  ERR   ${label} update: ${updErr.message}`); failed++; continue;
   }
-  await supabase.storage.from("tests").remove([t.file_path]);
+  await fileStore("tests", supabase).remove([t.file_path]);
   console.log(`  FIXED ${label}`);
   changed++;
 }

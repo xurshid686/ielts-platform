@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore, storageBackend } from "./storage.mjs";
 
 
 loadEnv();
@@ -28,29 +29,32 @@ if (!url || !service) {
 }
 const supabase = createClient(url, service, { auth: { persistSession: false } });
 
-const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
-if (listErr) {
-  console.error("listBuckets failed:", listErr.message);
-  process.exit(1);
-}
-if (!buckets.some((b) => b.name === BUCKET)) {
-  const { error } = await supabase.storage.createBucket(BUCKET, {
-    public: false,
-    // 50MB is the project-wide ceiling on this plan; asking for more is rejected outright
-    fileSizeLimit: "50MB",
-    allowedMimeTypes: ["video/mp4", "image/jpeg", "image/png"],
-  });
-  if (error) {
-    console.error("createBucket failed:", error.message);
+// On R2 the one private bucket already exists; Supabase buckets are created on demand.
+if (storageBackend() !== "r2") {
+  const { data: buckets, error: listErr } = await supabase.storage.listBuckets();
+  if (listErr) {
+    console.error("listBuckets failed:", listErr.message);
     process.exit(1);
   }
-  console.log(`created private bucket: ${BUCKET}`);
-} else {
-  console.log(`bucket already exists: ${BUCKET}`);
+  if (!buckets.some((b) => b.name === BUCKET)) {
+    const { error } = await supabase.storage.createBucket(BUCKET, {
+      public: false,
+      // 50MB is the project-wide ceiling on this plan; asking for more is rejected outright
+      fileSizeLimit: "50MB",
+      allowedMimeTypes: ["video/mp4", "image/jpeg", "image/png"],
+    });
+    if (error) {
+      console.error("createBucket failed:", error.message);
+      process.exit(1);
+    }
+    console.log(`created private bucket: ${BUCKET}`);
+  } else {
+    console.log(`bucket already exists: ${BUCKET}`);
+  }
 }
 
 const body = readFileSync(src);
-const { error: upErr } = await supabase.storage.from(BUCKET).upload(key, body, {
+const { error: upErr } = await fileStore(BUCKET, supabase).upload(key, body, {
   contentType: "video/mp4",
   upsert: true,
   cacheControl: "3600",

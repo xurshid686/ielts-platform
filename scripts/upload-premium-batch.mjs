@@ -14,6 +14,7 @@ import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
+import { fileStore } from "./storage.mjs";
 
 
 loadEnv();
@@ -247,11 +248,10 @@ for (const [k, group] of byTitle) {
   if (!e.ok) { console.log(`SKIP (failed validation): ${e.title}`); continue; }
 
   const storagePath = `reading/premium-${randomUUID()}.html`;
-  const { error: upErr } = await supabase.storage
-    .from("tests")
+  const { error: upErr } = await fileStore("tests", supabase)
     .upload(storagePath, Buffer.from(e.html, "utf8"), { contentType: "text/html", upsert: false });
   if (upErr) { console.error(`UPLOAD FAILED: ${e.title}: ${upErr.message}`); continue; }
-  const { data: pub } = supabase.storage.from("tests").getPublicUrl(storagePath);
+  const { data: pub } = fileStore("tests", supabase).getPublicUrl(storagePath);
 
   // De-dupe on the natural key title+skill+kind+passage so a "Full Test" and a
   // same-titled "Passage N" don't clobber each other (old storage object left in place).
@@ -274,7 +274,7 @@ for (const [k, group] of byTitle) {
   };
   const { data: inserted, error: insErr } = await supabase.from("tests").insert(row).select("id").single();
   if (insErr) {
-    await supabase.storage.from("tests").remove([storagePath]);
+    await fileStore("tests", supabase).remove([storagePath]);
     console.error(`INSERT FAILED: ${e.title}: ${insErr.message}`);
     continue;
   }

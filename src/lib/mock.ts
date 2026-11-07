@@ -28,6 +28,7 @@ import {
   type MockSection,
 } from "@/lib/mock-shared";
 
+import { fileStore } from "@/lib/storage";
 // The Mock exam section (migration 0050), in one place.
 //
 // AUTHORISATION-FREE ON PURPOSE, and gated by its callers — the contract
@@ -402,7 +403,7 @@ export async function isMockPaper(testId: string): Promise<boolean> {
 /** A private Task 1 image, signed for a short while. */
 export async function signedTask1Image(path: string | null): Promise<string | null> {
   if (!path) return null;
-  const { data } = await db().storage.from("mock-assets").createSignedUrl(path, 60 * 60 * 3);
+  const { data } = await fileStore("mock-assets", db()).createSignedUrl(path, 60 * 60 * 3);
   return data?.signedUrl ?? null;
 }
 
