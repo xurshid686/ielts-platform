@@ -1,0 +1,126 @@
+# DigitalOcean App Platform spec for mockonline.uz - BACKUP COPY, DigitalOcean does not read this file.
+# The live spec lives in DO (app id e2113d00-5db6-4dc3-8a87-ff66553db72c). Kept here because DO deleted the
+# previous app during a billing suspension on 2026-11-08 and its whole config was lost with it.
+#
+# To recreate the app: fill every ${NAME} below from .env.frankfurt (Supabase) and .env.local (the rest),
+# then POST {"spec": <this file as JSON>} to https://api.digitalocean.com/v2/apps (or: doctl apps create --spec).
+# mockonline.uz DNS (sayt.uz) needs no change; www must CNAME to the new app's ondigitalocean.app ingress.
+# SECRET values are placeholders - never commit a real one.
+name: mockonline
+services:
+- name: ielts-platform
+  github:
+    repo: xurshid686/ielts-platform
+    branch: main
+    deploy_on_push: true
+  build_command: npm run build
+  run_command: npm start
+  environment_slug: node-js
+  instance_size_slug: apps-s-1vcpu-1gb-fixed
+  instance_count: 1
+  http_port: 8080
+  health_check:
+    initial_delay_seconds: 20
+    timeout_seconds: 5
+    failure_threshold: 3
+    http_path: /
+  alerts:
+  - rule: MEM_UTILIZATION
+    operator: GREATER_THAN
+    value: 80
+    window: TEN_MINUTES
+  - rule: CPU_UTILIZATION
+    operator: GREATER_THAN
+    value: 80
+    window: TEN_MINUTES
+  - rule: RESTART_COUNT
+    operator: GREATER_THAN
+    value: 1
+    window: TEN_MINUTES
+domains:
+- domain: mockonline.uz
+  type: PRIMARY
+- domain: www.mockonline.uz
+  type: ALIAS
+region: fra
+envs:
+- key: NEXT_PUBLIC_SUPABASE_URL
+  value: https://llzljrwxvpijbfclhlmc.supabase.co
+  scope: RUN_AND_BUILD_TIME
+- key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+  value: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+  scope: RUN_AND_BUILD_TIME
+- key: NEXT_PUBLIC_SITE_URL
+  value: https://mockonline.uz
+  scope: RUN_AND_BUILD_TIME
+- key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+  value: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+  scope: RUN_AND_BUILD_TIME
+  type: SECRET
+- key: SUPABASE_SERVICE_ROLE_KEY
+  value: ${SUPABASE_SERVICE_ROLE_KEY}
+  scope: RUN_TIME
+  type: SECRET
+- key: GEMINI_API_KEY
+  value: ${GEMINI_API_KEY}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_BOT_TOKEN
+  value: ${TELEGRAM_BOT_TOKEN}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_OWNER_ID
+  value: ${TELEGRAM_OWNER_ID}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_WEBHOOK_SECRET
+  value: ${TELEGRAM_WEBHOOK_SECRET}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_EVENT_SECRET
+  value: ${TELEGRAM_EVENT_SECRET}
+  scope: RUN_TIME
+  type: SECRET
+- key: RESEND_API_KEY
+  value: ${RESEND_API_KEY}
+  scope: RUN_TIME
+  type: SECRET
+- key: R2_ACCOUNT_ID
+  value: ${R2_ACCOUNT_ID}
+  scope: RUN_TIME
+  type: SECRET
+- key: R2_ACCESS_KEY_ID
+  value: ${R2_ACCESS_KEY_ID}
+  scope: RUN_TIME
+  type: SECRET
+- key: R2_SECRET_ACCESS_KEY
+  value: ${R2_SECRET_ACCESS_KEY}
+  scope: RUN_TIME
+  type: SECRET
+- key: EMAIL_FROM
+  value: MockOnline <results@mockonline.uz>
+  scope: RUN_TIME
+- key: R2_BUCKET
+  value: listening-audios
+  scope: RUN_TIME
+- key: R2_PUBLIC_BASE
+  value: https://pub-199082d82d80441dafd2de841463cc1b.r2.dev
+  scope: RUN_TIME
+- key: STORAGE_BACKEND
+  value: r2
+  scope: RUN_TIME
+- key: NODE_OPTIONS
+  value: --max-old-space-size=640
+  scope: RUN_TIME
+alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+ingress:
+  rules:
+  - match:
+      path:
+        prefix: /
+    component:
+      name: ielts-platform
+features:
+- buildpack-stack=ubuntu-22

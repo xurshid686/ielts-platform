@@ -8,8 +8,8 @@ self-contained HTML files served into an iframe, graded on the server.
 
 ## Where production actually is — READ THIS BEFORE DEPLOYING
 
-**mockonline.uz is served by DigitalOcean App Platform, behind Cloudflare. It is
-NOT the Vercel deployment.** Confirmed 2026-09-01 from its response headers
+**mockonline.uz is served by DigitalOcean App Platform (DNS at sayt.uz since the
+2026-11-09 rebuild, no Cloudflare proxy). It is NOT the Vercel deployment.** Confirmed 2026-09-01 from its response headers
 (`x-do-app-origin`, `Server: cloudflare`), and by comparing the built chunk
 sets: after a `npm run go-live`, Vercel served the new build and mockonline.uz
 was still serving the previous one.
@@ -17,7 +17,7 @@ was still serving the previous one.
 | URL | Host | Updated by | Database |
 | --- | --- | --- | --- |
 | **https://mockonline.uz** — the site students use, and `SITE_HOST` | DigitalOcean | **NOT `npm run go-live`** | Frankfurt |
-| https://mockonline-2m8db.ondigitalocean.app | DigitalOcean | (same app) | Frankfurt |
+| https://mockonline-fwafk.ondigitalocean.app | DigitalOcean | (same app) | Frankfurt |
 | https://ielts-platform-pi.vercel.app | Vercel | `npm run go-live` | Frankfurt (since 2026-09-02) |
 | https://ielts-platform-dev.vercel.app | Vercel | `npm run save-dev` | Frankfurt (since 2026-09-02) |
 
@@ -60,9 +60,18 @@ finishes first. For a deploy-order-sensitive migration, still wait for the
 CANONICAL host, and check with `doctl apps list-deployments <app-id>` rather
 than guessing.
 
-App id: `4f6bbb48-50e8-49f2-ba7b-63d9eb92a515` (name `mockonline`, region fra).
-There is no `.do/app.yaml` in the repo — the spec lives only in DigitalOcean.
-Read it with `doctl apps spec get <app-id>`.
+App id: `e2113d00-5db6-4dc3-8a87-ff66553db72c` (name `mockonline`, region fra,
+`apps-s-1vcpu-1gb-fixed`, `NODE_OPTIONS=--max-old-space-size=640`, `STORAGE_BACKEND=r2`).
+**Recreated 2026-11-09:** DigitalOcean deleted the original app (`4f6bbb48…`) on
+2026-11-08 during a billing suspension, and its whole spec went with it; paying
+the bill did not bring it back. `.do/app.yaml` is now a BACKUP of the live spec
+with secrets as `${PLACEHOLDERS}` — DO does not read it. After changing the live
+spec, refresh the backup (GET /v2/apps/<id>, scrub SECRET values, commit).
+Read the live spec with `doctl apps spec get <app-id>` or the REST API.
+Email alerts: memory/CPU > 80% for 10 min, restarts, failed deploy, domain
+failure, plus a DO Uptime check on https://mockonline.uz/ (down 2 min, cert expiry).
+www.mockonline.uz must CNAME to the app's ondigitalocean.app ingress (apex A
+records are DO's 162.159.140.98 / 172.66.0.96).
 
 This matters far beyond a stale page: **a deploy-order-sensitive migration
 (0034, 0041) keyed to "deploy the code first" is keyed to the WRONG deploy if
