@@ -269,7 +269,7 @@ export function QuestionBank({
               >
                 <summary className="flex cursor-pointer items-center justify-between gap-3">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-primary">
                       Part {q.part}
                     </span>
                     {q.number && (
@@ -279,11 +279,11 @@ export function QuestionBank({
                     )}
                     <span className="font-semibold">{q.title}</span>
                     {done ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-600/10 px-2 py-0.5 text-xs font-semibold text-emerald-600">
                         <CheckCircle2 className="h-3 w-3" /> Completed
                       </span>
                     ) : (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-500">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-500">
                         <Circle className="h-3 w-3" /> Not attempted
                       </span>
                     )}

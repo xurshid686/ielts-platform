@@ -116,7 +116,7 @@ export default async function SpeakingPage() {
               href={`/speaking/live/${t.id}`}
               className="group flex flex-col rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-primary/50"
             >
-              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
                 Live
               </span>
               <h3 className="mt-2 font-semibold">{t.title}</h3>

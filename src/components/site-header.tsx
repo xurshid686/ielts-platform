@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AccountMenu } from "@/components/account-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { navItemsFor, isActive, type NavItem } from "@/components/site-nav";
+import { SITE_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import type { Profile, Notification } from "@/types/database";
 
@@ -62,7 +63,12 @@ export function SiteHeader({
           className="flex shrink-0 items-center gap-2.5 font-semibold"
         >
           <Logo size={32} />
-          <span className="hidden sm:inline">IELTS</span>
+          {/* The full name wherever there is room for it: always for a visitor
+              (four links), on phones and tablets (the bar is a menu button there),
+              and from 2xl for a signed-in bar. Between lg and 2xl the signed-in
+              bar is too tight for it, so the logo stands alone; the admin bar
+              already overflowed at 1280px once. */}
+          <span className={profile ? "lg:hidden 2xl:inline" : undefined}>{SITE_NAME}</span>
         </Link>
 
         {/* The bar itself — desktop only; below lg these live in the panel. */}

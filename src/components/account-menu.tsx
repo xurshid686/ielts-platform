@@ -100,7 +100,7 @@ export function AccountMenu({ profile }: { profile: Profile }) {
               <Badge className="bg-surface-2 text-muted">Student</Badge>
             )}
             {premium ? (
-              <Badge className="bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
+              <Badge className="bg-premium-gradient text-white">
                 <Crown className="h-3 w-3" /> Premium
               </Badge>
             ) : (

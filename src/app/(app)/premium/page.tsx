@@ -49,7 +49,6 @@ export default async function PremiumPage() {
 
   const active = !!profile && isPremiumActive(profile);
   const isAdmin = profile?.role === "admin";
-  const requestUrl = premiumRequestUrl(profile?.id);
 
   const libraryLine =
     premiumTests.length > 0
@@ -64,7 +63,7 @@ export default async function PremiumPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-10 py-4">
       <header className="text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-premium-gradient text-white">
           <Crown className="h-7 w-7" />
         </div>
         <h1 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
@@ -74,89 +73,94 @@ export default async function PremiumPage() {
           The whole test library, and a place in every mock exam without waiting for approval.
         </p>
         {active && profile?.premium_until && (
-          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/5 px-4 py-1.5 text-sm font-medium">
-            <Crown className="h-4 w-4 text-amber-500" />
+          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-premium/30 bg-premium/5 px-4 py-1.5 text-sm font-medium">
+            <Crown className="h-4 w-4 text-premium" />
             You have Premium until {new Date(profile.premium_until).toISOString().slice(0, 10)}
           </p>
         )}
       </header>
 
-      {/* Plans */}
-      <section aria-label="Prices" className="grid gap-4 sm:grid-cols-2">
+      {/* Plans: each card carries its own button, so price and action share one screen */}
+      <section aria-label="Prices" className="grid items-stretch gap-4 sm:grid-cols-2">
         {PREMIUM_PLANS.map((plan, i) => {
           const best = i === PREMIUM_PLANS.length - 1 && PREMIUM_PLANS.length > 1;
           return (
             <div
               key={plan.months}
-              className={`relative rounded-2xl border bg-surface p-6 shadow-soft ${
-                best ? "border-amber-500/50" : "border-border"
+              className={`flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-soft ${
+                best ? "border-premium/60 shadow-elevated" : "border-border"
               }`}
             >
-              {plan.note && (
-                <span className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 px-2.5 py-0.5 text-xs font-bold text-white">
-                  {plan.note}
-                </span>
-              )}
-              <p className="text-sm font-medium text-muted">{plan.label}</p>
-              <p className="mt-1 text-4xl font-extrabold tabular-nums">{plan.price}</p>
-              <p className="mt-1 text-sm text-muted">
-                One payment. It ends by itself after {plan.label}; nothing renews automatically.
-              </p>
+              <div
+                className={`px-6 py-2 text-xs font-bold uppercase tracking-wide ${
+                  best ? "bg-premium-gradient text-white" : "bg-surface-2 text-muted"
+                }`}
+              >
+                {best ? `Best value${plan.note ? ` · ${plan.note}` : ""}` : "Try it"}
+              </div>
+              <div className="flex flex-1 flex-col p-6">
+                <p className="text-sm font-medium text-muted">{plan.label}</p>
+                <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
+                <p className="mt-2 flex-1 text-sm text-muted">
+                  One payment. It ends by itself after {plan.label}; nothing renews automatically.
+                </p>
+                {!isAdmin && (
+                  <a
+                    href={premiumRequestUrl(profile?.id, plan.months)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold ${
+                      best
+                        ? "bg-premium-gradient text-white shadow-sm hover:opacity-95"
+                        : "border border-premium/40 text-premium hover:bg-premium/10"
+                    }`}
+                  >
+                    <Send className="h-4 w-4" />
+                    {active ? "Add" : "Get"} {plan.label} on Telegram
+                  </a>
+                )}
+              </div>
             </div>
           );
         })}
       </section>
 
-      {/* Call to action */}
-      <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center">
-        {isAdmin ? (
-          <p className="text-sm text-muted">
-            You are an admin, so every test is already open to you. This is the page students see.
-          </p>
-        ) : (
-          <>
-            <h2 className="text-lg font-semibold">
-              {active ? "Add more time" : "Get Premium"}
-            </h2>
-            <ol className="mx-auto mt-3 max-w-md space-y-1.5 text-left text-sm text-muted">
-              <li>
-                <strong className="text-foreground">1.</strong> Message{" "}
-                {PREMIUM_TELEGRAM_HANDLE} on Telegram and say which period you want.
-              </li>
-              <li>
-                <strong className="text-foreground">2.</strong> We send you the payment details.
-              </li>
-              <li>
-                <strong className="text-foreground">3.</strong> After you pay, we switch Premium
-                on for your account and it shows here.
-              </li>
-            </ol>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <a
-                href={requestUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 px-5 py-3 font-semibold text-white shadow-sm hover:opacity-95"
+      {isAdmin ? (
+        <p className="text-center text-sm text-muted">
+          You are an admin, so every test is already open to you. This is the page students see.
+        </p>
+      ) : (
+        <section aria-label="How it works">
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {[
+              `Tap a button above. It opens ${PREMIUM_TELEGRAM_HANDLE} on Telegram.`,
+              "We send you the payment details.",
+              "After you pay, we switch Premium on for your account and it shows here.",
+            ].map((step, i) => (
+              <li
+                key={step}
+                className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4 text-sm"
               >
-                <Send className="h-4 w-4" /> {active ? "Renew on Telegram" : "Get Premium on Telegram"}
-              </a>
-              {!profile && (
-                <Link
-                  href="/register?next=%2Fpremium"
-                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 font-semibold hover:bg-surface-2"
-                >
-                  Create a free account first <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
-            {!profile && (
-              <p className="mt-3 text-xs text-muted">
-                Premium is attached to an account, so you need one before we can switch it on.
-              </p>
-            )}
-          </>
-        )}
-      </section>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-premium/10 text-xs font-bold text-premium tabular-nums">
+                  {i + 1}
+                </span>
+                <span className="text-muted">{step}</span>
+              </li>
+            ))}
+          </ol>
+          {!profile && (
+            <p className="mt-4 text-center text-sm text-muted">
+              Premium is attached to an account, so you need one before we can switch it on.{" "}
+              <Link
+                href="/register?next=%2Fpremium"
+                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+              >
+                Create a free account first <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </p>
+          )}
+        </section>
+      )}
 
       {/* What is included */}
       <section>
@@ -177,7 +181,7 @@ export default async function PremiumPage() {
               <tr className="border-b border-border text-left">
                 <th className="px-4 py-3 font-medium text-muted"> </th>
                 <th className="px-4 py-3 font-medium">Free</th>
-                <th className="px-4 py-3 font-medium text-amber-600 dark:text-amber-400">
+                <th className="px-4 py-3 font-medium text-premium">
                   Premium
                 </th>
               </tr>
@@ -227,7 +231,7 @@ function Included({
 }) {
   return (
     <li className="flex items-start gap-3 rounded-2xl border border-border bg-surface p-4 shadow-soft">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-premium/10 text-premium">
         {icon}
       </span>
       <div>

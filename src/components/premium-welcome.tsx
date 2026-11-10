@@ -24,8 +24,8 @@ export function PremiumWelcome({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-amber-500/30 bg-surface text-center shadow-elevated">
-        <div className="bg-gradient-to-br from-amber-400 to-yellow-500 px-6 py-8 text-white">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-premium/30 bg-surface text-center shadow-elevated">
+        <div className="bg-premium-gradient px-6 py-8 text-white">
           <button
             onClick={close}
             className="absolute right-3 top-3 text-white/80 hover:text-white"

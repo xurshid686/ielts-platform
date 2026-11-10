@@ -57,7 +57,7 @@ export default async function ReferPage() {
         <Stat icon={<UserPlus className="text-primary" />} label="Invited" value={`${invited}`} />
         <Stat icon={<CheckCircle2 className="text-success" />} label="Completed" value={`${qualified.length}`} />
         <Stat icon={<Clock className="text-warning" />} label="In progress" value={`${pending}`} />
-        <Stat icon={<Trophy className="text-amber-500" />} label="Months earned" value={`${monthsEarned}`} />
+        <Stat icon={<Trophy className="text-premium" />} label="Months earned" value={`${monthsEarned}`} />
       </div>
 
       {/* The invite link */}
@@ -77,8 +77,8 @@ export default async function ReferPage() {
 
       {/* Current premium status */}
       {premium && profile.premium_until && (
-        <Card className="flex items-center gap-3 border-amber-500/30 bg-amber-500/5">
-          <Crown className="h-5 w-5 shrink-0 text-amber-500" />
+        <Card className="flex items-center gap-3 border-premium/30 bg-premium/5">
+          <Crown className="h-5 w-5 shrink-0 text-premium" />
           <p className="text-sm">
             Your Premium is active until{" "}
             <strong>{new Date(profile.premium_until).toLocaleDateString()}</strong>. Every qualified
@@ -121,7 +121,7 @@ export default async function ReferPage() {
                       </div>
                     </div>
                     {done ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-premium/10 px-2.5 py-1 text-xs font-semibold text-premium">
                         <Crown className="h-3.5 w-3.5" /> +{r.reward_months || 1} month
                       </span>
                     ) : (

@@ -23,7 +23,7 @@ export function FeedbackView({ feedback }: { feedback: SpeakingFeedback }) {
           <span className={`text-3xl font-extrabold ${bandTone(feedback.overallBand)}`}>
             {feedback.overallBand}
           </span>
-          <span className="text-[10px] uppercase tracking-wide text-muted">band</span>
+          <span className="text-xs uppercase tracking-wide text-muted">band</span>
         </div>
         <div>
           <h3 className="font-semibold">Overall band {feedback.overallBand}</h3>

@@ -18,7 +18,7 @@ export function PremiumContact({
 }) {
   return (
     <div
-      className={`rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm ${className}`}
+      className={`rounded-xl border border-premium/30 bg-premium/5 p-4 text-sm ${className}`}
     >
       <p className="font-medium">
         Premium: <span className="tabular-nums">{PREMIUM_PRICE_LINE}</span>
@@ -32,13 +32,13 @@ export function PremiumContact({
           href={premiumRequestUrl(userId)}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+          className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
           <Send className="h-4 w-4" /> Get Premium on Telegram
         </a>
         <Link
           href="/refer"
-          className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 px-4 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
+          className="inline-flex items-center gap-2 rounded-lg border border-premium/40 px-4 py-2 text-sm font-semibold text-premium hover:bg-premium/10 "
         >
           <Gift className="h-4 w-4" /> Earn it free
         </Link>

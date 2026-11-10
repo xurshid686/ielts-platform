@@ -979,7 +979,7 @@ function Cell({ tests }: { tests: GridCellTest[] }) {
               title={`${t.title} · re-do · ${new Date(a.at).toLocaleDateString()}${
                 a.band !== null ? ` · band ${a.band}` : ""
               }`}
-              className="text-[11px] tabular-nums text-muted"
+              className="text-xs tabular-nums text-muted"
             >
               ↳ {a.raw ?? "·"}/{a.total ?? "?"}
             </span>
@@ -1246,7 +1246,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                 <th key={d.id} className="px-3 py-2 text-center font-medium" title={d.title ?? ""}>
                   <span className="block">D{d.day_number}</span>
                   {d.due_at && (
-                    <span className="block text-[11px] font-normal text-muted">
+                    <span className="block text-xs font-normal text-muted">
                       {new Date(d.due_at).toLocaleDateString(undefined, {
                         day: "numeric",
                         month: "short",
@@ -1278,17 +1278,17 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                   {!hideEmails && <p className="text-xs text-muted">{r.email}</p>}
                   <span className="mt-0.5 flex gap-1">
                     {r.inactive && (
-                      <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-[11px] font-medium text-danger">
+                      <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-xs font-medium text-danger">
                         Inactive
                       </span>
                     )}
                     {r.trailing && (
-                      <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning">
+                      <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
                         Trailing
                       </span>
                     )}
                     {r.overdue && (
-                      <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-medium text-danger">
+                      <span className="rounded-full bg-danger/15 px-1.5 py-0.5 text-xs font-medium text-danger">
                         Overdue
                       </span>
                     )}
@@ -1298,7 +1298,7 @@ function Progress({ grid, onMsg }: { grid: ProgressGrid; onMsg: (m: Msg) => void
                     {r.lateDays > 0 && (
                       <span
                         title={`Finished ${r.lateDays} ${r.lateDays === 1 ? "day" : "days"} after the deadline`}
-                        className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-medium text-warning"
+                        className="rounded-full bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning"
                       >
                         {r.lateDays} late
                       </span>

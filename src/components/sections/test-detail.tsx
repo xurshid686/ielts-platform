@@ -92,11 +92,11 @@ export async function TestDetail({
         >
           <ArrowLeft className="h-4 w-4" /> Back to {skill}
         </Link>
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 shadow-soft">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
+        <div className="rounded-2xl border border-premium/30 bg-premium/5 p-8 shadow-soft">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-premium-gradient text-white">
             <Crown className="h-7 w-7" />
           </div>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-premium">
             Premium test
           </p>
           <h1 className="mt-1 text-balance text-xl font-bold">{t.title}</h1>

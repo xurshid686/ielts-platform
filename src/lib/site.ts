@@ -25,11 +25,15 @@ export const PREMIUM_PRICE_LINE = PREMIUM_PLANS.map((p) => `${p.price} for ${p.l
  * The Premium request link for a signed-in student. The `start` payload
  * arrives in the bot as "/start premium_<account id>", so the owner can see
  * WHICH account is asking instead of matching a Telegram name to an email by
- * hand. A uuid without hyphens is 32 characters, inside Telegram's limit of 64.
+ * hand. Pass `months` and the chosen period travels with it ("_3m").
  */
-export function premiumRequestUrl(userId?: string | null): string {
-  if (!userId) return PREMIUM_TELEGRAM_URL;
-  return `${PREMIUM_TELEGRAM_URL}?start=premium_${userId.replace(/-/g, "")}`;
+export function premiumRequestUrl(userId?: string | null, months?: number): string {
+  // "premium_<32 hex>_3m" is 43 characters; Telegram allows 64 of [A-Za-z0-9_-].
+  const parts = ["premium"];
+  if (userId) parts.push(userId.replace(/-/g, ""));
+  if (months) parts.push(`${months}m`);
+  if (parts.length === 1) return PREMIUM_TELEGRAM_URL;
+  return `${PREMIUM_TELEGRAM_URL}?start=${parts.join("_")}`;
 }
 
 // Support / general contact. A public Telegram account a student can message

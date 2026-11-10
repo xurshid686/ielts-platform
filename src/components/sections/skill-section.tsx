@@ -126,12 +126,15 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           thing asking them to sign up, and it says what they get for it rather
           than blocking the page. */}
       {!profile && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3 sm:p-4">
           <p className="text-sm">
             <span className="font-semibold">
               {freeTotal} free {skill} tests, open to everyone.
             </span>{" "}
-            <span className="text-muted">
+            {/* Phones get the short form: the long sentence pushed the first
+                test off the first screen. */}
+            <span className="text-muted sm:hidden">Sign up to save your scores.</span>
+            <span className="hidden text-muted sm:inline">
               Create a free account to save your scores, see a full answer review and track your
               band over time.
             </span>
@@ -145,7 +148,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
             </Link>
             <Link
               href="/login"
-              className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-sm font-medium hover:bg-surface-2"
+              className="hidden h-9 items-center rounded-lg border border-border px-4 text-sm font-medium hover:bg-surface-2 sm:inline-flex"
             >
               Sign in
             </Link>
@@ -195,6 +198,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         skill={skill}
         canAccessPremium={canAccessPremium}
         isAdmin={profile?.role === "admin"}
+        isGuest={!profile}
       />
 
       {!canAccessPremium && <PremiumContact className="mt-2" userId={profile?.id} />}

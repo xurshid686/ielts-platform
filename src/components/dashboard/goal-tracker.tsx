@@ -161,7 +161,7 @@ export function GoalTracker({
           />
         )}
       </div>
-      <div className="mt-1.5 flex justify-between text-[10px] text-muted">
+      <div className="mt-1.5 flex justify-between text-xs text-muted">
         <span>{SCALE_MIN.toFixed(1)}</span>
         <span>{SCALE_MAX.toFixed(1)}</span>
       </div>

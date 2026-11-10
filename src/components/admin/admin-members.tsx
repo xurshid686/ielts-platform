@@ -258,17 +258,17 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                       <p className="truncate text-sm font-medium">
                         {u.name || u.email}
                         {premium && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-premium-gradient px-1.5 py-0.5 text-xs font-bold text-white">
                             <Crown className="h-2.5 w-2.5" /> Premium
                           </span>
                         )}
                         {u.hidden_from_leaderboard && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs font-bold text-muted">
                             <EyeOff className="h-2.5 w-2.5" /> Hidden
                           </span>
                         )}
                         {u.level && u.level !== "regular" && (
-                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">
                             <GraduationCap className="h-2.5 w-2.5" /> {levelLabel(u.level)}
                           </span>
                         )}
@@ -361,7 +361,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                     <button
                       onClick={() => gift(u)}
                       disabled={giftBusyId === u.id}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 text-sm font-medium text-amber-600 hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-400"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-premium/40 bg-premium/10 px-3 text-sm font-medium text-premium hover:bg-premium/20 disabled:opacity-50 "
                     >
                       {giftBusyId === u.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -289,7 +289,7 @@ export function AdminConverter({ jobs, selfId }: { jobs: Job[]; selfId: string }
                     {job.log && (
                       <details>
                         <summary className="cursor-pointer text-xs text-muted">Worker log</summary>
-                        <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-background p-3 text-[11px] leading-relaxed">
+                        <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-background p-3 text-xs leading-relaxed">
                           {job.log}
                         </pre>
                       </details>

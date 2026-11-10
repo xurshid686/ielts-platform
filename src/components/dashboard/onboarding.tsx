@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2, Circle, Target, BookOpen, Mic, Sparkles, ArrowRight } from "lucide-react";
+import { CheckCircle2, Circle, Target, BookOpen, Sparkles, ArrowRight } from "lucide-react";
 
 type Step = {
   icon: React.ReactNode;
@@ -12,7 +12,7 @@ type Step = {
 
 // Guided first-session checklist. Rendered only while the user has completed
 // zero tests, so it disappears on its own once they get going.
-export function Onboarding({ targetSet, spoke }: { targetSet: boolean; spoke: boolean }) {
+export function Onboarding({ targetSet }: { targetSet: boolean }) {
   const steps: Step[] = [
     {
       icon: <Target className="h-5 w-5" />,
@@ -30,14 +30,6 @@ export function Onboarding({ targetSet, spoke }: { targetSet: boolean; spoke: bo
       done: false,
       cta: "Browse tests",
     },
-    {
-      icon: <Mic className="h-5 w-5" />,
-      title: "Meet your AI examiner",
-      desc: "Have a live speaking conversation and get band feedback.",
-      href: "/speaking",
-      done: spoke,
-      cta: "Try speaking",
-    },
   ];
   const doneCount = steps.filter((s) => s.done).length;
 
@@ -54,7 +46,7 @@ export function Onboarding({ targetSet, spoke }: { targetSet: boolean; spoke: bo
           </span>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {steps.map((s) => (
             <Link
               key={s.title}

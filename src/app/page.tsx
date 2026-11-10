@@ -14,7 +14,6 @@ import {
   BarChart3,
   Zap,
   CheckCircle2,
-  Bot,
   ShieldCheck,
   CalendarDays,
   Gauge,
@@ -49,7 +48,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "How is my band score calculated?",
-    a: "Reading and Listening are graded automatically on the server against a hidden answer key the moment you submit, then converted to an IELTS band. Speaking is assessed by an AI examiner across fluency, vocabulary, grammar and pronunciation.",
+    a: "Reading and Listening are graded automatically on the server against a hidden answer key the moment you submit, then converted to an IELTS band. Speaking is for practice: you answer real Part 1-3 questions and record yourself.",
   },
   {
     q: "Are the tests in the real exam format?",
@@ -118,9 +117,9 @@ export default async function Home() {
             className="animate-rise mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted"
             style={{ "--rise-delay": "160ms" } as React.CSSProperties}
           >
-            Reading, Listening and Speaking in one place — real tests, instant scoring,
-            and a live AI examiner you can actually talk to. Automatic progress tracking
-            and a streak system keep you practising every day.
+            Reading, Listening, Writing and Speaking in one place — real tests in the
+            exam format, with instant scoring. Automatic progress tracking and a streak
+            system keep you practising every day.
           </p>
 
           <div
@@ -194,9 +193,8 @@ export default async function Home() {
             href="/register?next=%2Fspeaking"
             icon={<Mic />}
             title="Speaking"
-            desc="Talk live with an AI examiner, or record a full mock for band feedback."
+            desc="Practise real Part 1-3 questions and record your answers."
             tone="rose"
-            badge="New"
           />
           <Feature
             href="/register?next=%2Fwriting"
@@ -208,6 +206,9 @@ export default async function Home() {
         </section>
 
         {/* ---- Mock exam + Premium ---- */}
+        <h2 className="pt-12 text-center text-sm font-semibold uppercase tracking-wide text-muted">
+          When you want more
+        </h2>
         <section className="grid gap-4 pt-4 lg:grid-cols-2">
           <Link
             href="/register?next=%2Fmock"
@@ -229,9 +230,9 @@ export default async function Home() {
           </Link>
           <Link
             href="/premium"
-            className="group flex items-start gap-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-elevated"
+            className="group flex items-start gap-4 rounded-2xl border border-premium/30 bg-premium/5 p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-elevated"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-premium-gradient text-white">
               <Crown className="h-5 w-5" />
             </span>
             <span>
@@ -285,9 +286,9 @@ export default async function Home() {
 
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             <Highlight
-              icon={<Bot className="h-5 w-5" />}
-              title="A live AI examiner"
-              desc="Have a real spoken conversation with an AI examiner — it asks follow-ups, listens, and you talk back, just like Speaking parts 1–3. Or record a full mock for detailed band feedback."
+              icon={<PenLine className="h-5 w-5" />}
+              title="Real Writing questions"
+              desc="Hundreds of Task 1 and Task 2 questions reported from recent exams, in the exam's own split-screen layout with a timer and a live word count."
               tone="rose"
             />
             <Highlight
@@ -450,8 +451,8 @@ export default async function Home() {
                 <Logo size={24} /> {SITE_NAME}
               </span>
               <p className="mt-2 text-sm text-muted">
-                Real exam-style practice with instant band scores, a live AI examiner and
-                a competitive ranking that keeps you coming back.
+                Real exam-style practice with instant band scores and a competitive
+                ranking that keeps you coming back.
               </p>
             </div>
             <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
@@ -586,7 +587,7 @@ function Feature({
           {icon}
         </div>
         {badge && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
             {badge}
           </span>
         )}

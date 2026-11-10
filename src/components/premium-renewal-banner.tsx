@@ -67,10 +67,10 @@ export function PremiumRenewalBanner({
   return (
     <div
       role="status"
-      className="mb-6 flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+      className="mb-6 flex flex-col gap-3 rounded-xl border border-premium/30 bg-premium/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="flex min-w-0 items-start gap-2">
-        <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <Crown className="mt-0.5 h-4 w-4 shrink-0 text-premium" />
         <span>
           <strong className="font-semibold">{headline}</strong>{" "}
           <span className="text-muted">
@@ -85,7 +85,7 @@ export function PremiumRenewalBanner({
           href={renewUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+          className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
           <Send className="h-4 w-4" /> Renew Premium
         </a>

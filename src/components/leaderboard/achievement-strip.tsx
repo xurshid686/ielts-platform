@@ -38,7 +38,7 @@ export function AchievementStrip({
               <span className="text-xl">{a.icon}</span>
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold">{a.name}</p>
-                <p className="truncate text-[11px] text-muted">
+                <p className="truncate text-xs text-muted">
                   {has ? "Unlocked" : a.description}
                 </p>
               </div>

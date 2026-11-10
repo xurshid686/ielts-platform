@@ -161,9 +161,9 @@ export function ReviewView({
           )}
 
           {showUpgrade && (
-            <Card className="flex h-full flex-col justify-between border-amber-500/30 bg-amber-500/5">
+            <Card className="flex h-full flex-col justify-between border-premium/30 bg-premium/5">
               <div>
-                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-premium">
                   <Crown className="h-3.5 w-3.5" /> Premium
                 </p>
                 <p className="mt-1 font-semibold leading-snug">

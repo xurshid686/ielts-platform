@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Globe, CalendarDays, CalendarRange, Trophy } from "lucide-react";
+import { Globe, CalendarDays, CalendarRange } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { RankBadge, TierChip } from "@/components/rating/rank-badge";
-import { tierForRating } from "@/lib/rating";
+import { TierChip } from "@/components/rating/rank-badge";
 import { cn } from "@/lib/utils";
 import type { LeaderboardGlobalRow, LeaderboardPeriodRow } from "@/types/database";
 
@@ -84,11 +83,15 @@ export function Leaderboard({
   const blurb = TABS.find((t) => t.key === tab)!.blurb;
   // Only show the sticky "you" row when the user isn't already in the visible list.
   const meInList = me != null && rows.some((r) => r.id === meId);
+  // With three or more people the top three stand on the podium and the list
+  // continues from fourth place. They used to appear in both.
+  const podium = rows.length >= 3 ? rows.slice(0, 3) : [];
+  const listed = rows.slice(podium.length);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Leaderboard 🏆</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
         <p className="text-muted">Compete on reading. Climb the tiers from Bronze to Legend.</p>
       </div>
 
@@ -114,7 +117,7 @@ export function Leaderboard({
       <p className="text-sm text-muted">{blurb}</p>
 
       {/* Podium for the top 3 */}
-      {rows.length >= 3 && <Podium rows={rows.slice(0, 3)} meId={meId} />}
+      {podium.length > 0 && <Podium rows={podium} meId={meId} metricLabel={rows[0].metricLabel} />}
 
       {/* Table */}
       <Card className="overflow-hidden p-0">
@@ -122,10 +125,16 @@ export function Leaderboard({
           <div className="p-10 text-center text-muted">
             No one&apos;s on this board yet. Complete a reading test to be the first!
           </div>
+        ) : listed.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted">
+            Only three people are on this board so far. Finish a reading test to join them.
+          </div>
         ) : (
           <ul className="divide-y divide-border">
-            {rows.map((r) => (
-              <RowItem key={r.id} row={r} me={r.id === meId} />
+            {listed.map((r) => (
+              <li key={r.id}>
+                <RowItem row={r} me={r.id === meId} />
+              </li>
             ))}
           </ul>
         )}
@@ -164,7 +173,7 @@ function RowItem({ row, me }: { row: Row; me: boolean }) {
             {row.name || "Anonymous"}
           </Link>
           {me && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">
               YOU
             </span>
           )}
@@ -176,18 +185,39 @@ function RowItem({ row, me }: { row: Row; me: boolean }) {
       </div>
       <div className="text-right">
         <p className="font-bold tabular-nums">{row.metric.toLocaleString()}</p>
-        <p className="text-[11px] text-muted">{row.metricLabel}</p>
+        <p className="text-xs text-muted">{row.metricLabel}</p>
       </div>
     </div>
   );
 }
 
+// First, second and third get a filled disc; everyone else a plain number.
+const PLACE_STYLE: Record<number, string> = {
+  1: "bg-premium text-white",
+  2: "bg-muted text-white",
+  3: "bg-primary text-primary-foreground",
+};
+
+function PlaceDisc({ rank, large = false }: { rank: number; large?: boolean }) {
+  return (
+    <span
+      aria-label={`Place ${rank}`}
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-bold tabular-nums",
+        large ? "h-7 w-7 text-sm" : "h-6 w-6 text-xs",
+        PLACE_STYLE[rank],
+      )}
+    >
+      {rank}
+    </span>
+  );
+}
+
 function RankCell({ rank }: { rank: number }) {
-  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
   return (
     <div className="w-8 shrink-0 text-center">
-      {medal ? (
-        <span className="text-xl">{medal}</span>
+      {rank <= 3 ? (
+        <PlaceDisc rank={rank} />
       ) : (
         <span className="text-sm font-semibold tabular-nums text-muted">{rank}</span>
       )}
@@ -195,14 +225,23 @@ function RankCell({ rank }: { rank: number }) {
   );
 }
 
-function Avatar({ name, url }: { name: string | null; url: string | null }) {
+function Avatar({
+  name,
+  url,
+  size = "sm",
+}: {
+  name: string | null;
+  url: string | null;
+  size?: "sm" | "lg" | "xl";
+}) {
+  const box = size === "xl" ? "h-20 w-20 text-2xl" : size === "lg" ? "h-14 w-14 text-lg" : "h-9 w-9 text-xs";
   if (url) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- external Google avatars; next/image domain config not set up
       <img
         src={url}
         alt=""
-        className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border"
+        className={cn("shrink-0 rounded-full object-cover ring-1 ring-border", box)}
         referrerPolicy="no-referrer"
       />
     );
@@ -214,53 +253,65 @@ function Avatar({ name, url }: { name: string | null; url: string | null }) {
     .join("")
     .toUpperCase();
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary",
+        box,
+      )}
+    >
       {initials}
     </span>
   );
 }
 
-function Podium({ rows, meId }: { rows: Row[]; meId: string }) {
-  // Visual order: 2nd, 1st, 3rd.
+/**
+ * The top three, as people: the same avatar the list uses (photo or initials),
+ * their name, tier and score. It used to show the tier badge in place of the
+ * person, on top of tall empty blocks.
+ */
+function Podium({ rows, meId, metricLabel }: { rows: Row[]; meId: string; metricLabel: string }) {
+  // Visual order: 2nd, 1st, 3rd, with first place raised.
   const order = [rows[1], rows[0], rows[2]];
-  const heights = ["h-20", "h-28", "h-16"];
   return (
-    <div className="grid grid-cols-3 items-end gap-3">
-      {order.map((r, i) =>
-        r ? (
-          <div key={r.id} className="flex flex-col items-center">
-            <Link href={`/u/${r.id}`}>
-              <RankBadge rating={r.rating} size={i === 1 ? "lg" : "md"} />
-            </Link>
+    <ol className="grid grid-cols-3 items-end gap-2 sm:gap-4">
+      {order.map((r) => {
+        const first = r.rank === 1;
+        return (
+          <li
+            key={r.id}
+            className={cn(
+              "flex min-w-0 flex-col items-center rounded-2xl border bg-surface px-2 py-4 text-center shadow-soft sm:px-4",
+              first ? "border-premium/50 pb-6 pt-6 shadow-elevated" : "border-border",
+              r.id === meId && "bg-primary/5",
+            )}
+          >
+            <div className="relative">
+              <Link href={`/u/${r.id}`} aria-label={r.name || "Anonymous"}>
+                <Avatar name={r.name} url={r.avatar_url} size={first ? "xl" : "lg"} />
+              </Link>
+              <span className="absolute -bottom-1 -right-1 rounded-full ring-2 ring-surface">
+                <PlaceDisc rank={r.rank} large={first} />
+              </span>
+            </div>
             <Link
               href={`/u/${r.id}`}
               className={cn(
-                "mt-2 max-w-full truncate text-center text-sm font-semibold hover:underline",
+                "mt-3 max-w-full truncate text-sm font-semibold hover:underline",
                 r.id === meId && "text-primary",
               )}
             >
               {r.name || "Anonymous"}
             </Link>
-            <p className="text-xs text-muted">{tierForRating(r.rating).label}</p>
-            <div
-              className={cn(
-                "mt-2 flex w-full flex-col items-center justify-start rounded-t-xl bg-gradient-to-b from-surface-2 to-surface pt-3",
-                heights[i],
-              )}
-            >
-              <span className="text-lg">
-                {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : "🥉"}
-              </span>
-              <span className="mt-1 flex items-center gap-1 text-sm font-bold tabular-nums">
-                <Trophy className="h-3.5 w-3.5 text-warning" />
-                {r.metric.toLocaleString()}
-              </span>
+            <div className="mt-1">
+              <TierChip rating={r.rating} />
             </div>
-          </div>
-        ) : (
-          <div key={i} />
-        ),
-      )}
-    </div>
+            <p className={cn("mt-2 font-bold tabular-nums", first ? "text-2xl" : "text-lg")}>
+              {r.metric.toLocaleString()}
+            </p>
+            <p className="text-xs text-muted">{metricLabel}</p>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

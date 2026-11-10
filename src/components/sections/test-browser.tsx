@@ -59,11 +59,14 @@ export function TestBrowser({
   skill,
   canAccessPremium,
   isAdmin = false,
+  isGuest = false,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
   canAccessPremium: boolean;
   isAdmin?: boolean;
+  /** No account: "Not attempted" means nothing to them, so the card says "Start test". */
+  isGuest?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -368,7 +371,7 @@ export function TestBrowser({
                   />
                 )}
               <Link href={testPath(skill, t)} className="group">
-                <div className="flex h-full flex-col rounded-2xl border border-border bg-surface p-5 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
+                <div className="flex h-full flex-col rounded-2xl border border-border bg-surface p-4 shadow-soft sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
                   <div className="flex items-start justify-between">
                     <span
                       className={`relative flex h-9 w-9 items-center justify-center rounded-xl ${
@@ -383,7 +386,7 @@ export function TestBrowser({
                         <FileText className="h-5 w-5" />
                       )}
                       {locked && (
-                        <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white">
+                        <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-premium text-white">
                           <Lock className="h-2.5 w-2.5" />
                         </span>
                       )}
@@ -395,7 +398,7 @@ export function TestBrowser({
                         </span>
                       )}
                       {t.tier === "premium" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-premium-gradient px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                           <Crown className="h-3 w-3" /> Premium
                         </span>
                       )}
@@ -434,7 +437,7 @@ export function TestBrowser({
                     </div>
                   </div>
 
-                  <h3 className="mt-3 font-semibold leading-snug">{t.title}</h3>
+                  <h3 className="mt-2 font-semibold leading-snug sm:mt-3">{t.title}</h3>
 
                   {t.questionTypes.length > 0 && (
                     <p className="mt-1 line-clamp-1 text-xs text-muted">
@@ -442,18 +445,20 @@ export function TestBrowser({
                     </p>
                   )}
 
-                  <div className="mt-3 flex items-center justify-between text-sm text-muted">
+                  <div className="mt-2 flex items-center justify-between text-sm text-muted sm:mt-3">
                     <span className="tabular-nums">
                       {locked
-                        ? "Subscribers only"
+                        ? "Premium"
                         : t.attempts
                           ? t.best != null
                             ? `Best band ${t.best}`
                             : "Attempted"
-                          : "Not attempted"}
+                          : isGuest
+                            ? "Start test"
+                            : "Not attempted"}
                     </span>
                     {locked ? (
-                      <Lock className="h-4 w-4 text-amber-500" />
+                      <Lock className="h-4 w-4 text-premium" />
                     ) : (
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     )}

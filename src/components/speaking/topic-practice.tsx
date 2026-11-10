@@ -77,7 +77,7 @@ export function TopicPractice({ question }: { question: SpeakingQuestion }) {
                       key={j}
                       className="rounded-xl border border-border/70 bg-background/40 p-4"
                     >
-                      <span className="mb-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                      <span className="mb-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-primary">
                         Version {j + 1}
                       </span>
                       <p className="text-sm leading-relaxed text-foreground/90">

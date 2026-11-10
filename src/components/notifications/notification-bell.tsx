@@ -72,7 +72,7 @@ export function NotificationBell({ notifications }: { notifications: Notificatio
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-white">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -114,7 +114,7 @@ export function NotificationBell({ notifications }: { notifications: Notificatio
                         {!n.read_at && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
                       </span>
                       {n.body && <span className="mt-0.5 block text-xs text-muted">{n.body}</span>}
-                      <span className="mt-1 block text-[11px] text-muted">{timeAgo(n.created_at)}</span>
+                      <span className="mt-1 block text-xs text-muted">{timeAgo(n.created_at)}</span>
                     </span>
                   </button>
                 </li>

@@ -49,7 +49,7 @@ export function WeeklyReportView({ report }: { report: WeeklyReport }) {
             )}
           </p>
           {r.generated_by === "admin" && (
-            <span className="mt-3 inline-block rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-medium">
+            <span className="mt-3 inline-block rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium">
               Sent by an admin
             </span>
           )}

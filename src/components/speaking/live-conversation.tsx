@@ -131,7 +131,7 @@ export function LiveConversation({ topic }: { topic: SpeakingTopic }) {
                     : "bg-surface-2 text-foreground"
                 }`}
               >
-                <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide opacity-70">
+                <span className="mb-0.5 block text-xs font-semibold uppercase tracking-wide opacity-70">
                   {l.role === "user" ? "You" : "Examiner"}
                 </span>
                 {l.text}

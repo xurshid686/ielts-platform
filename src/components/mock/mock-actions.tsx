@@ -66,7 +66,7 @@ function BuyPremiumLink() {
       href={PREMIUM_TELEGRAM_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+      className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
     >
       <Crown className="h-4 w-4" /> Buy premium
     </a>

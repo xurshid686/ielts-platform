@@ -12,15 +12,20 @@
   --surface: #fffdfa;      /* warm white card */
   --surface-2: #f1e9dd;    /* warm sand */
   --foreground: #2b2420;   /* warm near-black (espresso ink) */
-  --muted: #8a7d70;        /* warm taupe */
+  --muted: #6b5f54;        /* warm taupe; 5.2:1 or better on background, surface and surface-2 */
   --border: #e7ddce;       /* warm hairline */
-  --primary: #c0572e;      /* terracotta */
+  --primary: #b5502a;      /* terracotta; 4.7:1 as text on background, 4.9:1 under its own foreground */
   --primary-foreground: #fffaf4;
   --accent: #6b7d57;       /* sage green */
   --success: #4f7a3f;      /* olive green */
   --warning: #cf8a2c;      /* amber ochre */
   --danger: #c0392b;       /* brick red */
-  --ring: #c0572e;
+  --ring: #b5502a;
+  /* Premium: an ochre gold from the same family as --warning, dark enough to
+     read as text (4.8:1 on background) and to carry white text as a fill. It
+     replaced Tailwind's amber-400/yellow-500, the one bright yellow on the site. */
+  --premium: #946410;
+  --gradient-premium: linear-gradient(135deg, #a8731c 0%, #8c5e0f 100%);
 
   /* Soft, warm-gray shadows — small and single-purpose, no coloured glow */
   --shadow-soft: 0 1px 2px rgba(64, 47, 35, 0.05), 0 3px 8px rgba(64, 47, 35, 0.06);
@@ -50,6 +55,8 @@
   --warning: #e0a85a;
   --danger: #e07a6b;
   --ring: #e08a5a;
+  --premium: #e6b866;
+  --gradient-premium: linear-gradient(135deg, #b07a1e 0%, #946410 100%);
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.32);
   --shadow-elevated: 0 8px 22px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.42);
@@ -120,6 +127,7 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-ring: var(--ring);
+  --color-premium: var(--premium);
 
   --shadow-soft: var(--shadow-soft);
   --shadow-elevated: var(--shadow-elevated);
@@ -167,6 +175,9 @@ h1, h2, h3, h4, h5, h6 {
 /* Brand gradient helpers */
 .bg-brand-gradient {
   background-image: var(--gradient-brand);
+}
+.bg-premium-gradient {
+  background-image: var(--gradient-premium);
 }
 .text-brand-gradient {
   background-image: var(--gradient-brand);

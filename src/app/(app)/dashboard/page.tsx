@@ -326,6 +326,61 @@ export default async function DashboardPage() {
           ? `Keep your ${profile.streak}-day streak alive — take a test today.`
           : "Take a test today to start a new streak.";
 
+  // ---- First run ----------------------------------------------------------
+  // A student who has not finished anything used to get the full dashboard:
+  // a streak hero showing 0, four stat cards showing 0, an empty band box, an
+  // empty rating card and five empty charts, with three different "start here"
+  // areas between them. They get ONE screen instead: what to do first, and
+  // their target band. Everything else appears once there is something in it.
+  if (totalCompleted === 0) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <header>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {firstName}</h1>
+          <p className="mt-1.5 text-muted">
+            Take one test and this page fills in with your band, your streak and what to
+            practise next.
+          </p>
+        </header>
+
+        <section className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated sm:p-8">
+          <div className="ring-hairline absolute inset-0 rounded-2xl" />
+          <div className="relative">
+            <p className="text-sm font-medium text-white/85">Start here</p>
+            <h2 className="mt-1 text-balance text-2xl font-bold">
+              {nextTest ? nextTest.title : "Your first reading test"}
+            </h2>
+            <p className="mt-1.5 text-sm text-white/85">
+              {nextTest
+                ? `${nextTest.kind === "full" ? "Full reading test" : nextTest.passage ? `Reading passage ${nextTest.passage}` : "Reading passage"} · the real exam screen · your band the moment you submit`
+                : "The real exam screen, and your band the moment you submit."}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                href={nextTest ? `/reading/${nextTest.id}` : "/reading"}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-primary hover:bg-white/90"
+              >
+                <Target className="h-4 w-4" /> Start this test <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/reading" className="text-sm font-medium text-white underline-offset-4 hover:underline">
+                Choose another
+              </Link>
+              <Link href="/listening" className="text-sm font-medium text-white underline-offset-4 hover:underline">
+                Or start with Listening
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <Onboarding targetSet={profile.target_band != null} />
+
+        <div id="goal" className="scroll-mt-20">
+          <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Quick-start: action-first welcome band */}
@@ -333,7 +388,7 @@ export default async function DashboardPage() {
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Welcome back, {firstName} 👋
+              {totalCompleted === 0 ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
             </h1>
             <p className="mt-1.5 text-muted">{nudge}</p>
           </div>
@@ -354,7 +409,7 @@ export default async function DashboardPage() {
                 icon={<Headphones className="h-4 w-4" />}
                 label="Listening"
               />
-              <QuickLink href="/speaking" icon={<Mic className="h-4 w-4" />} label="Speaking" />
+              <QuickLink href="/writing" icon={<PenLine className="h-4 w-4" />} label="Writing" />
             </div>
           </div>
         </div>
@@ -377,26 +432,17 @@ export default async function DashboardPage() {
                   ? "Come back tomorrow to keep it going."
                   : "Take a test today to start your streak."}
               </p>
-              <div className="mt-5 flex gap-6 text-sm">
-                <span className="flex items-center gap-1.5 text-white/90">
-                  <Trophy className="h-4 w-4" /> Best{" "}
-                  <strong className="tabular-nums">{profile.longest_streak}</strong>
-                </span>
-                <span className="flex items-center gap-1.5 text-white/90">
-                  <Zap className="h-4 w-4" /> <strong className="tabular-nums">{profile.xp}</strong> XP
-                </span>
-              </div>
             </div>
 
             {/* Estimated overall band */}
             <div className="flex flex-col items-center rounded-2xl bg-white/12 px-5 py-4 text-center backdrop-blur-sm">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-white/80">
+              <span className="text-xs font-medium uppercase tracking-wide text-white/80">
                 Est. overall
               </span>
               <span className="mt-1 text-4xl font-extrabold tabular-nums">
                 {overall != null ? overall.toFixed(1) : "—"}
               </span>
-              <span className="text-[11px] text-white/70">{skillAverages.length}/4 skills</span>
+              <span className="text-xs text-white/70">{skillAverages.length}/4 skills</span>
             </div>
           </div>
         </div>
@@ -426,11 +472,6 @@ export default async function DashboardPage() {
           />
         </div>
       </div>
-
-      {/* First-session checklist — gone after the first completed test */}
-      {totalCompleted === 0 && (
-        <Onboarding targetSet={profile.target_band != null} spoke={speak.length > 0} />
-      )}
 
       {/* Competitive reading rating (defaults guard the pre-migration window) */}
       <RatingCard
