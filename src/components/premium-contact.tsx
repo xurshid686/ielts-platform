@@ -1,21 +1,16 @@
 import Link from "next/link";
-import { Send, Gift, ArrowRight } from "lucide-react";
-import { PREMIUM_PRICE_LINE, premiumRequestUrl } from "@/lib/site";
+import { ArrowRight, Crown, Gift } from "lucide-react";
+import { PREMIUM_PRICE_LINE } from "@/lib/site";
 
 /**
- * How to get a Premium membership: the price, a button that opens the Telegram
- * request, and the free route (invite a friend).
+ * The "How to get Premium" box: the price, a button to the Premium page, and
+ * the free route (invite a friend).
  *
- * `account` (the viewer's email) is put into the ready-typed Telegram message,
- * so the owner can see who is asking. Pass it wherever the profile is at hand.
+ * It deliberately does NOT link to Telegram (owner, 2026-11-10). Every Premium
+ * prompt on the site leads to /premium, which explains what is included and
+ * what it costs; the Telegram buttons live on that page only.
  */
-export function PremiumContact({
-  className = "",
-  account,
-}: {
-  className?: string;
-  account?: string | null;
-}) {
+export function PremiumContact({ className = "" }: { className?: string }) {
   return (
     <div
       className={`rounded-xl border border-premium/30 bg-premium/5 p-4 text-sm ${className}`}
@@ -24,29 +19,21 @@ export function PremiumContact({
         Premium: <span className="tabular-nums">{PREMIUM_PRICE_LINE}</span>
       </p>
       <p className="mt-1 text-muted">
-        Write to our admin on Telegram to pay and we switch it on for your account. Or invite a friend:
-        when they join and complete their first test, you get a month free.
+        Every premium test and instant mock exam entry. Or invite a friend: when they join and
+        complete their first test, you get a month free.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <a
-          href={premiumRequestUrl(account)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
-        >
-          <Send className="h-4 w-4" /> Get Premium on Telegram
-        </a>
-        <Link
-          href="/refer"
-          className="inline-flex items-center gap-2 rounded-lg border border-premium/40 px-4 py-2 text-sm font-semibold text-premium hover:bg-premium/10 "
-        >
-          <Gift className="h-4 w-4" /> Earn it free
-        </Link>
         <Link
           href="/premium"
-          className="inline-flex items-center gap-1 px-2 py-2 text-sm font-medium text-muted hover:text-foreground"
+          className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
-          What&apos;s included <ArrowRight className="h-3.5 w-3.5" />
+          <Crown className="h-4 w-4" /> Get Premium <ArrowRight className="h-4 w-4" />
+        </Link>
+        <Link
+          href="/refer"
+          className="inline-flex items-center gap-2 rounded-lg border border-premium/40 px-4 py-2 text-sm font-semibold text-premium hover:bg-premium/10"
+        >
+          <Gift className="h-4 w-4" /> Earn it free
         </Link>
       </div>
     </div>
