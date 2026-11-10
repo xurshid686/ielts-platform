@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { Crown, Send, X } from "lucide-react";
+import { ArrowRight, Crown, X } from "lucide-react";
 
 const EVENT = "premium-renewal-dismissed";
 
@@ -30,12 +31,10 @@ export function PremiumRenewalBanner({
   stage,
   days,
   until,
-  renewUrl,
 }: {
   stage: "expiring" | "lapsed";
   days: number;
   until: string;
-  renewUrl: string;
 }) {
   const key = `premium-renewal-dismissed:${stage}:${until}`;
   // Hidden on the server and until hydration, so a dismissed banner never flashes.
@@ -81,14 +80,14 @@ export function PremiumRenewalBanner({
         </span>
       </p>
       <div className="flex shrink-0 items-center gap-2">
-        <a
-          href={renewUrl}
-          target="_blank"
-          rel="noreferrer"
+        {/* To the Premium page, like every other Premium prompt; the Telegram
+            buttons live there. */}
+        <Link
+          href="/premium"
           className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
-          <Send className="h-4 w-4" /> Renew Premium
-        </a>
+          Renew Premium <ArrowRight className="h-4 w-4" />
+        </Link>
         <button
           type="button"
           onClick={dismiss}

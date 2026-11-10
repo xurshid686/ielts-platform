@@ -6,7 +6,6 @@ import { ReferralRedeemer } from "@/components/referral-redeemer";
 import { getProfile, isDisciplineMember } from "@/lib/auth";
 import { PremiumRenewalBanner } from "@/components/premium-renewal-banner";
 import { isPremiumActive, membershipStage } from "@/lib/premium";
-import { premiumRequestUrl } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import type { Notification } from "@/types/database";
 
@@ -66,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         until={profile.premium_until}
       />
       {renewal && (
-        <PremiumRenewalBanner {...renewal} renewUrl={premiumRequestUrl(profile.email)} />
+        <PremiumRenewalBanner {...renewal} />
       )}
       {children}
     </AppShell>

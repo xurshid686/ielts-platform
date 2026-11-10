@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, Crown, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { beginMock, joinMock, requestMock } from "@/app/actions/mock";
 import { MAX_REQUEST_MESSAGE, type MockRequestStatus } from "@/lib/mock-shared";
-import { PREMIUM_TELEGRAM_URL } from "@/lib/site";
 
 /**
  * "Request this mock" — or the state of a request already sent.
@@ -59,17 +59,15 @@ function MockJoinButton({ mockId }: { mockId: string }) {
   );
 }
 
-/** Buying Premium is arranged on Telegram — there is no checkout (lib/site.ts). */
+/** Leads to /premium, which states the price and carries the Telegram buttons. */
 function BuyPremiumLink() {
   return (
-    <a
-      href={PREMIUM_TELEGRAM_URL}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href="/premium"
       className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
     >
       <Crown className="h-4 w-4" /> Buy premium
-    </a>
+    </Link>
   );
 }
 
