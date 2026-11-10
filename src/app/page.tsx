@@ -45,7 +45,7 @@ const rankLadder = METAL_ORDER.map((name) => TIERS.find((t) => t.name === name)!
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is it really free?",
-    a: `Yes. You can create an account and practise Reading, Listening, Writing and Speaking for free. Premium adds the premium tests, instant mock exam entry and more AI speaking practice, for ${PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" or ")}.`,
+    a: `Yes. You can create an account and practise Reading, Listening, Writing and Speaking for free. Premium adds the premium tests and instant mock exam entry, for ${PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" or ")}.`,
   },
   {
     q: "How is my band score calculated?",
@@ -240,8 +240,7 @@ export default async function Home() {
                 <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5" />
               </span>
               <span className="mt-1 block text-sm text-muted">
-                Every premium test, instant mock exam entry and ten times more AI speaking
-                practice. {PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(", ")}.
+                Every premium test and instant mock exam entry. {PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(", ")}.
               </span>
             </span>
           </Link>

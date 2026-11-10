@@ -6,7 +6,6 @@ import {
   ClipboardCheck,
   Crown,
   Gift,
-  Mic,
   Send,
 } from "lucide-react";
 import { getProfile } from "@/lib/auth";
@@ -16,7 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Premium",
-  description: `IELTS practice Premium: every premium test, instant mock exam entry and more AI speaking practice. ${PREMIUM_PLANS.map(
+  description: `IELTS practice Premium: every premium test and instant mock exam entry. ${PREMIUM_PLANS.map(
     (p) => `${p.price} for ${p.label}`,
   ).join(", ")}.`,
   alternates: { canonical: "/premium" },
@@ -29,8 +28,9 @@ export const metadata = {
  *
  * Every figure on this page is either a constant the owner set (the plans in
  * lib/site.ts) or read from the database at render time (the premium test
- * counts). The AI limits mirror `use_ai_quota` in migration 0010; change both
- * together.
+ * counts). Speaking is deliberately NOT sold here (owner, 2026-11-10: the AI
+ * speaking examiner is not reliable enough to charge for), although premium
+ * accounts do still get higher AI limits in `use_ai_quota` (migration 0010).
  */
 export default async function PremiumPage() {
   const profile = await getProfile();
@@ -71,8 +71,7 @@ export default async function PremiumPage() {
           Premium
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-muted">
-          The whole test library, a place in every mock exam without waiting for approval, and
-          ten times more AI speaking practice.
+          The whole test library, and a place in every mock exam without waiting for approval.
         </p>
         {active && profile?.premium_until && (
           <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/5 px-4 py-1.5 text-sm font-medium">
@@ -170,10 +169,6 @@ export default async function PremiumPage() {
             Join any open mock exam straight away. Free accounts send a request and wait for it
             to be approved.
           </Included>
-          <Included icon={<Mic className="h-5 w-5" />} title="More AI speaking practice">
-            20 live conversations with the AI examiner a day instead of 2, and 30 graded speaking
-            answers a day instead of 3.
-          </Included>
         </ul>
 
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface shadow-soft">
@@ -193,8 +188,6 @@ export default async function PremiumPage() {
               <Row label="Writing practice" free={<Yes />} premium={<Yes />} />
               <Row label="Premium tests" free="No" premium={<Yes />} />
               <Row label="Mock exam place" free="On request" premium="Instant" />
-              <Row label="Live AI conversations a day" free="2" premium="20" />
-              <Row label="Graded speaking answers a day" free="3" premium="30" />
             </tbody>
           </table>
         </div>
