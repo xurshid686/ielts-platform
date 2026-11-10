@@ -48,9 +48,12 @@ export async function POST() {
   );
 
   if (!res.ok) {
+    // The provider's error text stays in the server log. It can name the model,
+    // the project and quota state, none of which belongs in a student's browser.
     const detail = await res.text().catch(() => "");
+    console.error(`[live-token] Gemini refused (${res.status}): ${detail.slice(0, 500)}`);
     return Response.json(
-      { error: `Could not start live session: ${detail.slice(0, 200)}` },
+      { error: "Could not start the live session. Please try again in a moment." },
       { status: 502 },
     );
   }

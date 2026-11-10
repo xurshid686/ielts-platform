@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { liveStreak } from "@/lib/day";
 import type { Level, Profile } from "@/types/database";
 
 /**
@@ -31,8 +32,21 @@ export const getProfile = cache(async function getProfile(): Promise<Profile | n
     .eq("id", user.id)
     .single();
 
-  return (profile as Profile | null) ?? fallbackProfile(user);
+  return withLiveStreak((profile as Profile | null) ?? fallbackProfile(user));
 });
+
+/**
+ * `profiles.streak` is only rewritten on the student's NEXT activity, so a
+ * student who stopped weeks ago still stores their old number. Every page gets
+ * its profile from the two loaders in this file, so correcting it here fixes
+ * the header, the account menu and the dashboard at once. Display only.
+ */
+export function withLiveStreak<T extends Pick<Profile, "streak" | "last_activity_date" | "timezone">>(
+  profile: T,
+): T {
+  const streak = liveStreak(profile.streak, profile.last_activity_date, profile.timezone);
+  return streak === profile.streak ? profile : { ...profile, streak };
+}
 
 /**
  * Returns the signed-in user's profile or redirects to /login.
@@ -61,7 +75,7 @@ export const requireProfile = cache(async function requireProfile(): Promise<Pro
     .single();
 
   // Fallback in the rare window before the signup trigger has run.
-  return (profile as Profile | null) ?? fallbackProfile(user);
+  return withLiveStreak((profile as Profile | null) ?? fallbackProfile(user));
 });
 
 /** Stand-in profile for the window between signup and the DB trigger firing. */

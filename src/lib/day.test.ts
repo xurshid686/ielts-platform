@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { localDay } from "./day";
+import { liveStreak, localDay, previousDay } from "./day";
 
 describe("localDay", () => {
   it("uses the student's timezone, not the server's", () => {
@@ -42,5 +42,44 @@ describe("localDay", () => {
 
   it("formats as YYYY-MM-DD, zero-padded", () => {
     expect(localDay("UTC", new Date("2026-01-05T00:00:00Z"))).toBe("2026-01-05");
+  });
+});
+
+describe("previousDay", () => {
+  it("steps back across month and year ends", () => {
+    expect(previousDay("2026-03-01")).toBe("2026-02-28");
+    expect(previousDay("2026-01-01")).toBe("2025-12-31");
+  });
+});
+
+describe("liveStreak", () => {
+  // 2026-11-10T07:00Z is 12:00 on the 10th in Tashkent.
+  const now = new Date("2026-11-10T07:00:00Z");
+
+  it("keeps a streak whose last activity was today or yesterday", () => {
+    expect(liveStreak(5, "2026-11-10", "Asia/Tashkent", now)).toBe(5);
+    expect(liveStreak(5, "2026-11-09", "Asia/Tashkent", now)).toBe(5);
+  });
+
+  it("shows 0 once a whole day has been missed", () => {
+    expect(liveStreak(5, "2026-11-08", "Asia/Tashkent", now)).toBe(0);
+    expect(liveStreak(12, "2026-09-01", "Asia/Tashkent", now)).toBe(0);
+  });
+
+  it("judges the day in the student's timezone", () => {
+    // 2026-11-10T20:00Z is already the 11th in Tashkent, still the 10th in UTC.
+    const late = new Date("2026-11-10T20:00:00Z");
+    expect(liveStreak(3, "2026-11-09", "Asia/Tashkent", late)).toBe(0);
+    expect(liveStreak(3, "2026-11-09", "UTC", late)).toBe(3);
+  });
+
+  it("is 0 with no streak or no recorded activity", () => {
+    expect(liveStreak(0, "2026-11-10", "UTC", now)).toBe(0);
+    expect(liveStreak(4, null, "UTC", now)).toBe(0);
+    expect(liveStreak(null, "2026-11-10", "UTC", now)).toBe(0);
+  });
+
+  it("accepts a timestamp as well as a date", () => {
+    expect(liveStreak(2, "2026-11-09T00:00:00+00:00", "UTC", now)).toBe(2);
   });
 });

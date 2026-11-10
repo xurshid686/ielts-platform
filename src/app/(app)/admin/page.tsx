@@ -12,7 +12,7 @@ import {
   FileUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, withLiveStreak } from "@/lib/auth";
 import { workloadCounts } from "@/lib/mock-admin";
 import { Card } from "@/components/ui/card";
 import { cn, timeAgo } from "@/lib/utils";
@@ -30,7 +30,8 @@ export default async function AdminPage() {
       workloadCounts(),
     ]);
 
-  const people = (students ?? []) as Profile[];
+  // Stored streaks go stale (see withLiveStreak), so count and show live ones.
+  const people = ((students ?? []) as Profile[]).map(withLiveStreak);
   const activeStreaks = people.filter((p) => p.streak > 0).length;
 
   return (

@@ -78,7 +78,7 @@ describe("R2 backend", () => {
 
   it("upload without upsert refuses to overwrite, like Supabase", async () => {
     respond = () => new Response(null, { status: 412 });
-    const { error } = await fileStore("tests", null as never).upload("reading/x.html", "<html>", {
+    const { error } = await fileStore("tests", null as never).upload("reading/x.html", new Blob(["<html>"]), {
       contentType: "text/html",
     });
     expect(error?.message).toBe("The resource already exists");

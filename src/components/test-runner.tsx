@@ -135,11 +135,15 @@ export function TestRunner({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ testId, answers }),
       })
-        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => (r.ok ? r.json() : r.status === 429 ? { limited: true } : null))
         .catch(() => null);
       setSaving(false);
-      if (!res) {
-        setError("Could not score this attempt. Please try again.");
+      if (!res || res.limited) {
+        setError(
+          res?.limited
+            ? "Too many attempts from this connection. Please wait a few minutes, or create a free account to keep going."
+            : "Could not score this attempt. Please try again.",
+        );
         handled.current = false;
         return;
       }

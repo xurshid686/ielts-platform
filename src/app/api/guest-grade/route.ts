@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeAnswers, asAnswerKey, asAnswers } from "@/lib/ielts/grade";
 import { rawToBand } from "@/lib/ielts/bandTable";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 // Grades a test taken by a visitor with NO account.
 //
@@ -13,7 +14,27 @@ import { rawToBand } from "@/lib/ielts/bandTable";
 // What it returns is only the score. It does NOT return the answer key or
 // per-question correctness: that is the paid review, and handing it to an
 // anonymous caller would give the whole library's answers away to a script.
+//
+// Rate-limited per address: the score alone is an oracle. Submitting one answer
+// at a time and watching `raw` move reveals a free test's whole key in ~40
+// requests per guess. A real visitor grades a handful of tests an hour.
+const limiter = createRateLimiter({ limit: 20, windowMs: 10 * 60_000 });
+
 export async function POST(req: Request) {
+  const rate = limiter.check(clientIp(req.headers));
+  if (!rate.allowed) {
+    return Response.json(
+      { error: "Too many attempts. Please wait a few minutes and try again." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rate.retryAfterSeconds),
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();
