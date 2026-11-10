@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import { PREMIUM_PLANS } from "@/lib/site";
 import {
   Search,
   FileText,
@@ -365,13 +366,22 @@ export function TestBrowser({
                     count={leadingTier === "free" ? premiumCount : freeCount}
                     note={
                       leadingTier === "free"
-                        ? "Included with a Premium membership"
+                        ? `Included with Premium, from ${PREMIUM_PLANS[0].price}`
                         : undefined
                     }
                   />
                 )}
               <Link href={testPath(skill, t)} className="group">
-                <div className="flex h-full flex-col rounded-2xl border border-border bg-surface p-4 shadow-soft sm:p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
+                {/* A locked card keeps its real title at full contrast and is never
+                    blurred (owner, 2026-11-10): the title is what sells a premium
+                    passage. It gets a Premium-tinted frame and its price instead. */}
+                <div
+                  className={`flex h-full flex-col rounded-2xl border bg-surface p-4 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:p-5 ${
+                    locked
+                      ? "border-premium/30 hover:border-premium/50"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
                   <div className="flex items-start justify-between">
                     <span
                       className={`relative flex h-9 w-9 items-center justify-center rounded-xl ${
@@ -446,9 +456,9 @@ export function TestBrowser({
                   )}
 
                   <div className="mt-2 flex items-center justify-between text-sm text-muted sm:mt-3">
-                    <span className="tabular-nums">
+                    <span className={`tabular-nums ${locked ? "font-medium text-premium" : ""}`}>
                       {locked
-                        ? "Premium"
+                        ? `Unlock from ${PREMIUM_PLANS[0].price}`
                         : t.attempts
                           ? t.best != null
                             ? `Best band ${t.best}`
