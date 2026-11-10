@@ -28,7 +28,6 @@ import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker
 import { RatingCard } from "@/components/rating/rating-card";
 import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
 import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
-import { Onboarding } from "@/components/dashboard/onboarding";
 import { computeTypeStats, weakestType } from "@/lib/analytics";
 import { isPremiumActive } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
@@ -371,8 +370,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         </section>
-
-        <Onboarding targetSet={profile.target_band != null} />
 
         <div id="goal" className="scroll-mt-20">
           <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
