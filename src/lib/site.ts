@@ -7,6 +7,21 @@ export const PREMIUM_TELEGRAM_HANDLE = "@AdmniMaterialsUzbot";
 export const PREMIUM_TELEGRAM_URL = "https://t.me/AdmniMaterialsUzbot";
 
 /**
+ * What Premium costs. Set by the owner (2026-11-10) and shown on /premium, the
+ * lock screen and every "How to get Premium" box, so a price is changed HERE
+ * and nowhere else. There is no checkout: a student asks on Telegram, pays the
+ * owner directly, and the owner grants the period on /admin/members, whose
+ * period list must keep offering every `months` value below.
+ */
+export const PREMIUM_PLANS: { months: number; label: string; price: string; note?: string }[] = [
+  { months: 1, label: "1 month", price: "$2" },
+  { months: 3, label: "3 months", price: "$5", note: "Save $1" },
+];
+
+/** One line for small spaces: "$2 for 1 month · $5 for 3 months". */
+export const PREMIUM_PRICE_LINE = PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");
+
+/**
  * The Premium request link for a signed-in student. The `start` payload
  * arrives in the bot as "/start premium_<account id>", so the owner can see
  * WHICH account is asking instead of matching a Telegram name to an email by

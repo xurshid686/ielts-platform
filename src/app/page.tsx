@@ -18,13 +18,15 @@ import {
   ShieldCheck,
   CalendarDays,
   Gauge,
+  ClipboardCheck,
+  Crown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { TIERS, type TierName } from "@/lib/rating";
-import { CONTACT_TELEGRAM_URL } from "@/lib/site";
+import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -43,7 +45,7 @@ const rankLadder = METAL_ORDER.map((name) => TIERS.find((t) => t.name === name)!
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Is it really free?",
-    a: "Yes. You can create an account and practise Reading, Listening and Speaking tests for free. Premium adds the rest of the library — extra exclusive materials on top of everything the free plan already gives you.",
+    a: `Yes. You can create an account and practise Reading, Listening, Writing and Speaking for free. Premium adds the premium tests, instant mock exam entry and more AI speaking practice, for ${PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" or ")}.`,
   },
   {
     q: "How is my band score calculated?",
@@ -78,7 +80,7 @@ export default async function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="flex items-center gap-2.5 text-lg font-semibold">
             <Logo size={38} priority />
-            IELTS Practice
+            {SITE_NAME}
           </span>
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
@@ -197,12 +199,52 @@ export default async function Home() {
             badge="New"
           />
           <Feature
+            href="/register?next=%2Fwriting"
             icon={<PenLine />}
             title="Writing"
-            desc="Task 1 & 2 editor with AI band feedback."
+            desc="Real Task 1 and Task 2 questions in the exam layout, with a timer and word count."
             tone="amber"
-            badge="Soon"
           />
+        </section>
+
+        {/* ---- Mock exam + Premium ---- */}
+        <section className="grid gap-4 pt-4 lg:grid-cols-2">
+          <Link
+            href="/register?next=%2Fmock"
+            className="group flex items-start gap-4 rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ClipboardCheck className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="flex items-center gap-2 font-semibold">
+                Full mock exams
+                <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5" />
+              </span>
+              <span className="mt-1 block text-sm text-muted">
+                Listening, Reading and Writing in one timed sitting, marked by a teacher, with
+                your result and paper review sent to you.
+              </span>
+            </span>
+          </Link>
+          <Link
+            href="/premium"
+            className="group flex items-start gap-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-elevated"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
+              <Crown className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="flex items-center gap-2 font-semibold">
+                Premium from {PREMIUM_PLANS[0].price}
+                <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5" />
+              </span>
+              <span className="mt-1 block text-sm text-muted">
+                Every premium test, instant mock exam entry and ten times more AI speaking
+                practice. {PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(", ")}.
+              </span>
+            </span>
+          </Link>
         </section>
 
         {/* ---- Feature deep-dive ---- */}
@@ -406,7 +448,7 @@ export default async function Home() {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-sm">
               <span className="flex items-center gap-2 text-base font-semibold text-foreground">
-                <Logo size={24} /> IELTS Practice
+                <Logo size={24} /> {SITE_NAME}
               </span>
               <p className="mt-2 text-sm text-muted">
                 Real exam-style practice with instant band scores, a live AI examiner and
@@ -437,6 +479,9 @@ export default async function Home() {
               >
                 Contact us
               </a>
+              <Link href="/premium" className="text-muted transition-colors hover:text-foreground">
+                Premium
+              </Link>
               <Link href="/privacy" className="text-muted transition-colors hover:text-foreground">
                 Privacy
               </Link>
@@ -446,7 +491,7 @@ export default async function Home() {
             </nav>
           </div>
           <div className="mt-8 border-t border-border/60 pt-6 text-center text-sm text-muted">
-            © {new Date().getFullYear()} IELTS Practice Platform. Practise daily, test confidently.
+            © {new Date().getFullYear()} {SITE_NAME}. Practise daily, test confidently.
           </div>
         </div>
       </footer>

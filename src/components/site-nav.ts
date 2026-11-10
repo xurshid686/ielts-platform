@@ -9,6 +9,7 @@ import {
   Target,
   Send,
   ClipboardCheck,
+  Crown,
 } from "lucide-react";
 import { CONTACT_TELEGRAM_URL } from "@/lib/site";
 import type { Profile } from "@/types/database";
@@ -51,6 +52,7 @@ export function navItemsFor(
     return [
       { href: "/reading", label: "Reading", icon: BookOpen },
       { href: "/listening", label: "Listening", icon: Headphones },
+      { href: "/premium", label: "Premium", icon: Crown },
       { href: CONTACT_TELEGRAM_URL, label: "Contact", icon: Send, external: true },
     ];
   }

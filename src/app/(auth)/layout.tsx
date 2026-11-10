@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm">
             <Logo size={38} />
           </span>
-          IELTS Practice
+          MockOnline
         </Link>
 
         <div className="relative max-w-md space-y-7">
@@ -41,7 +41,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <p className="relative text-sm text-white/60">
-          © {new Date().getFullYear()} IELTS Practice Platform
+          © {new Date().getFullYear()} MockOnline
         </p>
       </div>
 

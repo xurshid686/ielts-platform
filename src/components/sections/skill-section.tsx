@@ -197,7 +197,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         isAdmin={profile?.role === "admin"}
       />
 
-      {!canAccessPremium && <PremiumContact className="mt-2" />}
+      {!canAccessPremium && <PremiumContact className="mt-2" userId={profile?.id} />}
 
       {/* The crawlable index. TestBrowser above caps itself at 24 cards behind
           a client-side button, so without this the other ~150 papers have no

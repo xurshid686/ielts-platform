@@ -150,6 +150,11 @@ export function AccountMenu({ profile }: { profile: Profile }) {
                 {level.label}
               </MenuItem>
             )}
+            {profile.role !== "admin" && (
+              <MenuItem href="/premium" icon={<Crown className="h-4 w-4" />} onClick={() => setOpen(false)}>
+                {premium ? "Your Premium" : "Get Premium"}
+              </MenuItem>
+            )}
             <MenuItem href="/refer" icon={<Gift className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Invite friends
             </MenuItem>

@@ -21,7 +21,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
 
       <footer className="mt-12 border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-sm text-muted">
-          <span>© {new Date().getFullYear()} IELTS Practice</span>
+          <span>© {new Date().getFullYear()} MockOnline</span>
           <nav className="flex flex-wrap gap-x-6 gap-y-2">
             <a
               href={CONTACT_TELEGRAM_URL}

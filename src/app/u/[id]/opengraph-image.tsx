@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { tierForRating, estimatedBand, type TierName } from "@/lib/rating";
 import type { PublicProfile } from "@/types/database";
 
-export const alt = "IELTS Practice profile";
+export const alt = "MockOnline profile";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -83,7 +83,7 @@ export default async function OgImage({ params }: { params: Promise<{ id: string
             🎓
           </div>
           <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color: "#ffffff" }}>
-            IELTS Practice
+            MockOnline
           </div>
         </div>
 

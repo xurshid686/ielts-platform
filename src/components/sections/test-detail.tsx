@@ -96,8 +96,17 @@ export async function TestDetail({
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 text-white">
             <Crown className="h-7 w-7" />
           </div>
-          <h1 className="mt-4 text-xl font-bold">This is a Premium test</h1>
-          <p className="mt-2 text-sm text-muted">
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            Premium test
+          </p>
+          <h1 className="mt-1 text-balance text-xl font-bold">{t.title}</h1>
+          {(t.question_types?.length ?? 0) > 0 && (
+            <p className="mt-2 text-sm text-muted">
+              {t.total ? `${t.total} questions · ` : ""}
+              {(t.question_types ?? []).join(" · ")}
+            </p>
+          )}
+          <p className="mt-3 text-sm text-muted">
             This{" "}
             <strong>
               {t.kind === "full"
@@ -111,7 +120,7 @@ export async function TestDetail({
             is included with Premium, along with every other test in the library.
           </p>
         </div>
-        <PremiumContact className="mt-4 text-left" />
+        <PremiumContact className="mt-4 text-left" userId={profile.id} />
       </div>
     );
   }

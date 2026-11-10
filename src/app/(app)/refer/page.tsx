@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InviteCard } from "@/components/referral/invite-card";
 import type { Referral } from "@/types/database";
 
-export const metadata = { title: "Invite friends · IELTS Practice" };
+export const metadata = { title: "Invite friends · MockOnline" };
 
 export default async function ReferPage() {
   const profile = await requireProfile();
