@@ -13,6 +13,7 @@ import {
   Crown,
   Repeat2,
   ListChecks,
+  SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { testPath } from "@/lib/tests/ref";
@@ -71,6 +72,12 @@ export function TestBrowser({
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
   const [visible, setVisible] = useState(PAGE_SIZE);
+  // Phones only: the filter rows sit behind one button, so the first test card
+  // is on screen without scrolling past three rows of chips. From `sm` up the
+  // rows are always visible and this flag is ignored.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters =
+    (filter !== "all" ? 1 : 0) + (qType !== "all" ? 1 : 0) + (access !== "all" ? 1 : 0);
 
   const isOpen = useMemo(
     () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium,
@@ -213,6 +220,23 @@ export function TestBrowser({
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((o) => !o)}
+        aria-expanded={filtersOpen}
+        aria-controls="test-filters"
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface text-sm font-medium shadow-soft sm:hidden"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        {filtersOpen ? "Hide filters" : "Filters"}
+        {activeFilters > 0 && (
+          <span className="rounded-full bg-primary/15 px-1.5 text-xs tabular-nums text-primary">
+            {activeFilters}
+          </span>
+        )}
+      </button>
+
+      <div id="test-filters" className={`space-y-4 sm:block ${filtersOpen ? "" : "hidden"}`}>
       {/* Tier sections — the primary control, on its own line above everything
           else. This is the question a student actually asks first: what can I
           use without paying? */}
@@ -288,6 +312,7 @@ export function TestBrowser({
             </select>
           )}
         </div>
+      </div>
       </div>
 
       {/* Results */}
