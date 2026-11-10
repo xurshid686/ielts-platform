@@ -6,6 +6,17 @@ export const PREMIUM_TELEGRAM = "AdmniMaterialsUzbot";
 export const PREMIUM_TELEGRAM_HANDLE = "@AdmniMaterialsUzbot";
 export const PREMIUM_TELEGRAM_URL = "https://t.me/AdmniMaterialsUzbot";
 
+/**
+ * The Premium request link for a signed-in student. The `start` payload
+ * arrives in the bot as "/start premium_<account id>", so the owner can see
+ * WHICH account is asking instead of matching a Telegram name to an email by
+ * hand. A uuid without hyphens is 32 characters, inside Telegram's limit of 64.
+ */
+export function premiumRequestUrl(userId?: string | null): string {
+  if (!userId) return PREMIUM_TELEGRAM_URL;
+  return `${PREMIUM_TELEGRAM_URL}?start=premium_${userId.replace(/-/g, "")}`;
+}
+
 // Support / general contact. A public Telegram account a student can message
 // directly — deliberately NOT the premium bot above, which exists to arrange
 // paid access.

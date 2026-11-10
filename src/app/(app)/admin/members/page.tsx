@@ -10,13 +10,28 @@ export default async function AdminMembersPage() {
   const supabase = await createClient();
 
   // `level` (0021) and `hidden_from_leaderboard` (0020) are long applied.
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email, name, role, level, premium_until, xp, hidden_from_leaderboard")
-    .order("created_at", { ascending: false })
-    .limit(500);
+  const COLUMNS =
+    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date";
 
-  const initialUsers = rows<MemberRow>(data);
+  // The newest 500 accounts, PLUS everyone who has ever held Premium. Without
+  // the second query a lapsed member who registered long ago falls outside the
+  // first 500 and the "Lapsed" filter would silently miss them.
+  const [{ data }, { data: everPremium }] = await Promise.all([
+    supabase.from("profiles").select(COLUMNS).order("created_at", { ascending: false }).limit(500),
+    supabase
+      .from("profiles")
+      .select(COLUMNS)
+      .not("premium_until", "is", null)
+      .order("premium_until", { ascending: false })
+      .limit(1000),
+  ]);
+
+  const recent = rows<MemberRow>(data);
+  const seen = new Set(recent.map((u) => u.id));
+  const initialUsers = [
+    ...recent,
+    ...rows<MemberRow>(everPremium).filter((u) => !seen.has(u.id)),
+  ];
 
   return (
     <div className="space-y-8">

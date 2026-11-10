@@ -22,7 +22,13 @@ import {
 } from "@/app/actions/admin";
 import { adminSendWeeklyReport } from "@/app/actions/reports";
 import { Button } from "@/components/ui/button";
-import { isPremiumActive } from "@/lib/premium";
+import {
+  EXPIRING_DAYS,
+  LAPSED_DAYS,
+  isPremiumActive,
+  membershipStage,
+  type MembershipStage,
+} from "@/lib/premium";
 import { ALL_LEVELS, levelLabel } from "@/lib/levels";
 
 const PERIODS = [
@@ -32,7 +38,26 @@ const PERIODS = [
   { months: 12, label: "1 year" },
 ];
 
+// Who to show. "expiring" and "lapsed" are the two groups worth a message: the
+// same windows the student's own renewal banner uses (lib/premium.ts).
+type StageFilter = "all" | "premium" | "expiring" | "lapsed" | "expired";
+
+const STAGE_FILTERS: { id: StageFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "premium", label: "Premium now" },
+  { id: "expiring", label: `Ending in ${EXPIRING_DAYS} days` },
+  { id: "lapsed", label: `Lapsed, last ${LAPSED_DAYS} days` },
+  { id: "expired", label: "Lapsed earlier" },
+];
+
+function matchesStage(filter: StageFilter, stage: MembershipStage): boolean {
+  if (filter === "all") return true;
+  if (filter === "premium") return stage === "active" || stage === "expiring";
+  return stage === filter;
+}
+
 export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
+  const [stageFilter, setStageFilter] = useState<StageFilter>("all");
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<MemberRow[]>(initialUsers);
   const [searching, setSearching] = useState(false);
@@ -148,8 +173,39 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     });
   }
 
+  // Admins hold access by role, so their membership dates say nothing about sales.
+  const staged = users.map((u) => ({
+    u,
+    membership: u.role === "admin" ? { stage: "none" as const, days: 0 } : membershipStage(u.premium_until),
+  }));
+  const stageCount = (f: StageFilter) =>
+    staged.filter((s) => matchesStage(f, s.membership.stage)).length;
+  const shown = staged
+    .filter((s) => matchesStage(stageFilter, s.membership.stage))
+    // Inside a membership filter, the people closest to the end date come first.
+    .sort((a, b) => (stageFilter === "all" ? 0 : a.membership.days - b.membership.days));
+
   return (
     <div className="space-y-6">
+      {/* Membership filter */}
+      <div className="flex flex-wrap gap-2">
+        {STAGE_FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setStageFilter(f.id)}
+            aria-pressed={stageFilter === f.id}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+              stageFilter === f.id
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-surface text-muted hover:text-foreground"
+            }`}
+          >
+            {f.label} <span className="tabular-nums opacity-80">{stageCount(f.id)}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Search */}
       <form onSubmit={runSearch} className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -183,11 +239,13 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
 
       {/* Results */}
       <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-soft">
-        {users.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted">No accounts found.</p>
+        {shown.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted">
+            {users.length === 0 ? "No accounts found." : "Nobody in this group."}
+          </p>
         ) : (
           <ul className="divide-y divide-border">
-            {users.map((u) => {
+            {shown.map(({ u, membership }) => {
               const premium = isPremiumActive(u);
               const m = months[u.id] ?? 1;
               return (
@@ -219,7 +277,13 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         {u.email} · {u.xp} XP
                         {premium && u.premium_until
                           ? ` · until ${new Date(u.premium_until).toLocaleDateString()}`
-                          : " · Free"}
+                          : membership.stage === "lapsed" || membership.stage === "expired"
+                            ? ` · Premium ended ${
+                                membership.days === 0 ? "today" : `${membership.days} days ago`
+                              }`
+                            : " · Free"}
+                        {membership.stage !== "none" &&
+                          ` · last active ${u.last_activity_date ?? "never"}`}
                       </p>
                     </div>
                   </div>

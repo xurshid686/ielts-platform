@@ -4,7 +4,9 @@ import { PremiumWelcome } from "@/components/premium-welcome";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { ReferralRedeemer } from "@/components/referral-redeemer";
 import { getProfile, isDisciplineMember } from "@/lib/auth";
-import { isPremiumActive } from "@/lib/premium";
+import { PremiumRenewalBanner } from "@/components/premium-renewal-banner";
+import { isPremiumActive, membershipStage } from "@/lib/premium";
+import { premiumRequestUrl } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import type { Notification } from "@/types/database";
 
@@ -41,6 +43,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .order("created_at", { ascending: false })
     .limit(12);
 
+  // Members about to lose Premium, or who lost it in the last month, get one
+  // slim renewal line. Admins never do: their access does not depend on it.
+  const membership = membershipStage(profile.premium_until);
+  const renewal =
+    profile.role !== "admin" &&
+    profile.premium_until &&
+    (membership.stage === "expiring" || membership.stage === "lapsed")
+      ? { stage: membership.stage, days: membership.days, until: profile.premium_until }
+      : null;
+
   return (
     <AppShell
       profile={profile}
@@ -53,6 +65,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         show={profile.premium_announce && isPremiumActive(profile)}
         until={profile.premium_until}
       />
+      {renewal && (
+        <PremiumRenewalBanner {...renewal} renewUrl={premiumRequestUrl(profile.id)} />
+      )}
       {children}
     </AppShell>
   );

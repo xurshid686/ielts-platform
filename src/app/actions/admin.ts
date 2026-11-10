@@ -161,6 +161,8 @@ export type MemberRow = {
   premium_until: string | null;
   xp: number;
   hidden_from_leaderboard: boolean;
+  /** `YYYY-MM-DD` of the student's last scored activity. */
+  last_activity_date: string | null;
 };
 
 // Search accounts by email or name (admin-only). Empty query returns recent users.
@@ -180,7 +182,9 @@ export async function searchUsers(
   // like a missing column and silently degraded the result.
   let req = supabase
     .from("profiles")
-    .select("id, email, name, role, level, premium_until, xp, hidden_from_leaderboard")
+    .select(
+      "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date",
+    )
     .order("created_at", { ascending: false })
     .limit(500);
   if (q) req = req.or(`email.ilike.%${q}%,name.ilike.%${q}%`);
