@@ -6,15 +6,15 @@ import { PREMIUM_PRICE_LINE, premiumRequestUrl } from "@/lib/site";
  * How to get a Premium membership: the price, a button that opens the Telegram
  * request, and the free route (invite a friend).
  *
- * `userId` makes the Telegram button carry the account id, so the owner can
- * see who is asking. Pass it wherever the viewer's profile is at hand.
+ * `account` (the viewer's email) is put into the ready-typed Telegram message,
+ * so the owner can see who is asking. Pass it wherever the profile is at hand.
  */
 export function PremiumContact({
   className = "",
-  userId,
+  account,
 }: {
   className?: string;
-  userId?: string | null;
+  account?: string | null;
 }) {
   return (
     <div
@@ -24,12 +24,12 @@ export function PremiumContact({
         Premium: <span className="tabular-nums">{PREMIUM_PRICE_LINE}</span>
       </p>
       <p className="mt-1 text-muted">
-        Message us on Telegram to pay and we switch it on for your account. Or invite a friend:
+        Write to our admin on Telegram to pay and we switch it on for your account. Or invite a friend:
         when they join and complete their first test, you get a month free.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <a
-          href={premiumRequestUrl(userId)}
+          href={premiumRequestUrl(account)}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"

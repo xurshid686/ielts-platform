@@ -66,7 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         until={profile.premium_until}
       />
       {renewal && (
-        <PremiumRenewalBanner {...renewal} renewUrl={premiumRequestUrl(profile.id)} />
+        <PremiumRenewalBanner {...renewal} renewUrl={premiumRequestUrl(profile.email)} />
       )}
       {children}
     </AppShell>

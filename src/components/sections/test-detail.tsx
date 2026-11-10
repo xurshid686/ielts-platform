@@ -120,7 +120,7 @@ export async function TestDetail({
             is included with Premium, along with every other test in the library.
           </p>
         </div>
-        <PremiumContact className="mt-4 text-left" userId={profile.id} />
+        <PremiumContact className="mt-4 text-left" account={profile.email} />
       </div>
     );
   }

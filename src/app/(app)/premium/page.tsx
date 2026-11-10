@@ -106,7 +106,7 @@ export default async function PremiumPage() {
                 </p>
                 {!isAdmin && (
                   <a
-                    href={premiumRequestUrl(profile?.id, plan.months)}
+                    href={premiumRequestUrl(profile?.email, plan.months)}
                     target="_blank"
                     rel="noreferrer"
                     className={`mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold ${
@@ -133,7 +133,7 @@ export default async function PremiumPage() {
         <section aria-label="How it works">
           <ol className="grid gap-3 sm:grid-cols-3">
             {[
-              `Tap a button above. It opens ${PREMIUM_TELEGRAM_HANDLE} on Telegram.`,
+              `Tap a button above. It opens a chat with our admin, ${PREMIUM_TELEGRAM_HANDLE}, with your message ready to send.`,
               "We send you the payment details.",
               "After you pay, we switch Premium on for your account and it shows here.",
             ].map((step, i) => (

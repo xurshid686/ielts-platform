@@ -1,10 +1,11 @@
 // Site-wide constants.
 
 // Premium is granted by an admin (no self-serve checkout). Students request it
-// by contacting the admin on Telegram.
-export const PREMIUM_TELEGRAM = "AdmniMaterialsUzbot";
-export const PREMIUM_TELEGRAM_HANDLE = "@AdmniMaterialsUzbot";
-export const PREMIUM_TELEGRAM_URL = "https://t.me/AdmniMaterialsUzbot";
+// by writing to the owner's own Telegram ADMIN ACCOUNT (owner, 2026-11-10). It
+// is a person, not a bot: it used to be @AdmniMaterialsUzbot.
+export const PREMIUM_TELEGRAM = "ListeningReadingTests";
+export const PREMIUM_TELEGRAM_HANDLE = "@ListeningReadingTests";
+export const PREMIUM_TELEGRAM_URL = "https://t.me/ListeningReadingTests";
 
 /**
  * What Premium costs. Set by the owner (2026-11-10) and shown on /premium, the
@@ -22,23 +23,26 @@ export const PREMIUM_PLANS: { months: number; label: string; price: string; note
 export const PREMIUM_PRICE_LINE = PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");
 
 /**
- * The Premium request link for a signed-in student. The `start` payload
- * arrives in the bot as "/start premium_<account id>", so the owner can see
- * WHICH account is asking instead of matching a Telegram name to an email by
- * hand. Pass `months` and the chosen period travels with it ("_3m").
+ * The Premium request link. It opens the admin's chat with a message already
+ * typed, naming the period and the student's account, so the owner can find
+ * the account on /admin/members (which searches by email) without asking.
+ *
+ * `?text=` is what works for a PERSON's username. A bot's `?start=` payload
+ * would be ignored here, which is why this is not a deep link any more.
+ * The student sees the draft and sends it themselves; nothing is sent for them.
  */
-export function premiumRequestUrl(userId?: string | null, months?: number): string {
-  // "premium_<32 hex>_3m" is 43 characters; Telegram allows 64 of [A-Za-z0-9_-].
-  const parts = ["premium"];
-  if (userId) parts.push(userId.replace(/-/g, ""));
-  if (months) parts.push(`${months}m`);
-  if (parts.length === 1) return PREMIUM_TELEGRAM_URL;
-  return `${PREMIUM_TELEGRAM_URL}?start=${parts.join("_")}`;
+export function premiumRequestUrl(account?: string | null, months?: number): string {
+  const plan = PREMIUM_PLANS.find((p) => p.months === months);
+  const lines = [
+    plan
+      ? `Hello! I would like ${SITE_NAME} Premium for ${plan.label} (${plan.price}).`
+      : `Hello! I would like ${SITE_NAME} Premium.`,
+  ];
+  if (account) lines.push(`My account: ${account}`);
+  return `${PREMIUM_TELEGRAM_URL}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
-// Support / general contact. A public Telegram account a student can message
-// directly — deliberately NOT the premium bot above, which exists to arrange
-// paid access.
+// Support / general contact: the same admin account that arranges Premium.
 export const CONTACT_TELEGRAM = "ListeningReadingTests";
 export const CONTACT_TELEGRAM_HANDLE = "@ListeningReadingTests";
 export const CONTACT_TELEGRAM_URL = "https://t.me/ListeningReadingTests";
