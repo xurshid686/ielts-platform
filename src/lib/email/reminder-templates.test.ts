@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Brand } from "./mock-templates";
 import {
-  buildNeverStartedEmail,
+  buildInactiveEmail,
   buildPremiumExpiringEmail,
   buildStreakEmail,
   buildWeeklyReportEmail,
@@ -18,8 +18,8 @@ const who = { name: "Aziza Karimova", unsubscribeUrl: UNSUB };
 
 const all = () => [
   buildStreakEmail(BRAND, { ...who, streak: 5 }),
-  buildNeverStartedEmail(BRAND, { ...who, day: 1 }),
-  buildNeverStartedEmail(BRAND, { ...who, day: 3 }),
+  buildInactiveEmail(BRAND, { ...who, everPractised: true }),
+  buildInactiveEmail(BRAND, { ...who, everPractised: false }),
   buildWeeklyReportEmail(BRAND, {
     ...who,
     tests: 4,
@@ -69,14 +69,17 @@ describe("streak email", () => {
   });
 });
 
-describe("never-started email", () => {
-  it("links to the dashboard start panel, and day 3 says it is the last", () => {
-    const first = buildNeverStartedEmail(BRAND, { ...who, day: 1 });
-    const last = buildNeverStartedEmail(BRAND, { ...who, day: 3 });
-    expect(first.html).toContain('href="https://mockonline.uz/dashboard"');
-    expect(first.html).not.toContain("last reminder");
-    expect(last.html).toContain("last reminder");
-    expect(first.subject).not.toBe(last.subject);
+describe("inactive email", () => {
+  it("links to the dashboard and words the two cases differently", () => {
+    const back = buildInactiveEmail(BRAND, { ...who, everPractised: true });
+    const fresh = buildInactiveEmail(BRAND, { ...who, everPractised: false });
+    for (const e of [back, fresh]) {
+      expect(e.html).toContain('href="https://mockonline.uz/dashboard"');
+      expect(e.html).toContain("We won't send this again");
+    }
+    expect(back.subject).toBe("Two weeks without practice");
+    expect(fresh.html).toContain("haven't taken a test yet");
+    expect(back.html).not.toContain("haven't taken a test yet");
   });
 });
 

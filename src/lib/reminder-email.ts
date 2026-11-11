@@ -151,9 +151,9 @@ export async function sendReminderPreview(
 
   const inDays = (n: number) => formatDay(new Date(Date.now() + n * 86_400_000).toISOString());
   const samples: ReminderEmail[] = [
-    { kind: "streak", streak: 5 },
-    { kind: "never_started", day: 1 },
-    { kind: "never_started", day: 3 },
+    { kind: "streak", streak: 12 },
+    { kind: "inactive", everPractised: true },
+    { kind: "inactive", everPractised: false },
     { kind: "weekly_report", tests: 4, avgBand: 6.5, bestBand: 7.5, ratingDelta: 24, reportId: "sample" },
     { kind: "premium_expiring", stage: "before", endsOn: inDays(3) },
     { kind: "premium_expiring", stage: "after", endsOn: inDays(-1) },

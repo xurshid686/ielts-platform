@@ -23,7 +23,7 @@ import {
   type ResultEmailInput,
 } from "./mock-templates";
 import {
-  buildNeverStartedEmail,
+  buildInactiveEmail,
   buildPremiumExpiringEmail,
   buildStreakEmail,
   buildWeeklyReportEmail,
@@ -124,7 +124,7 @@ export function sendMockReceiptEmail(input: ReceiptEmailInput & { to: string }):
 /** The four reminders (0061). Which one, and its numbers, come from lib/reminder-email.ts. */
 export type ReminderEmail =
   | { kind: "streak"; streak: number }
-  | { kind: "never_started"; day: 1 | 3 }
+  | { kind: "inactive"; everPractised: boolean }
   | { kind: "weekly_report"; tests: number; avgBand: number | null; bestBand: number | null; ratingDelta: number | null; reportId: string }
   | { kind: "premium_expiring"; stage: "before" | "after"; endsOn: string };
 
@@ -143,8 +143,8 @@ export function sendReminderEmail(
   const built =
     email.kind === "streak"
       ? buildStreakEmail(BRAND, { ...common, streak: email.streak })
-      : email.kind === "never_started"
-        ? buildNeverStartedEmail(BRAND, { ...common, day: email.day })
+      : email.kind === "inactive"
+        ? buildInactiveEmail(BRAND, { ...common, everPractised: email.everPractised })
         : email.kind === "weekly_report"
           ? buildWeeklyReportEmail(BRAND, {
               ...common,

@@ -2010,19 +2010,22 @@ code first and then the schema, in that order.
   publish the feedback notes.
 - `TEACHER_CHAT_ID` in the env files and Vercel is now dead; nothing reads it.
 
-# Reminder emails (migration 0061, owner 2026-11-11)
+# Reminder emails (migrations 0061 + 0062, owner 2026-11-11)
 
 Four reminders leave the site by email, because the bell reached nobody
-(19,880 of 20,295 notifications unread): **streak about to break, never
-started (1 and 3 days after sign-up), weekly report, Premium expiring (3 days
-before, 1 day after)**. The email layer commit `560aa31` removed is back, this
+(19,880 of 20,295 notifications unread): **streak about to break (streaks of
+10+ days only), inactive for 14 days (one email per quiet spell), weekly
+report, Premium expiring (3 days before, 1 day after)**. The owner cut the
+volume the same day (0062): the day-1 / day-3 "never started" nudges were
+removed and short streaks get only the in-app notification. Do not add more
+email kinds or lower `STREAK_EMAIL_MIN` without asking. The email layer commit `560aa31` removed is back, this
 time with unsubscribe.
 
 - **One email per student per day**, enforced by the database:
   `reminder_log` is `UNIQUE (user_id, sent_day)` and `lib/reminder-email.ts`
   (the ONLY door, like `mock-email.ts`) INSERTS the log row before sending.
   A cron that fires twice cannot email anyone twice. Priority when a student
-  qualifies for two: Premium, then streak, then never-started. The weekly cron
+  qualifies for two: Premium, then streak, then inactive. The weekly cron
   runs an hour BEFORE the daily one on Sunday so the report wins that day.
 - **Daily cap 90** (`DAILY_REMINDER_CAP`, `lib/email/reminder-plan.ts`):
   Resend's free plan sends 100 a day and mock results share it. Overflow is

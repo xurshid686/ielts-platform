@@ -48,7 +48,7 @@ export default async function UnsubscribePage({ params }: { params: Promise<{ to
             <BellRing className="mx-auto h-10 w-10 text-primary" />
             <h1 className="mt-3 text-xl font-bold tracking-tight">Stop reminder emails?</h1>
             <p className="mt-2 text-sm text-muted">
-              You will no longer get streak, weekly report, getting-started or Premium reminders by email.
+              You will no longer get streak, weekly report, inactivity or Premium reminders by email.
               Emails about a mock exam you sit are not affected.
             </p>
             <form action={setRemindersFromLink.bind(null, token, false)} className="mt-5">

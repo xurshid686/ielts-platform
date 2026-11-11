@@ -1,4 +1,4 @@
-// The HTML of the four reminder emails (migration 0061, owner 2026-11-11).
+// The HTML of the four reminder emails (migrations 0061 + 0062, owner 2026-11-11).
 //
 // Pure string shaping, like ./mock-templates.ts: the only import is that
 // sibling (itself import-free), so this is unit-tested without a server
@@ -11,7 +11,7 @@
 
 import { esc, shell, type Brand, type Built } from "./mock-templates";
 
-export type ReminderKind = "streak" | "never_started" | "weekly_report" | "premium_expiring";
+export type ReminderKind = "streak" | "inactive" | "weekly_report" | "premium_expiring";
 
 const button = (href: string, label: string) => `
   <a href="${esc(href)}"
@@ -49,28 +49,28 @@ export function buildStreakEmail(brand: Brand, input: Common & { streak: number 
   };
 }
 
-/** `day` is how many days ago they signed up: the first nudge (1) or the last (3). */
-export function buildNeverStartedEmail(brand: Brand, input: Common & { day: 1 | 3 }): Built {
-  const first = input.day === 1;
+/**
+ * The one "we miss you" email, sent when a student has done nothing for 14
+ * days (owner, 2026-11-11: no day-1 / day-3 nudges, they were too many).
+ * `everPractised` picks the wording: someone coming back, or someone who
+ * signed up and never took a test.
+ */
+export function buildInactiveEmail(brand: Brand, input: Common & { everPractised: boolean }): Built {
   return {
-    subject: first ? "Your first IELTS test is ready" : "20 minutes to find your reading band",
+    subject: input.everPractised ? "Two weeks without practice" : "Your first IELTS test is still waiting",
     html: shell(
       brand,
       `
       <p style="margin:0 0 12px">${hello(input.name)}</p>
       <p style="margin:0 0 16px">
         ${
-          first
-            ? `You joined ${esc(brand.name)} but haven't taken a test yet. Your dashboard has one picked out for you: a single reading passage in the real computer-delivered exam interface, marked the moment you submit.`
-            : `One reading passage takes about 20 minutes, and it tells you your band and exactly which questions you got wrong. It is free, and it is waiting on your dashboard.`
+          input.everPractised
+            ? `It has been two weeks since your last test on ${esc(brand.name)}. One reading passage takes about 20 minutes and gets you moving again. Your results and progress are exactly where you left them.`
+            : `You joined ${esc(brand.name)} two weeks ago and haven't taken a test yet. One reading passage takes about 20 minutes, in the real computer-delivered exam interface, and it tells you your band the moment you submit.`
         }
       </p>
-      ${button(`${brand.url}/dashboard`, "Start your first test")}
-      ${
-        first
-          ? ""
-          : `<p style="margin:16px 0 0;color:#64748b;font-size:14px">This is the last reminder we'll send about getting started.</p>`
-      }`,
+      ${button(`${brand.url}/dashboard`, input.everPractised ? "Take a test" : "Start your first test")}
+      <p style="margin:16px 0 0;color:#64748b;font-size:14px">We won't send this again while you stay away.</p>`,
       reminderFooter(brand, input.unsubscribeUrl),
     ),
   };

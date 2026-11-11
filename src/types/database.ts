@@ -44,7 +44,7 @@ type RawTables = GeneratedDatabase["public"]["Tables"];
 type RawFunctions = GeneratedDatabase["public"]["Functions"];
 
 // ---------------------------------------------------------------------------
-// PENDING — migration 0061 (email reminders), applied 2026-11-11.
+// PENDING — migrations 0061 + 0062 (email reminders), applied 2026-11-11.
 //
 // ./supabase.ts could not be regenerated: `npm run types` needs the owner's
 // Supabase personal access token and there is none on this machine. These
@@ -93,9 +93,9 @@ type Pending0061Functions = {
       unsubscribe_token: string;
     }[];
   };
-  cron_never_started: {
+  cron_inactive: {
     Args: never;
-    Returns: { user_id: string; email: string; name: string; days_since: number; unsubscribe_token: string }[];
+    Returns: { user_id: string; email: string; name: string; ever_practised: boolean; unsubscribe_token: string }[];
   };
   cron_premium_expiring: {
     Args: never;

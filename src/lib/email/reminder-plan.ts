@@ -2,7 +2,7 @@
 //
 //  - ONE email per student per day (owner, 2026-11-11). Candidates arrive in
 //    priority order (the caller lists Premium first, then streak, then
-//    never-started) and the first one for a student wins.
+//    inactive) and the first one for a student wins.
 //  - Anyone already in today's log is skipped. The database enforces the same
 //    rule with UNIQUE (user_id, sent_day); this just avoids a wasted insert.
 //  - A daily CAP, because Resend's free plan sends 100 emails a day and mock
@@ -11,6 +11,13 @@
 // Imports nothing (the mock-templates rule).
 
 export const DAILY_REMINDER_CAP = 90;
+
+/**
+ * A streak EMAIL only goes to a streak this long (owner, 2026-11-11: "don't
+ * send for small days"). Shorter live streaks still get the in-app
+ * notification, which costs nothing.
+ */
+export const STREAK_EMAIL_MIN = 10;
 
 export type Plan<T> = {
   send: T[];

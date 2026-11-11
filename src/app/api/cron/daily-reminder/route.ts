@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { finalizeExpiredAttempts } from "@/lib/mock-admin";
+import { STREAK_EMAIL_MIN } from "@/lib/email/reminder-plan";
 import {
   formatDay,
   sendReminderPreview,
@@ -22,9 +23,10 @@ function authorized(req: Request) {
 // Runs once a day (vercel.json). Three things, in this order:
 //   1. the in-app streak notification (as before),
 //   2. the mock backstop (as before),
-//   3. reminder EMAILS (0061): Premium expiring, then streak, then never
-//      started. That order is the priority when a student qualifies for two:
-//      everyone gets at most one email a day.
+//   3. reminder EMAILS (0061, thinned by 0062): Premium expiring, then a
+//      streak of STREAK_EMAIL_MIN days or more, then 14 days of inactivity.
+//      That order is the priority when a student qualifies for two: everyone
+//      gets at most one email a day.
 //
 //   ?dry=1            counts who would be emailed; sends and logs nothing.
 //                     (The in-app streak notification is still written: that is
@@ -55,10 +57,10 @@ export async function GET(req: Request) {
 
   const [{ data: expiring, error: expiringError }, { data: idle, error: idleError }] = await Promise.all([
     supabase.rpc("cron_premium_expiring"),
-    supabase.rpc("cron_never_started"),
+    supabase.rpc("cron_inactive"),
   ]);
   if (expiringError) console.error("[cron] cron_premium_expiring", expiringError.message);
-  if (idleError) console.error("[cron] cron_never_started", idleError.message);
+  if (idleError) console.error("[cron] cron_inactive", idleError.message);
 
   const candidates: ReminderCandidate[] = [
     ...(expiring ?? []).map((r) => ({
@@ -73,7 +75,7 @@ export async function GET(req: Request) {
       },
     })),
     ...(streaks ?? [])
-      .filter((r) => r.email_reminders && r.email)
+      .filter((r) => r.email_reminders && r.email && r.streak >= STREAK_EMAIL_MIN)
       .map((r) => ({
         userId: r.user_id,
         email: r.email,
@@ -86,7 +88,7 @@ export async function GET(req: Request) {
       email: r.email,
       name: r.name,
       unsubscribeToken: r.unsubscribe_token,
-      payload: { kind: "never_started" as const, day: r.days_since === 1 ? (1 as const) : (3 as const) },
+      payload: { kind: "inactive" as const, everPractised: r.ever_practised },
     })),
   ];
 
