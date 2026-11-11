@@ -337,7 +337,7 @@ export default async function Home() {
               n="02"
               icon={<BarChart3 className="h-5 w-5" />}
               title="Get scored instantly"
-              desc="Server-side grading and AI band feedback the moment you submit — no waiting, no guesswork."
+              desc="Reading and Listening are graded on the server the moment you submit — no waiting, no guesswork."
             />
             <Step
               n="03"
@@ -469,7 +469,7 @@ export default async function Home() {
                 Listening
               </Link>
               <Link href="/register" className="text-muted transition-colors hover:text-foreground">
-                Speaking with AI
+                Speaking
               </Link>
               <a
                 href={CONTACT_TELEGRAM_URL}
