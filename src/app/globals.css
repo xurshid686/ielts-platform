@@ -113,7 +113,30 @@
   --t-unknown: #a89a8b;
 }
 
+/* ----------------------------------------------------------------------------
+   One accent per skill. Reading and Listening reuse the two brand colours;
+   Speaking and Writing take a plum and an ochre from the same warm family as
+   the topic accents above (they replaced Tailwind's stock rose-500/amber-500).
+   Icon and tint colours only: a skill is always named in text beside them.
+---------------------------------------------------------------------------- */
+:root {
+  --skill-reading: var(--primary);
+  --skill-listening: var(--accent);
+  --skill-speaking: #94466b;
+  --skill-writing: #a9671f;
+}
+
+.dark {
+  --skill-speaking: #d98fb4;
+  --skill-writing: #e3a95c;
+}
+
 @theme inline {
+  --color-skill-reading: var(--skill-reading);
+  --color-skill-listening: var(--skill-listening);
+  --color-skill-speaking: var(--skill-speaking);
+  --color-skill-writing: var(--skill-writing);
+
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);

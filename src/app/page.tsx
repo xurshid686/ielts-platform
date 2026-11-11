@@ -180,28 +180,28 @@ export default async function Home() {
             icon={<BookOpen />}
             title="Reading"
             desc="Full exam-style tests, graded on the server the moment you submit."
-            tone="indigo"
+            tone="reading"
           />
           <Feature
             href="/listening"
             icon={<Headphones />}
             title="Listening"
             desc="Audio tests scored automatically, with history and best-band tracking."
-            tone="teal"
+            tone="listening"
           />
           <Feature
             href="/register?next=%2Fspeaking"
             icon={<Mic />}
             title="Speaking"
             desc="Practise real Part 1-3 questions and record your answers."
-            tone="rose"
+            tone="speaking"
           />
           <Feature
             href="/register?next=%2Fwriting"
             icon={<PenLine />}
             title="Writing"
             desc="Real Task 1 and Task 2 questions in the exam layout, with a timer and word count."
-            tone="amber"
+            tone="writing"
           />
         </section>
 
@@ -289,25 +289,25 @@ export default async function Home() {
               icon={<PenLine className="h-5 w-5" />}
               title="Real Writing questions"
               desc="Hundreds of Task 1 and Task 2 questions reported from recent exams, in the exam's own split-screen layout with a timer and a live word count."
-              tone="rose"
+              tone="writing"
             />
             <Highlight
               icon={<ShieldCheck className="h-5 w-5" />}
               title="Honest server-side scoring"
               desc="Reading and Listening are graded on the server against a hidden answer key the instant you submit — scores can't be faked, so your band actually means something."
-              tone="indigo"
+              tone="reading"
             />
             <Highlight
               icon={<Gauge className="h-5 w-5" />}
               title="Know your weak spots"
               desc="Per-question-type analytics pinpoint where you lose marks and recommend the exact tests to fix them — true/false, matching headings, maps, and more."
-              tone="teal"
+              tone="listening"
             />
             <Highlight
               icon={<CalendarDays className="h-5 w-5" />}
               title="Weekly progress reports"
               desc="Every week you get a digest: tests done, average band, rating change and new achievements — delivered to your in-app inbox so you stay accountable."
-              tone="amber"
+              tone="speaking"
             />
           </div>
         </section>
@@ -534,22 +534,24 @@ function Shot({ name, alt }: { name: "player" | "listening" | "report"; alt: str
   );
 }
 
+// One accent per skill, from the --skill-* tokens in globals.css (each has a
+// light and a dark value, so no `dark:` variants are needed here).
 const tones = {
-  indigo: {
-    chip: "bg-primary/10 text-primary group-hover:bg-primary/15",
-    edge: "from-primary/60",
+  reading: {
+    chip: "bg-skill-reading/10 text-skill-reading group-hover:bg-skill-reading/15",
+    edge: "from-skill-reading/60",
   },
-  teal: {
-    chip: "bg-accent/10 text-accent group-hover:bg-accent/15",
-    edge: "from-accent/60",
+  listening: {
+    chip: "bg-skill-listening/10 text-skill-listening group-hover:bg-skill-listening/15",
+    edge: "from-skill-listening/60",
   },
-  rose: {
-    chip: "bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:bg-rose-500/15",
-    edge: "from-rose-500/60",
+  speaking: {
+    chip: "bg-skill-speaking/10 text-skill-speaking group-hover:bg-skill-speaking/15",
+    edge: "from-skill-speaking/60",
   },
-  amber: {
-    chip: "bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500/15",
-    edge: "from-amber-500/60",
+  writing: {
+    chip: "bg-skill-writing/10 text-skill-writing group-hover:bg-skill-writing/15",
+    edge: "from-skill-writing/60",
   },
 } as const;
 
