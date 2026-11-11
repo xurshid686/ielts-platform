@@ -40,11 +40,98 @@ export type { Json } from "./supabase";
 // writing the shape by hand.
 
 /** The generated schema, passed to every Supabase client. */
-type GenTables = GeneratedDatabase["public"]["Tables"];
+type RawTables = GeneratedDatabase["public"]["Tables"];
+type RawFunctions = GeneratedDatabase["public"]["Functions"];
+
+// ---------------------------------------------------------------------------
+// PENDING — migration 0061 (email reminders), applied 2026-11-11.
+//
+// ./supabase.ts could not be regenerated: `npm run types` needs the owner's
+// Supabase personal access token and there is none on this machine. These
+// stand in for 0061's objects ONLY. DELETE THIS WHOLE BLOCK the moment the
+// types are regenerated (the generated file will carry all of it), and put
+// `GenTables = RawTables` / `Functions: RawFunctions` back. The profiles and
+// function entries REPLACE the generated ones (Omit, not intersect), so the
+// "optional and required at once" clash the note above describes cannot occur.
+// ---------------------------------------------------------------------------
+type Pending0061Profile = { email_reminders: boolean; unsubscribe_token: string };
+type Pending0061ReminderLog = {
+  id: string;
+  user_id: string;
+  kind: string;
+  sent_day: string;
+  to_email: string;
+  status: string;
+  resend_id: string | null;
+  error: string | null;
+  created_at: string;
+};
+type Pending0061Tables = {
+  profiles: {
+    Row: RawTables["profiles"]["Row"] & Pending0061Profile;
+    Insert: RawTables["profiles"]["Insert"] & Partial<Pending0061Profile>;
+    Update: RawTables["profiles"]["Update"] & Partial<Pending0061Profile>;
+    Relationships: RawTables["profiles"]["Relationships"];
+  };
+  reminder_log: {
+    Row: Pending0061ReminderLog;
+    Insert: Pick<Pending0061ReminderLog, "user_id" | "kind" | "sent_day" | "to_email"> &
+      Partial<Pending0061ReminderLog>;
+    Update: Partial<Pending0061ReminderLog>;
+    Relationships: [];
+  };
+};
+type Pending0061Functions = {
+  cron_streak_reminders: {
+    Args: never;
+    Returns: {
+      user_id: string;
+      email: string;
+      name: string;
+      streak: number;
+      email_reminders: boolean;
+      unsubscribe_token: string;
+    }[];
+  };
+  cron_never_started: {
+    Args: never;
+    Returns: { user_id: string; email: string; name: string; days_since: number; unsubscribe_token: string }[];
+  };
+  cron_premium_expiring: {
+    Args: never;
+    Returns: {
+      user_id: string;
+      email: string;
+      name: string;
+      stage: string;
+      premium_until: string;
+      unsubscribe_token: string;
+    }[];
+  };
+  cron_weekly_reports: {
+    Args: { p_week?: string };
+    Returns: {
+      user_id: string;
+      email: string;
+      name: string;
+      tests: number;
+      avg_band: number;
+      best_band: number;
+      report_id: string;
+      emailed_period: string;
+      rating_delta: number;
+      email_reminders: boolean;
+      unsubscribe_token: string;
+    }[];
+  };
+};
+
+type GenTables = Omit<RawTables, keyof Pending0061Tables> & Pending0061Tables;
 
 export type Database = Omit<GeneratedDatabase, "public"> & {
-  public: Omit<GeneratedDatabase["public"], "Tables"> & {
+  public: Omit<GeneratedDatabase["public"], "Tables" | "Functions"> & {
     Tables: GenTables;
+    Functions: Omit<RawFunctions, keyof Pending0061Functions> & Pending0061Functions;
   };
 };
 

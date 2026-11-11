@@ -94,6 +94,9 @@ function fallbackProfile(user: {
     is_owner: false,
     premium_until: null,
     premium_announce: false,
+    email_reminders: true,
+    // Never used: a fallback profile has no row, so no email carries this.
+    unsubscribe_token: "",
     target_band: null,
     streak: 0,
     longest_streak: 0,

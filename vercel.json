@@ -7,7 +7,7 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/weekly-reports", "schedule": "0 17 * * 0" },
+    { "path": "/api/cron/weekly-reports", "schedule": "0 15 * * 0" },
     { "path": "/api/cron/daily-reminder", "schedule": "0 16 * * *" }
   ]
 }

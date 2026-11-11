@@ -2009,3 +2009,43 @@ code first and then the schema, in that order.
   bare table there inherits Supabase's default grants with no RLS, which would
   publish the feedback notes.
 - `TEACHER_CHAT_ID` in the env files and Vercel is now dead; nothing reads it.
+
+# Reminder emails (migration 0061, owner 2026-11-11)
+
+Four reminders leave the site by email, because the bell reached nobody
+(19,880 of 20,295 notifications unread): **streak about to break, never
+started (1 and 3 days after sign-up), weekly report, Premium expiring (3 days
+before, 1 day after)**. The email layer commit `560aa31` removed is back, this
+time with unsubscribe.
+
+- **One email per student per day**, enforced by the database:
+  `reminder_log` is `UNIQUE (user_id, sent_day)` and `lib/reminder-email.ts`
+  (the ONLY door, like `mock-email.ts`) INSERTS the log row before sending.
+  A cron that fires twice cannot email anyone twice. Priority when a student
+  qualifies for two: Premium, then streak, then never-started. The weekly cron
+  runs an hour BEFORE the daily one on Sunday so the report wins that day.
+- **Daily cap 90** (`DAILY_REMINDER_CAP`, `lib/email/reminder-plan.ts`):
+  Resend's free plan sends 100 a day and mock results share it. Overflow is
+  counted in the route's JSON, never sent.
+- **The crons run on VERCEL PRODUCTION** (`vercel.json`), not DigitalOcean, so
+  that deployment needs `RESEND_API_KEY` + `EMAIL_FROM`. Without them the
+  routes answer `configured: false` and send nothing.
+- `cron_streak_reminders()` now requires a LIVE streak (last activity
+  yesterday in the student's zone). It used to test `streak > 0` and nudged
+  ~560 dead streaks.
+- **Testing without emailing students:** `?dry=1` on either cron route counts
+  and sends nothing; `/api/cron/daily-reminder?preview=<account email>` sends
+  one sample of each reminder to that account only and logs nothing. Both need
+  the `Bearer CRON_SECRET` header.
+- **Unsubscribe:** `/unsubscribe/<token>` (public, top-level). **A GET never
+  changes the preference** (mail scanners fetch links); the button posts a
+  server action, and `POST /api/unsubscribe` answers the mail client's
+  one-click header. `profiles.unsubscribe_token` is in the privileged-field
+  guard; `email_reminders` is the student's own (account menu switch).
+- Templates: `lib/email/reminder-templates.ts` (pure, unit-tested). A Premium
+  email links to `/premium` only, and nothing advertises Speaking.
+- **`src/types/database.ts` carries a PENDING block for 0061** because there
+  was no Supabase access token to run `npm run types`. Delete it as soon as
+  the types are regenerated.
+- `lib/recommend.ts` is the one "what next" rule, shared by the dashboard and
+  the review screen, which now picks the next paper by weakest question type.

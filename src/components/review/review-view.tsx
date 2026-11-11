@@ -25,6 +25,8 @@ export function ReviewView({
   nextTest,
   showUpgrade = false,
   lockedCount = 0,
+  focus = null,
+  lockedTest = null,
 }: {
   title: string;
   skill: string;
@@ -44,6 +46,11 @@ export function ReviewView({
   nextTest?: { id: string; title: string; kind: "single" | "full" } | null;
   showUpgrade?: boolean;
   lockedCount?: number;
+  // The student's weakest question type in this skill. `nextTrainsIt` says the
+  // "Keep going" paper was picked because it carries that type.
+  focus?: { type: string; accuracy: number; nextTrainsIt: boolean } | null;
+  // One specific Premium paper that trains that type, for the Premium card.
+  lockedTest?: { title: string } | null;
 }) {
   const accuracy = raw != null && total ? Math.round((raw / total) * 100) : null;
   const correct = rows.filter((r) => r.status === "correct").length;
@@ -146,12 +153,19 @@ export function ReviewView({
               <Card className="flex h-full flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                    Keep going
+                    {focus?.nextTrainsIt ? "Train your weakest type" : "Keep going"}
                   </p>
                   <p className="mt-1 font-semibold leading-snug">{nextTest.title}</p>
-                  <p className="mt-0.5 text-sm text-muted">
-                    {nextTest.kind === "full" ? "Full test" : "Single passage"} · not attempted yet
-                  </p>
+                  {focus?.nextTrainsIt ? (
+                    <p className="mt-0.5 text-sm text-muted">
+                      Has <span className="font-medium text-foreground">{focus.type}</span> questions.
+                      You are at {focus.accuracy}% on those so far.
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-sm text-muted">
+                      {nextTest.kind === "full" ? "Full test" : "Single passage"} · not attempted yet
+                    </p>
+                  )}
                 </div>
                 <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
                   Start it <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -166,15 +180,29 @@ export function ReviewView({
                 <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-premium">
                   <Crown className="h-3.5 w-3.5" /> Premium
                 </p>
-                <p className="mt-1 font-semibold leading-snug">
-                  {lockedCount > 0
-                    ? `${lockedCount} more ${skill} tests in the real exam interface`
-                    : `Every ${skill} test in the real exam interface`}
-                </p>
-                <p className="mt-0.5 text-sm text-muted">
-                  Full answer review with explanations on every one, and your progress tracked
-                  across all of them.
-                </p>
+                {lockedTest && focus ? (
+                  <>
+                    <p className="mt-1 font-semibold leading-snug">{lockedTest.title}</p>
+                    <p className="mt-0.5 text-sm text-muted">
+                      A Premium test with{" "}
+                      <span className="font-medium text-foreground">{focus.type}</span> questions, your
+                      weakest type ({focus.accuracy}%).
+                      {lockedCount > 1 ? ` One of ${lockedCount} Premium ${skill} tests.` : ""}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 font-semibold leading-snug">
+                      {lockedCount > 0
+                        ? `${lockedCount} more ${skill} tests in the real exam interface`
+                        : `Every ${skill} test in the real exam interface`}
+                    </p>
+                    <p className="mt-0.5 text-sm text-muted">
+                      Full answer review with explanations on every one, and your progress tracked
+                      across all of them.
+                    </p>
+                  </>
+                )}
               </div>
               <PremiumContact className="mt-3" />
             </Card>

@@ -13,7 +13,7 @@
 // tested; this module is the transport and the branding.
 import "server-only";
 
-import { CONTACT_TELEGRAM_URL, SITE_NAME, SITE_URL } from "@/lib/site";
+import { CONTACT_TELEGRAM_URL, PREMIUM_PRICE_LINE, SITE_NAME, SITE_URL } from "@/lib/site";
 import {
   buildAdminPromotionEmail,
   buildMockReceiptEmail,
@@ -22,6 +22,12 @@ import {
   type ReceiptEmailInput,
   type ResultEmailInput,
 } from "./mock-templates";
+import {
+  buildNeverStartedEmail,
+  buildPremiumExpiringEmail,
+  buildStreakEmail,
+  buildWeeklyReportEmail,
+} from "./reminder-templates";
 
 /** Overridable so an end-to-end run can point the sender at a local recorder. */
 const API_BASE = (process.env.RESEND_BASE_URL || "https://api.resend.com").replace(/\/+$/, "");
@@ -55,6 +61,8 @@ async function sendEmail(opts: {
   subject: string;
   html: string;
   attachments?: Attachment[];
+  /** Extra message headers (the reminders' List-Unsubscribe pair). */
+  headers?: Record<string, string>;
 }): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { sent: false, error: "Email isn't configured (no RESEND_API_KEY)." };
@@ -71,6 +79,7 @@ async function sendEmail(opts: {
         to: [to],
         subject: opts.subject,
         html: opts.html,
+        ...(opts.headers ? { headers: opts.headers } : {}),
         ...(opts.attachments?.length
           ? {
               attachments: opts.attachments.map((a) => ({
@@ -110,4 +119,54 @@ export function sendMockResultEmail(
 export function sendMockReceiptEmail(input: ReceiptEmailInput & { to: string }): Promise<SendResult> {
   const { subject, html } = buildMockReceiptEmail(BRAND, input);
   return sendEmail({ to: input.to, subject, html });
+}
+
+/** The four reminders (0061). Which one, and its numbers, come from lib/reminder-email.ts. */
+export type ReminderEmail =
+  | { kind: "streak"; streak: number }
+  | { kind: "never_started"; day: 1 | 3 }
+  | { kind: "weekly_report"; tests: number; avgBand: number | null; bestBand: number | null; ratingDelta: number | null; reportId: string }
+  | { kind: "premium_expiring"; stage: "before" | "after"; endsOn: string };
+
+/**
+ * One reminder email. Every one carries the unsubscribe link in its footer AND
+ * the List-Unsubscribe header pair, which is what puts the mail client's own
+ * "Unsubscribe" button next to the sender (POST /api/unsubscribe answers it).
+ */
+export function sendReminderEmail(
+  to: string,
+  who: { name?: string | null; unsubscribeToken: string },
+  email: ReminderEmail,
+): Promise<SendResult> {
+  const unsubscribeUrl = `${EMAIL_BASE_URL}/unsubscribe/${who.unsubscribeToken}`;
+  const common = { name: who.name, unsubscribeUrl };
+  const built =
+    email.kind === "streak"
+      ? buildStreakEmail(BRAND, { ...common, streak: email.streak })
+      : email.kind === "never_started"
+        ? buildNeverStartedEmail(BRAND, { ...common, day: email.day })
+        : email.kind === "weekly_report"
+          ? buildWeeklyReportEmail(BRAND, {
+              ...common,
+              tests: email.tests,
+              avgBand: email.avgBand,
+              bestBand: email.bestBand,
+              ratingDelta: email.ratingDelta,
+              reportUrl: `${EMAIL_BASE_URL}/reports/${email.reportId}`,
+            })
+          : buildPremiumExpiringEmail(BRAND, {
+              ...common,
+              stage: email.stage,
+              endsOn: email.endsOn,
+              priceLine: PREMIUM_PRICE_LINE,
+            });
+  return sendEmail({
+    to,
+    subject: built.subject,
+    html: built.html,
+    headers: {
+      "List-Unsubscribe": `<${EMAIL_BASE_URL}/api/unsubscribe?token=${who.unsubscribeToken}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  });
 }

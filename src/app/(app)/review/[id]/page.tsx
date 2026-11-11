@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
 import { asAnswerKey, asAnswers, isAnswerCorrect } from "@/lib/ielts/grade";
+import { computeTypeStats, weakestType, type ResultLite } from "@/lib/analytics";
+import { lockedForWeakType, recommendForWeakType } from "@/lib/recommend";
 import { ReviewView, type ReviewRow } from "@/components/review/review-view";
 import type { Result, Test } from "@/types/database";
 import { rows as asRows } from "@/types/database";
@@ -68,31 +70,67 @@ export default async function ReviewPage({
   const hasPremium = viewer.role === "admin" || isPremiumActive(viewer);
   let nextTest: { id: string; title: string; kind: "single" | "full" } | null = null;
   let lockedCount = 0;
+  // The question type this student is weakest at in this skill, and whether
+  // the next test was chosen because it trains that type (lib/recommend.ts).
+  let focus: { type: string; accuracy: number; nextTrainsIt: boolean } | null = null;
+  // One specific Premium paper for that type, named in the Premium prompt.
+  let lockedTest: { title: string } | null = null;
 
   if (isOwnAttempt) {
     const [{ data: catalogue }, { data: mine }] = await Promise.all([
       supabase
         .from("tests")
-        .select("id, title, kind, tier, track, created_at")
+        .select("id, title, kind, tier, track, question_types, difficulty, created_at")
         .eq("skill", result.skill)
         .order("created_at", { ascending: false }),
-      supabase.from("results").select("test_id").eq("user_id", viewer.id).eq("skill", result.skill),
+      supabase
+        .from("results")
+        .select("test_id, skill, raw, total")
+        .eq("user_id", viewer.id)
+        .eq("skill", result.skill),
     ]);
 
-    type Row = { id: string; title: string; kind: "single" | "full"; tier: string; track: string | null };
+    type Row = {
+      id: string;
+      title: string;
+      kind: "single" | "full";
+      tier: string;
+      track: string | null;
+      question_types: string[] | null;
+      difficulty: number | null;
+    };
     const rowsAll = asRows<Row>(catalogue).filter(
       (t) => (t.track ?? "regular") === "regular",
     );
-    const attempted = new Set(
-      ((mine ?? []) as { test_id: string | null }[]).map((r) => r.test_id).filter(Boolean),
-    );
+    const myResults = asRows<ResultLite>(mine);
+    // This paper counts as attempted even if the row above is somehow missing.
+    const attempted = new Set<string | null>([...myResults.map((r) => r.test_id), result.test_id]);
 
     lockedCount = hasPremium ? 0 : rowsAll.filter((t) => t.tier === "premium").length;
-    const openToThem = rowsAll.filter((t) => t.tier !== "premium" || hasPremium);
-    const candidate = openToThem.find((t) => t.id !== result.test_id && !attempted.has(t.id));
+
+    // Weakest question type across everything they have sat in this skill,
+    // this attempt included. Null until at least one tagged test is scored.
+    const weak = weakestType(computeTypeStats(myResults, rowsAll, result.skill));
+    const options = {
+      attempted,
+      weakType: weak?.type ?? null,
+      canOpenPremium: hasPremium,
+      rating: viewer.rating ?? 1000,
+      limit: 1,
+    };
+    const forWeakType = weak ? recommendForWeakType(rowsAll, options)[0] : undefined;
+    // No type signal, or nothing left that trains it: the newest paper they
+    // have not attempted, which is what this block always offered.
+    const candidate =
+      forWeakType ??
+      rowsAll.find((t) => (t.tier !== "premium" || hasPremium) && !attempted.has(t.id));
     if (candidate) {
       nextTest = { id: candidate.id, title: candidate.title, kind: candidate.kind };
     }
+    if (weak) focus = { type: weak.type, accuracy: weak.accuracy, nextTrainsIt: !!forWeakType };
+
+    const locked = lockedForWeakType(rowsAll, options);
+    if (locked) lockedTest = { title: locked.title };
   }
 
   // Build the per-question rows. We can only show a true correct/incorrect
@@ -143,6 +181,8 @@ export default async function ReviewPage({
       nextTest={nextTest}
       showUpgrade={isOwnAttempt && !hasPremium}
       lockedCount={lockedCount}
+      focus={focus}
+      lockedTest={lockedTest}
     />
   );
 }

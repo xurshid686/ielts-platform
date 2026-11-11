@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -16,9 +16,12 @@ import {
   Trophy,
   GraduationCap,
   Compass,
+  BellRing,
+  BellOff,
 } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
 import { LEVELS, isContentLevel } from "@/lib/levels";
+import { setEmailReminders } from "@/app/actions/reminders";
 import type { Profile } from "@/types/database";
 
 export function AccountMenu({ profile }: { profile: Profile }) {
@@ -26,6 +29,18 @@ export function AccountMenu({ profile }: { profile: Profile }) {
   const [confirm, setConfirm] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  // Reminder emails (0061). Local state, because the profile prop is only
+  // refreshed on the next navigation; a failed save puts the switch back.
+  const [reminders, setReminders] = useState(profile.email_reminders);
+  const [savingReminders, startReminders] = useTransition();
+  function toggleReminders() {
+    const next = !reminders;
+    setReminders(next);
+    startReminders(async () => {
+      const res = await setEmailReminders(next);
+      if (!res.ok) setReminders(!next);
+    });
+  }
 
   // Close the dropdown on outside click / Escape.
   useEffect(() => {
@@ -163,6 +178,20 @@ export function AccountMenu({ profile }: { profile: Profile }) {
                 Admin panel
               </MenuItem>
             )}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={reminders}
+              disabled={savingReminders}
+              onClick={toggleReminders}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-2 disabled:opacity-60"
+            >
+              {reminders ? <BellRing className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+              <span className="flex-1">Reminder emails</span>
+              <span className={`text-xs font-medium ${reminders ? "text-success" : "text-muted"}`}>
+                {reminders ? "On" : "Off"}
+              </span>
+            </button>
             <button
               onClick={() => {
                 setOpen(false);

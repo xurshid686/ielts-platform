@@ -29,6 +29,7 @@ import { RatingCard } from "@/components/rating/rating-card";
 import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
 import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
 import { computeTypeStats, weakestType } from "@/lib/analytics";
+import { recommendForWeakType } from "@/lib/recommend";
 import { isPremiumActive } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
@@ -273,17 +274,12 @@ export default async function DashboardPage() {
   );
   const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
   const userRating = profile.rating ?? 1000;
-  const recommended: RecommendedTest[] = readingTestList
-    .filter((t) => !attemptedReadingIds.has(t.id))
-    .filter((t) => (t.tier ?? "free") === "free" || canAccessPremium)
-    .filter((t) => (weakQType ? (t.question_types ?? []).includes(weakQType.type) : true))
-    .sort(
-      (a, b) =>
-        Math.abs((a.difficulty ?? 1500) - userRating) -
-        Math.abs((b.difficulty ?? 1500) - userRating),
-    )
-    .slice(0, 3)
-    .map((t) => ({
+  const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
+    attempted: attemptedReadingIds,
+    weakType: weakQType?.type ?? null,
+    canOpenPremium: canAccessPremium,
+    rating: userRating,
+  }).map((t) => ({
       id: t.id,
       title: t.title,
       kind: t.kind ?? "single",
