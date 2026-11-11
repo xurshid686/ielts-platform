@@ -2047,8 +2047,5 @@ time with unsubscribe.
   guard; `email_reminders` is the student's own (account menu switch).
 - Templates: `lib/email/reminder-templates.ts` (pure, unit-tested). A Premium
   email links to `/premium` only, and nothing advertises Speaking.
-- **`src/types/database.ts` carries a PENDING block for 0061** because there
-  was no Supabase access token to run `npm run types`. Delete it as soon as
-  the types are regenerated.
 - `lib/recommend.ts` is the one "what next" rule, shared by the dashboard and
   the review screen, which now picks the next paper by weakest question type.

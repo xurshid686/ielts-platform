@@ -21,7 +21,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -1285,6 +1285,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string | null
+          email_reminders: boolean
           hidden_from_leaderboard: boolean
           id: string
           is_owner: boolean
@@ -1303,12 +1304,14 @@ export type Database = {
           streak: number
           target_band: number | null
           timezone: string
+          unsubscribe_token: string
           xp: number
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_reminders?: boolean
           hidden_from_leaderboard?: boolean
           id: string
           is_owner?: boolean
@@ -1327,12 +1330,14 @@ export type Database = {
           streak?: number
           target_band?: number | null
           timezone?: string
+          unsubscribe_token?: string
           xp?: number
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_reminders?: boolean
           hidden_from_leaderboard?: boolean
           id?: string
           is_owner?: boolean
@@ -1351,6 +1356,7 @@ export type Database = {
           streak?: number
           target_band?: number | null
           timezone?: string
+          unsubscribe_token?: string
           xp?: number
         }
         Relationships: [
@@ -1486,6 +1492,78 @@ export type Database = {
           {
             foreignKeyName: "referrals_referrer_id_fkey"
             columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminder_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          resend_id: string | null
+          sent_day: string
+          status: string
+          to_email: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          resend_id?: string | null
+          sent_day: string
+          status?: string
+          to_email: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          resend_id?: string | null
+          sent_day?: string
+          status?: string
+          to_email?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_global"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_monthly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "leaderboard_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2332,12 +2410,35 @@ export type Database = {
         }
         Returns: string
       }
-      cron_streak_reminders: {
+      cron_inactive: {
+        Args: never
+        Returns: {
+          email: string
+          ever_practised: boolean
+          name: string
+          unsubscribe_token: string
+          user_id: string
+        }[]
+      }
+      cron_premium_expiring: {
         Args: never
         Returns: {
           email: string
           name: string
+          premium_until: string
+          stage: string
+          unsubscribe_token: string
+          user_id: string
+        }[]
+      }
+      cron_streak_reminders: {
+        Args: never
+        Returns: {
+          email: string
+          email_reminders: boolean
+          name: string
           streak: number
+          unsubscribe_token: string
           user_id: string
         }[]
       }
@@ -2347,10 +2448,13 @@ export type Database = {
           avg_band: number
           best_band: number
           email: string
+          email_reminders: boolean
           emailed_period: string
           name: string
+          rating_delta: number
           report_id: string
           tests: number
+          unsubscribe_token: string
           user_id: string
         }[]
       }
