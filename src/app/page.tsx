@@ -8,7 +8,6 @@ import {
   Mic,
   Flame,
   ArrowRight,
-  Sparkles,
   Trophy,
   Target,
   BarChart3,
@@ -40,6 +39,14 @@ const METAL_ORDER: TierName[] = [
   "Legend",
 ];
 const rankLadder = METAL_ORDER.map((name) => TIERS.find((t) => t.name === name)!);
+
+// The page's type scale, in one place. The hero headline is the only extrabold
+// line; section headings are a lighter weight so the two do not compete, and
+// section labels are plain small caps (they used to be icon pills).
+const EYEBROW_BASE = "text-xs font-semibold uppercase tracking-[0.14em]";
+const EYEBROW = `${EYEBROW_BASE} text-primary`;
+const H2 =
+  "text-balance text-3xl font-semibold leading-[1.12] tracking-[-0.02em] sm:text-[2.5rem]";
 
 const FAQS: { q: string; a: string }[] = [
   {
@@ -106,7 +113,7 @@ export default async function Home() {
           </div>
 
           <h1
-            className="animate-rise mx-auto mt-7 max-w-3xl text-balance text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl"
+            className="animate-rise mx-auto mt-7 max-w-4xl text-balance text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-6xl lg:text-7xl"
             style={{ "--rise-delay": "80ms" } as React.CSSProperties}
           >
             Practice IELTS the way you{" "}
@@ -206,7 +213,7 @@ export default async function Home() {
         </section>
 
         {/* ---- Mock exam + Premium ---- */}
-        <h2 className="pt-12 text-center text-sm font-semibold uppercase tracking-wide text-muted">
+        <h2 className={`pt-12 text-center ${EYEBROW_BASE} text-muted`}>
           When you want more
         </h2>
         <section className="grid gap-4 pt-4 lg:grid-cols-2">
@@ -250,10 +257,8 @@ export default async function Home() {
         {/* ---- Feature deep-dive ---- */}
         <section className="pt-20 sm:pt-24">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3.5 w-3.5" /> Everything in one place
-            </span>
-            <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <p className={EYEBROW}>Everything in one place</p>
+            <h2 className={`mt-3 ${H2}`}>
               Built to feel like the real exam
             </h2>
             <p className="mt-3 text-muted">
@@ -315,10 +320,8 @@ export default async function Home() {
         {/* ---- How it works ---- */}
         <section className="py-20 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
-              <Sparkles className="h-3.5 w-3.5" /> How it works
-            </span>
-            <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <p className={EYEBROW}>How it works</p>
+            <h2 className={`mt-3 ${H2}`}>
               From first test to target band
             </h2>
             <p className="mt-3 text-muted">
@@ -353,10 +356,8 @@ export default async function Home() {
           <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-8 shadow-soft sm:p-12">
             <div className="relative grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
               <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
-                  <Trophy className="h-3.5 w-3.5" /> Competitive ranking
-                </span>
-                <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                <p className={EYEBROW}>Competitive ranking</p>
+                <h2 className={`mt-3 ${H2}`}>
                   Climb from Bronze to Legend
                 </h2>
                 <p className="mt-3 text-pretty text-muted">
@@ -399,7 +400,7 @@ export default async function Home() {
         {/* ---- FAQ ---- */}
         <section className="pb-20 sm:pb-24">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className={H2}>
               Questions, answered
             </h2>
           </div>
@@ -422,7 +423,7 @@ export default async function Home() {
             <div className="ring-hairline absolute inset-0 rounded-3xl" />
             <div className="relative">
               <Zap className="mx-auto h-8 w-8 text-white/90" />
-              <h2 className="mx-auto mt-4 max-w-xl text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+              <h2 className={`mx-auto mt-4 max-w-xl ${H2}`}>
                 Your band score won&apos;t raise itself.
               </h2>
               <p className="mx-auto mt-3 max-w-lg text-white/85">
@@ -660,7 +661,7 @@ function Step({
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
           {icon}
         </div>
-        <span className="text-3xl font-extrabold tracking-tight text-border transition-colors group-hover:text-primary/25">
+        <span className="text-3xl font-extrabold tabular-nums tracking-tight text-border transition-colors group-hover:text-primary/25">
           {n}
         </span>
       </div>
