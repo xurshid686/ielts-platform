@@ -10,9 +10,6 @@ import {
   ArrowRight,
   Zap,
   CheckCircle2,
-  ShieldCheck,
-  CalendarDays,
-  Gauge,
   ClipboardCheck,
   Crown,
 } from "lucide-react";
@@ -303,54 +300,54 @@ export default async function Home() {
             </p>
           </div>
 
-          <figure className="mt-12">
-            <Shot
-              name="listening"
-              alt="The listening player: audio transport across the top, note-completion questions below."
-            />
-            <figcaption className="mt-3 text-sm text-muted">
-              Listening runs the same way — the recording plays across the top while you
-              type, with the four parts tracked along the bottom.
-            </figcaption>
-          </figure>
+          {/* Two detail rows, image on alternate sides. Each picture is a zoomed
+              region of a full capture (see Detail), so the reader sees the
+              thing the text is about rather than a whole small screen. */}
+          <div className="mt-14 space-y-14 sm:mt-20 sm:space-y-24">
+            <DetailRow
+              title="Listening that runs like the exam"
+              desc="The recording plays across the top while you type your answers, with all four parts in one sitting — the same way the computer-delivered test runs."
+            >
+              <Detail
+                name="listening"
+                alt="The listening player: the audio bar across the top and the first note-completion questions."
+                x={0}
+                y={0.056}
+                zoom={1.667}
+              />
+            </DetailRow>
 
-          <figure className="mt-12">
-            <Shot
-              name="report"
-              alt="A finished score report: band 7.5, 33 of 40 correct, and every question marked."
-            />
-            <figcaption className="mt-3 text-sm text-muted">
-              The moment you submit: your band, your score, and every question marked
-              against the official answer — with what you should have written.
-            </figcaption>
-          </figure>
+            <DetailRow
+              flip
+              title="Honest server-side scoring"
+              desc="Reading and Listening are graded on the server against a hidden answer key the instant you submit — scores can't be faked, so your band actually means something. You see your band, your score, and every question marked against the official answer, with what you should have written."
+            >
+              <Detail
+                name="report"
+                alt="A finished score report: band 7.5, 11 of 14 correct, and each answer marked right or wrong."
+                x={0.1975}
+                y={0.228}
+                zoom={1.818}
+              />
+            </DetailRow>
+          </div>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-2">
-            <Highlight
-              icon={<PenLine className="h-5 w-5" />}
+          {/* The three features with no picture of their own: plain text
+              between hairlines, not cards. */}
+          <ul className="mt-14 border-t border-border sm:mt-20 sm:grid sm:grid-cols-3 sm:border-b">
+            <Point
               title="Real Writing questions"
               desc="Hundreds of Task 1 and Task 2 questions reported from recent exams, in the exam's own split-screen layout with a timer and a live word count."
-              tone="writing"
             />
-            <Highlight
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="Honest server-side scoring"
-              desc="Reading and Listening are graded on the server against a hidden answer key the instant you submit — scores can't be faked, so your band actually means something."
-              tone="reading"
-            />
-            <Highlight
-              icon={<Gauge className="h-5 w-5" />}
+            <Point
               title="Know your weak spots"
               desc="Per-question-type analytics pinpoint where you lose marks and recommend the exact tests to fix them — true/false, matching headings, maps, and more."
-              tone="listening"
             />
-            <Highlight
-              icon={<CalendarDays className="h-5 w-5" />}
+            <Point
               title="Weekly progress reports"
               desc="Every week you get a digest: tests done, average band, rating change and new achievements — delivered to your in-app inbox so you stay accountable."
-              tone="speaking"
             />
-          </div>
+          </ul>
         </section>
 
         {/* ---- How it works ---- */}
@@ -650,30 +647,95 @@ function Feature({
   );
 }
 
-function Highlight({
-  icon,
-  title,
-  desc,
-  tone,
+// Every capture is 2160x1350; a detail frame is 4:3.
+const SHOT_RATIO = 1350 / 2160;
+const DETAIL_RATIO = 3 / 4;
+
+/**
+ * A zoomed region of a product screenshot, in the viewer's theme.
+ *
+ * No second set of image files: the full capture is drawn `zoom` times wider
+ * than its 4:3 frame and shifted so the region whose top-left corner is at
+ * (`x`, `y`) — fractions of the capture — fills the frame. A re-run of
+ * `npm run shots` therefore refreshes these too. If a capture's LAYOUT
+ * changes, re-check the three numbers.
+ *
+ * Both variants are lazy for the reason given on Shot.
+ */
+function Detail({
+  name,
+  alt,
+  x,
+  y,
+  zoom,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  tone: keyof typeof tones;
+  name: "player" | "listening" | "report";
+  alt: string;
+  x: number;
+  y: number;
+  zoom: number;
 }) {
-  const t = tones[tone];
+  const style: React.CSSProperties = {
+    position: "absolute",
+    width: `${zoom * 100}%`,
+    maxWidth: "none",
+    height: "auto",
+    left: `${-x * zoom * 100}%`,
+    // `top` is a share of the FRAME's height, the offset a share of the image's.
+    top: `${-y * zoom * (SHOT_RATIO / DETAIL_RATIO) * 100}%`,
+  };
+  const common = {
+    width: 2160,
+    height: 1350,
+    // The image is `zoom` times wider than its frame (about 540px on desktop).
+    sizes: `(min-width: 1024px) ${Math.round(540 * zoom)}px, ${Math.round(zoom * 100)}vw`,
+    style,
+  };
   return (
-    <div className="group flex gap-4 rounded-2xl border border-border bg-surface p-6 shadow-soft">
-      <div
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${t.chip}`}
-      >
-        {icon}
+    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-soft">
+      <div className="dark:hidden">
+        <Image src={`/shots/${name}-light.png`} alt={alt} loading="lazy" {...common} />
       </div>
-      <div>
-        <h3 className="font-semibold">{title}</h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</p>
+      <div className="hidden dark:block">
+        <Image src={`/shots/${name}-dark.png`} alt="" aria-hidden loading="lazy" {...common} />
       </div>
     </div>
+  );
+}
+
+/** Text beside a picture. `flip` puts the picture first on desktop; on a
+ *  phone the text always comes first. */
+function DetailRow({
+  title,
+  desc,
+  flip,
+  children,
+}: {
+  title: string;
+  desc: string;
+  flip?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
+      <div className={flip ? "lg:order-2" : undefined}>
+        <h3 className="text-balance text-2xl font-semibold leading-tight tracking-[-0.015em] sm:text-3xl">
+          {title}
+        </h3>
+        <p className="mt-4 text-pretty leading-relaxed text-muted">{desc}</p>
+      </div>
+      <div className={flip ? "lg:order-1" : undefined}>{children}</div>
+    </div>
+  );
+}
+
+/** A feature as plain text between hairlines — the Step layout without a numeral. */
+function Point({ title, desc }: { title: string; desc: string }) {
+  return (
+    <li className="border-b border-border py-7 sm:border-b-0 sm:border-l sm:px-7 sm:py-9 sm:first:border-l-0 sm:first:pl-0 sm:last:pr-0">
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</p>
+    </li>
   );
 }
 
