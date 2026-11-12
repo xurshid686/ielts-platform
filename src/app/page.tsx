@@ -8,9 +8,6 @@ import {
   Mic,
   Flame,
   ArrowRight,
-  Trophy,
-  Target,
-  BarChart3,
   Zap,
   CheckCircle2,
   ShieldCheck,
@@ -368,26 +365,23 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-3">
+          <ol className="mt-12 border-t border-border sm:grid sm:grid-cols-3 sm:border-b">
             <Step
               n="01"
-              icon={<Target className="h-5 w-5" />}
               title="Take a real test"
               desc="Exam-format Reading, Listening and Speaking — the same timing and question types you'll face on test day."
             />
             <Step
               n="02"
-              icon={<BarChart3 className="h-5 w-5" />}
               title="Get scored instantly"
               desc="Reading and Listening are graded on the server the moment you submit — no waiting, no guesswork."
             />
             <Step
               n="03"
-              icon={<Trophy className="h-5 w-5" />}
               title="Climb the leaderboard"
               desc="A rating that grows with every rated test, streaks, badges and weekly reports keep you accountable."
             />
-          </div>
+          </ol>
         </section>
 
         {/* ---- Rank ladder ---- */}
@@ -416,7 +410,7 @@ export default async function Home() {
                 {rankLadder.map((tier) => (
                   <li
                     key={tier.name}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5 transition-transform duration-200 hover:-translate-y-0.5"
+                    className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5"
                   >
                     <span
                       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold shadow-sm ${tier.gradient}`}
@@ -669,7 +663,7 @@ function Highlight({
 }) {
   const t = tones[tone];
   return (
-    <div className="group flex gap-4 rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-elevated">
+    <div className="group flex gap-4 rounded-2xl border border-border bg-surface p-6 shadow-soft">
       <div
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${t.chip}`}
       >
@@ -683,29 +677,24 @@ function Highlight({
   );
 }
 
-function Step({
-  n,
-  icon,
-  title,
-  desc,
-}: {
-  n: string;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
+/**
+ * One step of "How it works". Deliberately NOT a card: a large numeral, a
+ * title and one line, separated by hairlines. Nothing here is clickable, so
+ * nothing lifts on hover. Stacked rows on a phone, three columns from `sm`.
+ */
+function Step({ n, title, desc }: { n: string; title: string; desc: string }) {
   return (
-    <div className="group relative rounded-2xl border border-border bg-surface p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated">
-      <div className="flex items-center justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
-          {icon}
-        </div>
-        <span className="text-3xl font-extrabold tabular-nums tracking-tight text-border transition-colors group-hover:text-primary/25">
-          {n}
-        </span>
+    <li className="flex gap-5 border-b border-border py-7 sm:block sm:border-b-0 sm:border-l sm:px-7 sm:py-9 sm:first:border-l-0 sm:first:pl-0 sm:last:pr-0">
+      <span
+        aria-hidden
+        className="font-display text-5xl font-semibold tabular-nums leading-none tracking-[-0.03em] text-primary sm:text-6xl"
+      >
+        {n}
+      </span>
+      <div className="sm:mt-6">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</p>
       </div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-1.5 text-sm leading-relaxed text-muted">{desc}</p>
-    </div>
+    </li>
   );
 }
