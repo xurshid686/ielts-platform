@@ -327,7 +327,7 @@ export default async function Home() {
                 alt="A finished score report: band 7.5, 11 of 14 correct, and each answer marked right or wrong."
                 x={0.1975}
                 y={0.228}
-                zoom={1.818}
+                zoom={1.905}
               />
             </DetailRow>
           </div>
