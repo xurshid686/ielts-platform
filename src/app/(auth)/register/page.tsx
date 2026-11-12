@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Gift } from "lucide-react";
 import { AuthForm } from "@/components/auth/auth-form";
 import { GoogleButton } from "@/components/auth/google-button";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { RegisterPanel } from "@/components/auth/auth-panels";
 
 export default async function RegisterPage({
   searchParams,
@@ -11,10 +13,16 @@ export default async function RegisterPage({
   const { next, ref } = await searchParams;
 
   return (
+    <AuthShell panel={<RegisterPanel />}>
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-foreground">Create your account</h2>
-        <p className="text-sm text-muted">Start your IELTS journey today.</p>
+        <h1 className="text-2xl font-bold text-foreground">Create your account</h1>
+        {/* What the account gives, in the two lines a phone has room for
+            before the form (the panel that argues this is desktop-only). */}
+        <p className="text-pretty text-sm text-muted">
+          Free. It saves every score, shows each answer beside the correct one, and
+          tracks your band.
+        </p>
       </div>
 
       {ref && (
@@ -41,5 +49,6 @@ export default async function RegisterPage({
         </Link>
       </p>
     </div>
+    </AuthShell>
   );
 }

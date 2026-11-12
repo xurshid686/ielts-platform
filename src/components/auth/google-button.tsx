@@ -25,7 +25,17 @@ declare global {
   }
 }
 
-const GSI_SRC = "https://accounts.google.com/gsi/client";
+// The button's language is pinned to English in TWO places, and both are
+// needed: `hl` here sets the language of the button Google's script draws in
+// the page (the one a visitor usually sees), and `locale` in renderButton sets
+// the iframe version that replaces it when Google can show a personalised
+// button. Left alone, Google chooses (Uzbek for most visitors here) while the
+// rest of the page is English. To hand the choice back to Google, set
+// BUTTON_LANG to null.
+const BUTTON_LANG: string | null = "en";
+const GSI_SRC = BUTTON_LANG
+  ? `https://accounts.google.com/gsi/client?hl=${BUTTON_LANG}`
+  : "https://accounts.google.com/gsi/client";
 
 // Inlined at build time, so it is a constant for the life of the bundle.
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -107,6 +117,7 @@ export function GoogleButton({ next }: { next?: string }) {
           text: "continue_with",
           shape: "rectangular",
           logo_alignment: "left",
+          ...(BUTTON_LANG ? { locale: BUTTON_LANG } : {}),
           width: target.current.offsetWidth || 320,
         });
       } catch {

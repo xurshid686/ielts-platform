@@ -1,4 +1,6 @@
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { ResetPanel } from "@/components/auth/auth-panels";
 
 export const metadata = { title: "Set a new password" };
 
@@ -10,13 +12,15 @@ export const metadata = { title: "Set a new password" };
  */
 export default function ResetPasswordPage() {
   return (
+    <AuthShell panel={<ResetPanel step={3} />}>
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-foreground">Set a new password</h2>
+        <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
         <p className="text-sm text-muted">Choose something you haven&apos;t used here before.</p>
       </div>
 
       <ResetPasswordForm />
     </div>
+    </AuthShell>
   );
 }

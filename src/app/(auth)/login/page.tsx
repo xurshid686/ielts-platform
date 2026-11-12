@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
 import { GoogleButton } from "@/components/auth/google-button";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { LoginPanel } from "@/components/auth/auth-panels";
 import { authErrorMessage } from "@/lib/auth-errors";
 
 export default async function LoginPage({
@@ -14,10 +16,14 @@ export default async function LoginPage({
   const errorMessage = authErrorMessage(error);
 
   return (
-    <div className="space-y-6">
+    <AuthShell panel={<LoginPanel />}>
+      <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-        <p className="text-sm text-muted">Sign in to continue your practice.</p>
+        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+        {/* The one line a phone visitor gets (the panel is desktop-only). */}
+        <p className="text-pretty text-sm text-muted">
+          Sign in to see your saved scores, answer reviews and band history.
+        </p>
       </div>
 
       {errorMessage && (
@@ -43,5 +49,6 @@ export default async function LoginPage({
         </Link>
       </p>
     </div>
+    </AuthShell>
   );
 }

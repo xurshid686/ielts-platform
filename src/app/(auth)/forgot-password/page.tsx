@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { ResetPanel } from "@/components/auth/auth-panels";
 import { authErrorMessage } from "@/lib/auth-errors";
 
 export const metadata = { title: "Reset your password" };
@@ -15,9 +17,10 @@ export default async function ForgotPasswordPage({
   const errorMessage = authErrorMessage(error);
 
   return (
+    <AuthShell panel={<ResetPanel step={1} />}>
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-foreground">Reset your password</h2>
+        <h1 className="text-2xl font-bold text-foreground">Reset your password</h1>
         <p className="text-sm text-muted">
           Enter your email and we&apos;ll send you a link to set a new one.
         </p>
@@ -38,5 +41,6 @@ export default async function ForgotPasswordPage({
         </Link>
       </p>
     </div>
+    </AuthShell>
   );
 }

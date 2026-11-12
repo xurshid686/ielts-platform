@@ -23,6 +23,7 @@ import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
 import { getSiteStats } from "@/lib/site-stats";
 import { TryQuestion } from "@/components/landing/try-question";
 import { CountUp } from "@/components/landing/count-up";
+import { Detail } from "@/components/landing/detail";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -659,62 +660,6 @@ function Feature({
     >
       {body}
     </Link>
-  );
-}
-
-// Every capture is 2160x1350; a detail frame is 4:3.
-const SHOT_RATIO = 1350 / 2160;
-const DETAIL_RATIO = 3 / 4;
-
-/**
- * A zoomed region of a product screenshot, in the viewer's theme.
- *
- * No second set of image files: the full capture is drawn `zoom` times wider
- * than its 4:3 frame and shifted so the region whose top-left corner is at
- * (`x`, `y`) — fractions of the capture — fills the frame. A re-run of
- * `npm run shots` therefore refreshes these too. If a capture's LAYOUT
- * changes, re-check the three numbers.
- *
- * Both variants are lazy for the reason given on Shot.
- */
-function Detail({
-  name,
-  alt,
-  x,
-  y,
-  zoom,
-}: {
-  name: "player" | "listening" | "report";
-  alt: string;
-  x: number;
-  y: number;
-  zoom: number;
-}) {
-  const style: React.CSSProperties = {
-    position: "absolute",
-    width: `${zoom * 100}%`,
-    maxWidth: "none",
-    height: "auto",
-    left: `${-x * zoom * 100}%`,
-    // `top` is a share of the FRAME's height, the offset a share of the image's.
-    top: `${-y * zoom * (SHOT_RATIO / DETAIL_RATIO) * 100}%`,
-  };
-  const common = {
-    width: 2160,
-    height: 1350,
-    // The image is `zoom` times wider than its frame (about 540px on desktop).
-    sizes: `(min-width: 1024px) ${Math.round(540 * zoom)}px, ${Math.round(zoom * 100)}vw`,
-    style,
-  };
-  return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-surface-2 shadow-soft">
-      <div className="dark:hidden">
-        <Image src={`/shots/${name}-light.png`} alt={alt} loading="lazy" {...common} />
-      </div>
-      <div className="hidden dark:block">
-        <Image src={`/shots/${name}-dark.png`} alt="" aria-hidden loading="lazy" {...common} />
-      </div>
-    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Copy, Check, Send, Share2 } from "lucide-react";
 
 const SHARE_TEXT =
-  "I'm prepping for IELTS on this app — real tests, instant band scores and a live AI examiner. Join with my link and we both get rewarded:";
+  "I'm prepping for IELTS on this app — real exam-format tests with instant band scores and every answer marked. Join with my link and we both get rewarded:";
 
 export function InviteCard({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
