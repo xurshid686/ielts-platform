@@ -21,6 +21,7 @@ import { TIERS, type TierName } from "@/lib/rating";
 import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
 import { getSiteStats } from "@/lib/site-stats";
 import { TryQuestion } from "@/components/landing/try-question";
+import { CountUp } from "@/components/landing/count-up";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -222,7 +223,7 @@ export default async function Home() {
                 >
                   <dt className="mt-1.5 text-sm text-muted">{f.label}</dt>
                   <dd className="font-display text-4xl font-semibold tabular-nums tracking-[-0.02em] sm:text-5xl">
-                    {f.n.toLocaleString("en-US")}
+                    <CountUp value={f.n} />
                   </dd>
                 </div>
               ))}
