@@ -25,6 +25,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { TIERS, type TierName } from "@/lib/rating";
 import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
+import { getSiteStats } from "@/lib/site-stats";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -79,6 +80,18 @@ export default async function Home() {
 
   // Signed-in users skip the marketing page and go straight to their dashboard.
   if (user) redirect("/dashboard");
+
+  // The library's real size, counted on the server (cached for an hour).
+  // A figure of zero is left out: "0 tests" is worse than no figure.
+  const stats = await getSiteStats();
+  const figures = stats
+    ? [
+        { n: stats.reading, label: "Reading tests" },
+        { n: stats.listening, label: "Listening tests" },
+        { n: stats.task2, label: "Writing Task 2 questions" },
+        { n: stats.task1, label: "Writing Task 1 charts" },
+      ].filter((f) => f.n > 0)
+    : [];
 
   return (
     <div className="relative min-h-screen overflow-x-clip">
@@ -179,6 +192,32 @@ export default async function Home() {
             </figcaption>
           </figure>
         </section>
+
+        {/* ---- The library in figures ---- */}
+        {figures.length >= 2 && (
+          <section aria-label="The library in numbers" className="mb-12 border-y border-border sm:mb-16">
+            <dl className="grid grid-cols-2 lg:grid-cols-4">
+              {figures.map((f, i) => (
+                <div
+                  key={f.label}
+                  // Hairlines between figures: a left rule on every cell that
+                  // is not first in its row, and a top rule on the phone's
+                  // second row.
+                  className={`flex flex-col-reverse px-3 py-6 text-center sm:py-8 ${
+                    i % 2 === 1 ? "border-l border-border" : ""
+                  } ${i >= 2 ? "border-t border-border lg:border-t-0" : ""} ${
+                    i === 2 ? "lg:border-l" : ""
+                  }`}
+                >
+                  <dt className="mt-1.5 text-sm text-muted">{f.label}</dt>
+                  <dd className="font-display text-4xl font-semibold tabular-nums tracking-[-0.02em] sm:text-5xl">
+                    {f.n.toLocaleString("en-US")}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
 
         {/* ---- Skill cards ---- */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
