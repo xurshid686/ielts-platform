@@ -143,7 +143,7 @@ export default async function Home() {
               </p>
 
               <div
-                className="animate-rise mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:flex-col lg:items-start xl:flex-row xl:justify-start"
+                className="animate-rise mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:flex-col lg:items-start"
                 style={{ "--rise-delay": "240ms" } as React.CSSProperties}
               >
                 {/* The catalogue is public and a free test is gradeable without an
