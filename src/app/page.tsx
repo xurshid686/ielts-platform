@@ -203,7 +203,7 @@ export default async function Home() {
                   // Hairlines between figures: a left rule on every cell that
                   // is not first in its row, and a top rule on the phone's
                   // second row.
-                  className={`flex flex-col-reverse px-3 py-6 text-center sm:py-8 ${
+                  className={`flex flex-col-reverse justify-end px-3 py-6 text-center sm:py-8 ${
                     i % 2 === 1 ? "border-l border-border" : ""
                   } ${i >= 2 ? "border-t border-border lg:border-t-0" : ""} ${
                     i === 2 ? "lg:border-l" : ""
