@@ -50,7 +50,17 @@ export function RankBadge({
       aria-label={t.label}
     >
       <svg viewBox="0 0 48 48" className="h-full w-full" aria-hidden>
-        <path d={SHIELD} fill={t.fill} />
+        {/* The rim keeps the shield's edge visible on a surface close to its
+            own colour: Legend is espresso, the same as the dark theme's cards,
+            so its rim is drawn at full strength in its gold ink. */}
+        <path
+          d={SHIELD}
+          fill={t.fill}
+          stroke={t.ink}
+          strokeOpacity={t.name === "Legend" ? 0.9 : 0.35}
+          strokeWidth={1.2}
+          strokeLinejoin="round"
+        />
         <path d={INNER} fill="none" stroke={t.ink} strokeOpacity={0.3} strokeWidth={1} />
         <text
           x={24}
