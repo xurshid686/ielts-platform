@@ -132,8 +132,14 @@ export function GoogleButton({ next }: { next?: string }) {
 
   return (
     <div className="space-y-2">
-      {/* GIS replaces this node with Google's own rendered button. */}
-      <div ref={target} className="flex w-full justify-center [&>div]:w-full" />
+      {/* GIS replaces this node with Google's own rendered button.
+          `color-scheme: light` matches Google's iframe, which is always a
+          light document: on a dark page a mismatched iframe is given an opaque
+          white backdrop, which showed as a white box around the button. */}
+      <div
+        ref={target}
+        className="flex w-full justify-center [color-scheme:light] [&>div]:w-full"
+      />
       {error && (
         <p className="text-center text-sm text-danger" role="alert">
           {error}
