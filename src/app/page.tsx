@@ -20,6 +20,7 @@ import { Logo } from "@/components/logo";
 import { TIERS, type TierName } from "@/lib/rating";
 import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
 import { getSiteStats } from "@/lib/site-stats";
+import { TryQuestion } from "@/components/landing/try-question";
 
 // One representative division per metal, lowest first — drives the rank ladder.
 // Pulled from the real tier table so it can never drift from the live system.
@@ -112,69 +113,85 @@ export default async function Home() {
       <main className="relative mx-auto max-w-6xl px-6">
         {/* ---- Hero ---- */}
         <section className="pb-14 pt-16 text-center sm:pb-20 sm:pt-24">
-          <div
-            className="animate-rise mx-auto inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary shadow-soft"
-            style={{ "--rise-delay": "0ms" } as React.CSSProperties}
-          >
-            <Flame className="h-4 w-4 text-warning" /> Build a daily streak. Hit your band.
-          </div>
+          {/* Two columns from `lg`: the pitch on the left, one real question
+              on the right. Below `lg` it is one centred column and the
+              question follows the buttons. */}
+          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,29rem)] lg:gap-14 lg:text-left">
+            <div>
+              <div
+                className="animate-rise mx-auto inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary shadow-soft lg:mx-0"
+                style={{ "--rise-delay": "0ms" } as React.CSSProperties}
+              >
+                <Flame className="h-4 w-4 text-warning" /> Build a daily streak. Hit your band.
+              </div>
 
-          <h1
-            className="animate-rise mx-auto mt-7 max-w-4xl text-balance text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-6xl lg:text-7xl"
-            style={{ "--rise-delay": "80ms" } as React.CSSProperties}
-          >
-            Practice IELTS the way you{" "}
-            <span className="text-primary">actually test</span>.
-          </h1>
+              <h1
+                className="animate-rise mx-auto mt-7 max-w-4xl text-balance text-[2.5rem] font-extrabold leading-[1.04] tracking-[-0.03em] sm:text-6xl lg:mx-0 xl:text-[4rem]"
+                style={{ "--rise-delay": "80ms" } as React.CSSProperties}
+              >
+                Practice IELTS the way you{" "}
+                <span className="text-primary">actually test</span>.
+              </h1>
 
-          <p
-            className="animate-rise mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted"
-            style={{ "--rise-delay": "160ms" } as React.CSSProperties}
-          >
-            Reading, Listening, Writing and Speaking in one place — real tests in the
-            exam format, with instant scoring. Automatic progress tracking and a streak
-            system keep you practising every day.
-          </p>
+              <p
+                className="animate-rise mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted lg:mx-0"
+                style={{ "--rise-delay": "160ms" } as React.CSSProperties}
+              >
+                Reading, Listening, Writing and Speaking in one place — real tests in the
+                exam format, with instant scoring. Automatic progress tracking and a streak
+                system keep you practising every day.
+              </p>
 
-          <div
-            className="animate-rise mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row"
-            style={{ "--rise-delay": "240ms" } as React.CSSProperties}
-          >
-            {/* The catalogue is public and a free test is gradeable without an
-                account, so the primary action is the product itself, not a
-                signup form. `h-auto … whitespace-normal` because size="lg" is a
-                fixed h-11 and this label wraps on a narrow phone. */}
-            <Button
-              asChild
-              size="lg"
-              className="h-auto min-h-11 w-full whitespace-normal py-2.5 leading-snug sm:w-auto"
+              <div
+                className="animate-rise mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:flex-col lg:items-start xl:flex-row xl:justify-start"
+                style={{ "--rise-delay": "240ms" } as React.CSSProperties}
+              >
+                {/* The catalogue is public and a free test is gradeable without an
+                    account, so the primary action is the product itself, not a
+                    signup form. `h-auto … whitespace-normal` because size="lg" is a
+                    fixed h-11 and this label wraps on a narrow phone. */}
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-auto min-h-11 w-full whitespace-normal py-2.5 leading-snug sm:w-auto"
+                >
+                  <Link href="/reading">
+                    Try a free Reading test — no account needed{" "}
+                    <ArrowRight className="h-4 w-4 shrink-0" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+                  <Link href="/register">Create a free account</Link>
+                </Button>
+              </div>
+
+              <ul
+                className="animate-rise mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted lg:mx-0 lg:justify-start"
+                style={{ "--rise-delay": "320ms" } as React.CSSProperties}
+              >
+                {["No account needed", "Real exam format", "Instant band scores"].map((t) => (
+                  <li key={t} className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-success" /> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* The product itself, before any click: answer it and it is marked.
+                Capped and centred below `lg` so it does not stretch on a tablet. */}
+            <div
+              className="animate-rise mx-auto w-full max-w-xl lg:max-w-none"
+              style={{ "--rise-delay": "400ms" } as React.CSSProperties}
             >
-              <Link href="/reading">
-                Try a free Reading test — no account needed{" "}
-                <ArrowRight className="h-4 w-4 shrink-0" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-              <Link href="/register">Create a free account</Link>
-            </Button>
+              <TryQuestion />
+            </div>
           </div>
-
-          <ul
-            className="animate-rise mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted"
-            style={{ "--rise-delay": "320ms" } as React.CSSProperties}
-          >
-            {["No account needed", "Real exam format", "Instant band scores"].map((t) => (
-              <li key={t} className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-success" /> {t}
-              </li>
-            ))}
-          </ul>
 
           {/* Proof, not adjectives: the actual player a student sits in.
-              --rise-delay continues the hero's 0/80/160/240/320 stagger. */}
+              --rise-delay continues the hero's 0/80/160/240/320/400 stagger. */}
           <figure
-            className="animate-rise mt-14"
-            style={{ "--rise-delay": "400ms" } as React.CSSProperties}
+            className="animate-rise mt-14 sm:mt-20"
+            style={{ "--rise-delay": "480ms" } as React.CSSProperties}
           >
             <Shot
               name="player"
