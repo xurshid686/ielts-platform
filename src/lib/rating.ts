@@ -25,37 +25,90 @@ export type Tier = {
   /** "Gold II" etc. */
   label: string;
   /**
-   * Solid warm tile classes (bg + text) for the rank badge. A cohesive earthy
-   * ramp, not rainbow medals — tiers are told apart by their monogram + depth.
+   * Fill + ink classes for a solid tier surface (the rating card's progress
+   * bar). Colours are the --tier-* tokens in globals.css: one warm ramp that
+   * deepens with rank, not rainbow medals.
    */
   gradient: string;
-  /** Solid accent (text/border) for compact chips. */
+  /** The tier's name as text on a surface (chips, "to reach Gold"). Themed. */
   accent: string;
-  /** Short monogram shown on the badge (B, S, G … GM, L). */
-  emoji: string;
+  /** Short monogram drawn on the badge (B, S, G … GM, L). Letters, not emoji. */
+  monogram: string;
+  /** CSS colour of the badge fill and of what is drawn on it (RankBadge). */
+  fill: string;
+  ink: string;
 };
 
-const METAL: Record<TierName, { gradient: string; accent: string; emoji: string }> = {
-  Bronze: { gradient: "bg-stone-300 text-stone-700", accent: "text-stone-600", emoji: "B" },
-  Silver: { gradient: "bg-stone-400 text-white", accent: "text-stone-500", emoji: "S" },
-  Gold: { gradient: "bg-amber-500 text-white", accent: "text-amber-600", emoji: "G" },
-  Platinum: { gradient: "bg-amber-600 text-white", accent: "text-amber-700", emoji: "P" },
-  Diamond: { gradient: "bg-orange-600 text-white", accent: "text-orange-600", emoji: "D" },
-  Master: { gradient: "bg-orange-700 text-white", accent: "text-orange-700", emoji: "M" },
-  Grandmaster: { gradient: "bg-[#c0572e] text-white", accent: "text-[#c0572e]", emoji: "GM" },
-  Legend: { gradient: "bg-[#8a3a1a] text-amber-100", accent: "text-[#8a3a1a]", emoji: "L" },
+type Metal = Pick<Tier, "gradient" | "accent" | "monogram" | "fill" | "ink">;
+
+// Written out in full, never built from the name: Tailwind only generates a
+// class it can find as a complete string in the source.
+const METAL: Record<TierName, Metal> = {
+  Bronze: {
+    gradient: "bg-tier-bronze text-tier-ink-dark",
+    accent: "text-tier-bronze-text",
+    monogram: "B",
+    fill: "var(--tier-bronze)",
+    ink: "var(--tier-ink-dark)",
+  },
+  Silver: {
+    gradient: "bg-tier-silver text-tier-ink-dark",
+    accent: "text-tier-silver-text",
+    monogram: "S",
+    fill: "var(--tier-silver)",
+    ink: "var(--tier-ink-dark)",
+  },
+  Gold: {
+    gradient: "bg-tier-gold text-tier-ink-dark",
+    accent: "text-tier-gold-text",
+    monogram: "G",
+    fill: "var(--tier-gold)",
+    ink: "var(--tier-ink-dark)",
+  },
+  Platinum: {
+    gradient: "bg-tier-platinum text-tier-ink-light",
+    accent: "text-tier-platinum-text",
+    monogram: "P",
+    fill: "var(--tier-platinum)",
+    ink: "var(--tier-ink-light)",
+  },
+  Diamond: {
+    gradient: "bg-tier-diamond text-tier-ink-light",
+    accent: "text-tier-diamond-text",
+    monogram: "D",
+    fill: "var(--tier-diamond)",
+    ink: "var(--tier-ink-light)",
+  },
+  Master: {
+    gradient: "bg-tier-master text-tier-ink-light",
+    accent: "text-tier-master-text",
+    monogram: "M",
+    fill: "var(--tier-master)",
+    ink: "var(--tier-ink-light)",
+  },
+  Grandmaster: {
+    gradient: "bg-tier-grandmaster text-tier-ink-light",
+    accent: "text-tier-grandmaster-text",
+    monogram: "GM",
+    fill: "var(--tier-grandmaster)",
+    ink: "var(--tier-ink-light)",
+  },
+  Legend: {
+    gradient: "bg-tier-legend text-tier-ink-gold",
+    accent: "text-tier-legend-text",
+    monogram: "L",
+    fill: "var(--tier-legend)",
+    ink: "var(--tier-ink-gold)",
+  },
 };
 
 function t(floor: number, name: TierName, division: "I" | "II" | "III" | ""): Tier {
-  const m = METAL[name];
   return {
     floor,
     name,
     division,
     label: division ? `${name} ${division}` : name,
-    gradient: m.gradient,
-    accent: m.accent,
-    emoji: m.emoji,
+    ...METAL[name],
   };
 }
 

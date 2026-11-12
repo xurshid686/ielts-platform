@@ -131,7 +131,74 @@
   --skill-writing: #e3a95c;
 }
 
+/* ----------------------------------------------------------------------------
+   Rating tiers (src/lib/rating.ts). One warm ramp that deepens with rank —
+   sand, taupe, ochre, deep ochre, terracotta, burnt, dark burnt, espresso —
+   NOT rainbow medals: a tier is told apart by its monogram and division pips,
+   never by colour alone. They replaced Tailwind's stock stone/amber/orange.
+
+   --tier-<name>      the badge fill; the same in both themes (it is an emblem)
+   --tier-<name>-text the tier's name as TEXT on a surface, so it has a light
+                      and a dark value (the old single values were about 2:1
+                      on the dark surface)
+   --tier-ink-*       what is drawn on a fill
+---------------------------------------------------------------------------- */
+:root {
+  --tier-bronze: #c9b8a3;
+  --tier-silver: #a39a8f;
+  --tier-gold: #cf8a2c;
+  --tier-platinum: #b5701f;
+  --tier-diamond: #b5502a;
+  --tier-master: #96401e;
+  --tier-grandmaster: #6e2e14;
+  --tier-legend: #2b2420;
+
+  --tier-ink-dark: #2b2420;
+  --tier-ink-light: #fffaf4;
+  --tier-ink-gold: #e6b866;
+
+  --tier-bronze-text: #75593f;
+  --tier-silver-text: #665e54;
+  --tier-gold-text: #855510;
+  --tier-platinum-text: #874f0e;
+  --tier-diamond-text: #9c4320;
+  --tier-master-text: #8a3a1a;
+  --tier-grandmaster-text: #6e2e14;
+  --tier-legend-text: #2b2420;
+}
+
+.dark {
+  --tier-bronze-text: #d9c3aa;
+  --tier-silver-text: #c4bbb0;
+  --tier-gold-text: #e6b866;
+  --tier-platinum-text: #e0a85a;
+  --tier-diamond-text: #e08a5a;
+  --tier-master-text: #e89a72;
+  --tier-grandmaster-text: #f0a882;
+  --tier-legend-text: #f3dcae;
+}
+
 @theme inline {
+  --color-tier-bronze: var(--tier-bronze);
+  --color-tier-bronze-text: var(--tier-bronze-text);
+  --color-tier-silver: var(--tier-silver);
+  --color-tier-silver-text: var(--tier-silver-text);
+  --color-tier-gold: var(--tier-gold);
+  --color-tier-gold-text: var(--tier-gold-text);
+  --color-tier-platinum: var(--tier-platinum);
+  --color-tier-platinum-text: var(--tier-platinum-text);
+  --color-tier-diamond: var(--tier-diamond);
+  --color-tier-diamond-text: var(--tier-diamond-text);
+  --color-tier-master: var(--tier-master);
+  --color-tier-master-text: var(--tier-master-text);
+  --color-tier-grandmaster: var(--tier-grandmaster);
+  --color-tier-grandmaster-text: var(--tier-grandmaster-text);
+  --color-tier-legend: var(--tier-legend);
+  --color-tier-legend-text: var(--tier-legend-text);
+  --color-tier-ink-dark: var(--tier-ink-dark);
+  --color-tier-ink-light: var(--tier-ink-light);
+  --color-tier-ink-gold: var(--tier-ink-gold);
+
   --color-skill-reading: var(--skill-reading);
   --color-skill-listening: var(--skill-listening);
   --color-skill-speaking: var(--skill-speaking);

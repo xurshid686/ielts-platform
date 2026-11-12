@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "@/components/logo";
 import { TIERS, type TierName } from "@/lib/rating";
+import { RankBadge } from "@/components/rating/rank-badge";
 import { CONTACT_TELEGRAM_URL, PREMIUM_PLANS, SITE_NAME } from "@/lib/site";
 import { getSiteStats } from "@/lib/site-stats";
 import { TryQuestion } from "@/components/landing/try-question";
@@ -427,11 +428,7 @@ export default async function Home() {
                     key={tier.name}
                     className="flex items-center gap-3 rounded-xl border border-border bg-surface-2/50 px-3 py-2.5"
                   >
-                    <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold shadow-sm ${tier.gradient}`}
-                    >
-                      {tier.emoji}
-                    </span>
+                    <RankBadge tier={tier} size="sm" className="h-9 w-9" />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{tier.name}</p>
                       <p className="text-xs tabular-nums text-muted">

@@ -87,7 +87,7 @@ export function RatingCard({
           </p>
         </div>
       ) : (
-        <p className="text-xs font-medium text-rose-500">
+        <p className="text-xs font-medium text-tier-legend-text">
           🌟 Legend tier — you&apos;ve reached the very top.
         </p>
       )}
