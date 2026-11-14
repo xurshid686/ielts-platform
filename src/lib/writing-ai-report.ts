@@ -2,11 +2,19 @@ import "server-only";
 
 import type { AiTaskResult } from "@/lib/writing-ai-shared";
 import type { ReportImage } from "@/lib/mock-report";
+import { LOGO_PNG_BASE64 } from "@/lib/brand-logo";
+import { SITE_HOST, SITE_NAME, SITE_URL } from "@/lib/site";
 
-// The owner's PDF of one AI check: who the student is, what they wrote, and
-// everything Axiom said. It goes ONLY to the owner's Telegram group
-// (writing-ai-telegram.ts) — it is never offered to a student, never attached to
-// an email and never stored.
+// The PDF of one AI check, in two variants (both carry the logo + website address):
+//  - "owner": who the student is (credentials), what they wrote, everything Axiom
+//    said. Posted to the owner's Telegram group (writing-ai-telegram.ts); never
+//    offered to a student. Mock drafts are marked DRAFT.
+//  - "student": the same report without the internal credentials, labelled "AI
+//    estimate". Emailed to a Premium student after a PRACTICE check
+//    (writing-ai-email.ts). It never mentions the owner copy.
+// Nothing here is stored.
+
+export type AiReportVariant = "owner" | "student";
 
 export type AiReportTask = {
   n: 1 | 2;
@@ -42,7 +50,8 @@ export function pdfSafe(s: string): string {
 
 const fmt = (b: number | null | undefined) => (b == null ? "-" : b.toFixed(1));
 
-export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> {
+export async function renderAiCheckPdf(data: AiReportData, opts: { variant?: AiReportVariant } = {}): Promise<Uint8Array> {
+  const student = opts.variant === "student";
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
@@ -51,8 +60,9 @@ export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> 
   const width = W - 2 * M;
   let y = M;
 
+  const FOOT = 10; // room kept for the footer line
   const ensure = (h: number) => {
-    if (y + h > H - M) {
+    if (y + h > H - M - FOOT) {
       doc.addPage();
       y = M;
     }
@@ -77,7 +87,27 @@ export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> 
     }
   };
 
+  // Brand header: logo + name + website address.
+  try {
+    doc.addImage(`data:image/png;base64,${LOGO_PNG_BASE64}`, "PNG", M, y, 15, 15, undefined, "FAST");
+  } catch {
+    /* a missing logo must not stop the report */
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text(pdfSafe(SITE_NAME), M + 19, y + 6.5);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(192, 87, 46);
+  doc.textWithLink(SITE_HOST, M + 19, y + 12, { url: SITE_URL });
+  doc.setTextColor(0, 0, 0);
+  y += 22;
+
   text(data.title, 16, "bold");
+  if (student) {
+    gap(1);
+    text("An AI estimate to guide your practice, not an official IELTS result.", 9.5, "italic");
+  }
   if (data.draftNote) {
     gap(1);
     text(data.draftNote, 10, "bold");
@@ -106,7 +136,7 @@ export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> 
   if (overall.length) {
     gap(3);
     text(
-      `Axiom bands: ${overall.map((t) => `Task ${t.n} overall ${fmt(t.result?.overall)}`).join("   |   ")}`,
+      `${student ? "AI estimate" : "Axiom bands"}: ${overall.map((t) => `Task ${t.n} overall ${fmt(t.result?.overall)}`).join("   |   ")}`,
       12,
       "bold",
     );
@@ -143,17 +173,17 @@ export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> 
       }
     }
     gap(4);
-    text(`Student's answer (${t.words} words)`, 12, "bold");
+    text(`${student ? "Your answer" : "Student's answer"} (${t.words} words)`, 12, "bold");
     gap(1);
     paragraphs(t.essay || "(nothing written)");
 
     if (!t.result) {
       gap(4);
-      text("Axiom did not check this task.", 11, "italic");
+      text(`${student ? "The AI" : "Axiom"} did not check this task.`, 11, "italic");
       continue;
     }
     gap(5);
-    text(`Axiom's assessment - overall ${fmt(t.result.overall)}`, 12, "bold");
+    text(`${student ? "AI assessment" : "Axiom's assessment"} - overall ${fmt(t.result.overall)}`, 12, "bold");
     for (const c of t.result.criteria) {
       gap(3);
       text(`${c.label}: ${fmt(c.band)}`, 11, "bold");
@@ -165,6 +195,21 @@ export async function renderAiCheckPdf(data: AiReportData): Promise<Uint8Array> 
         text(`Better:   ${r.revised}`, 9.5, "normal", 3);
       }
     }
+  }
+
+  // Footer on every page: website address + page numbers.
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(220, 224, 232);
+    doc.line(M, H - M - 2, W - M, H - M - 2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(192, 87, 46);
+    doc.textWithLink(SITE_HOST, M, H - M + 3, { url: SITE_URL });
+    doc.setTextColor(110, 118, 135);
+    doc.text(`Page ${i} of ${pages}`, W - M, H - M + 3, { align: "right" });
+    doc.setTextColor(0, 0, 0);
   }
 
   return new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);

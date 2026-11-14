@@ -18,9 +18,11 @@ import {
   buildAdminPromotionEmail,
   buildMockReceiptEmail,
   buildMockResultEmail,
+  buildWritingCheckEmail,
   type Brand,
   type ReceiptEmailInput,
   type ResultEmailInput,
+  type WritingCheckEmailInput,
 } from "./mock-templates";
 import {
   buildInactiveEmail,
@@ -113,6 +115,14 @@ export function sendMockResultEmail(
 ): Promise<SendResult> {
   const { subject, html } = buildMockResultEmail(BRAND, { ...input, attached: !!input.pdf });
   return sendEmail({ to: input.to, subject, html, attachments: input.pdf ? [input.pdf] : [] });
+}
+
+/** An AI writing check, with the student's report attached (0064). Transactional. */
+export function sendWritingCheckEmail(
+  input: Omit<WritingCheckEmailInput, "logoUrl"> & { to: string; pdf: Attachment },
+): Promise<SendResult> {
+  const { subject, html } = buildWritingCheckEmail(BRAND, { ...input, logoUrl: `${EMAIL_BASE_URL}/logo.png` });
+  return sendEmail({ to: input.to, subject, html, attachments: [input.pdf] });
 }
 
 /** "We have your mock" — sent when the student finishes, with no scores. */

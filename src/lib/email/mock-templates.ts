@@ -25,7 +25,7 @@ export function shell(brand: Brand, inner: string, footer?: string): string {
   <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;padding:8px">
     <div style="background:#c0572e;border-radius:16px 16px 0 0;padding:20px 24px;color:#fff">
       <div style="font-size:18px;font-weight:700">${esc(brand.name)}</div>
-      <div style="font-size:13px;opacity:.9">IELTS mock exams</div>
+      <div style="font-size:13px;opacity:.9">IELTS mock exams · ${esc(host)}</div>
     </div>
     <div style="background:#fff;border:1px solid #e6e9f0;border-top:none;border-radius:0 0 16px 16px;padding:24px;color:#0f172a;line-height:1.55">
       ${inner}
@@ -140,6 +140,49 @@ export function buildMockReceiptEmail(brand: Brand, input: ReceiptEmailInput): B
         results paper attached — as soon as they release it.
       </p>
       ${button(`${brand.url}/mock`, "See your mocks")}`,
+    ),
+  };
+}
+
+export type WritingCheckEmailInput = {
+  name?: string | null;
+  /** "Full test", "Task 1" or "Task 2". */
+  kindLabel: string;
+  bands: { label: string; band: string }[];
+  historyUrl: string;
+  logoUrl: string;
+};
+
+/** A Premium student's AI writing check, with the report attached as a PDF. */
+export function buildWritingCheckEmail(brand: Brand, input: WritingCheckEmailInput): Built {
+  const rows = input.bands
+    .map(
+      (b) => `
+  <tr>
+    <td style="padding:6px 0;color:#334155">${esc(b.label)}</td>
+    <td style="padding:6px 0;text-align:right;font-weight:700;font-size:16px">${esc(b.band)}</td>
+  </tr>`,
+    )
+    .join("");
+  return {
+    subject: `Your AI writing check: ${input.kindLabel}`,
+    html: shell(
+      brand,
+      `
+      <img src="${esc(input.logoUrl)}" width="44" height="44" alt="${esc(brand.name)}" style="display:block;margin:0 0 14px;border-radius:10px" />
+      <p style="margin:0 0 12px">${firstName(input.name)}</p>
+      <p style="margin:0 0 16px">
+        Your AI check of your <strong>${esc(input.kindLabel)}</strong> writing is ready. The full report is attached as a PDF.
+      </p>
+      <div style="border:1px solid #e6e9f0;border-radius:12px;padding:14px 16px;margin:0 0 18px">
+        <div style="font-size:13px;color:#64748b">AI estimate</div>
+        <table style="width:100%;border-collapse:collapse;margin-top:4px">${rows}</table>
+      </div>
+      ${button(input.historyUrl, "Open your feedback")}
+      <p style="margin:18px 0 0;color:#64748b;font-size:13px">
+        An AI estimate to guide your practice, not an official IELTS result.
+      </p>`,
+      `Sent by ${esc(brand.name)} because you checked your writing on <a href="${esc(brand.url)}" style="color:#94a3b8">${esc(brand.url.replace(/^https?:\/\//, ""))}</a>.`,
     ),
   };
 }

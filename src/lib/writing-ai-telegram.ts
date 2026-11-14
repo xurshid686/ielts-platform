@@ -13,6 +13,7 @@ import { renderAiCheckPdf, type AiReportData, type AiReportTask } from "@/lib/wr
 import { MONTHLY_CHECKS, type AiTaskResult } from "@/lib/writing-ai-shared";
 import { EMAIL_BASE_URL } from "@/lib/email/send";
 
+// (The student's emailed copy lives in writing-ai-email.ts.)
 // Every completed AI check is posted, as a PDF, to the owner's writing group.
 //
 // STUDENTS ARE NEVER TOLD (owner, 2026-11-14): nothing a student can load —
@@ -38,13 +39,13 @@ const tashkent = (iso: string | null | undefined) =>
     ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tashkent", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso)) + " (Tashkent)"
     : "-";
 
-const fmt = (b: number | null | undefined) => (b == null ? "-" : b.toFixed(1));
+export const fmt = (b: number | null | undefined) => (b == null ? "-" : b.toFixed(1));
 
 function resultOf(results: AiTaskResult[], n: 1 | 2): AiTaskResult | null {
   return results.find((r) => r.task === n) ?? null;
 }
 
-type Built = { data: AiReportData; student: string; sourceLabel: string; adminPath: string };
+export type Built = { data: AiReportData; student: string; sourceLabel: string; adminPath: string };
 
 async function profileFor(userId: string | null) {
   if (!userId) return null;
@@ -57,7 +58,7 @@ async function toReportImage(bucket: string, path: string | null | undefined): P
   return img ? imageMeta(Buffer.from(img.bytes)) : null;
 }
 
-async function buildPractice(checkId: string): Promise<Built | null> {
+export async function buildPractice(checkId: string): Promise<Built | null> {
   const check = await getCheck(checkId);
   if (!check?.practice_attempt_id) return null;
   const a = await getAttemptForAdmin(check.practice_attempt_id);
@@ -151,7 +152,7 @@ async function buildMock(checkId: string): Promise<Built | null> {
 }
 
 /** A short, ASCII-safe file name: "Writing check - Name - Task 2 - 2026-11-14.pdf". */
-function filenameOf(student: string, sourceLabel: string, when: string): string {
+export function filenameOf(student: string, sourceLabel: string, when: string): string {
   return reportFilename(["Writing check", student, sourceLabel.replace(/^(Practice|Mock) - /, ""), when.slice(0, 10)], "pdf");
 }
 
@@ -180,7 +181,7 @@ export async function deliverCheckPdf(checkId: string, opts: { force?: boolean }
       return { ok: false, error: "The attempt could not be loaded." };
     }
 
-    const pdf = await renderAiCheckPdf(built.data);
+    const pdf = await renderAiCheckPdf(built.data, { variant: "owner" });
     const bands = check.results.map((r) => `T${r.task} ${fmt(r.overall)}`).join(" / ");
     const caption = [
       `<b>AI writing check</b> - ${escapeHtml(built.sourceLabel)}`,

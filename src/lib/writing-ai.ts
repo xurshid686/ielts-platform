@@ -64,12 +64,14 @@ export type CheckRow = {
   error: string | null;
   telegram_sent_at: string | null;
   telegram_error: string | null;
+  email_sent_at: string | null;
+  email_error: string | null;
   created_at: string;
   finished_at: string | null;
 };
 
 const CHECK_COLUMNS =
-  "id, source, user_id, practice_attempt_id, mock_attempt_id, month, status, results, show_to_student, error, telegram_sent_at, telegram_error, created_at, finished_at";
+  "id, source, user_id, practice_attempt_id, mock_attempt_id, month, status, results, show_to_student, error, telegram_sent_at, telegram_error, email_sent_at, email_error, created_at, finished_at";
 
 function toCheck(row: Record<string, unknown>): CheckRow {
   return { ...(row as unknown as CheckRow), results: asResults(row.results) };

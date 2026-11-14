@@ -6,6 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getCheck, runMockCheck, runPracticeCheck, setCheckVisible, type CheckRow } from "@/lib/writing-ai";
 import { deliverCheckPdf } from "@/lib/writing-ai-telegram";
+import { deliverCheckEmail } from "@/lib/writing-ai-email";
 import type { CheckQuota } from "@/lib/writing-ai-shared";
 
 // AI writing checks (Axiom), migration 0063 — the doors.
@@ -30,7 +31,10 @@ export async function checkPracticeWriting(attemptId: string): Promise<PracticeC
   );
   if (!res.ok) return res;
   // Only a check that was just made is posted; reopening an old one must not repeat it.
-  if (res.fresh) after(() => deliverCheckPdf(res.check.id));
+  if (res.fresh) {
+    after(() => deliverCheckPdf(res.check.id));
+    after(() => deliverCheckEmail(res.check.id));
+  }
   revalidatePath("/writing");
   return { ok: true, check: res.check, quota: res.quota };
 }

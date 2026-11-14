@@ -36,6 +36,7 @@ export function CheckMyWriting({
   const [quota, setQuota] = useState<CheckQuota | null>(initialQuota);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [justRan, setJustRan] = useState(false);
 
   async function run() {
     setBusy(true);
@@ -45,6 +46,7 @@ export function CheckMyWriting({
       if (res.ok) {
         setResults(res.check.results);
         setQuota(res.quota);
+        setJustRan(true);
       } else {
         setError(res.error);
       }
@@ -64,6 +66,11 @@ export function CheckMyWriting({
           heading="AI feedback on your writing"
           note="An AI estimate to guide your practice — not an official IELTS result."
         />
+        {justRan && (
+          <p className="text-sm text-muted" data-ai-emailed>
+            We're also emailing you this report as a PDF.
+          </p>
+        )}
         {quota && <UsageMeter quota={quota} />}
       </div>
     );
