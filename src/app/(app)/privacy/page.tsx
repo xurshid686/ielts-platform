@@ -86,6 +86,13 @@ export default function PrivacyPage() {
               where you use AI speaking feedback, receives that recording in order to
               produce the feedback.
             </>,
+            <>
+              <strong>An AI writing evaluator</strong> — where a Premium member asks for
+              an AI check of a writing answer, or where a teacher runs one on a mock
+              exam, the text of the answer (and the Task 1 picture) is sent to an AI
+              evaluation service to produce feedback. The results of AI checks may be
+              reviewed by the teacher.
+            </>,
           ]}
         />
       </Section>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Loader2, Save } from "lucide-react";
 import { gradeMockWriting, releaseMockAttempt, unreleaseMockAttempt } from "@/app/actions/mock";
+import { MockAiCheck, type AiCheckView } from "@/components/admin/mock-ai-check";
 import { Button } from "@/components/ui/button";
 import { overallBand, writingBand } from "@/lib/mock-shared";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function MockGradeForm({
   readingBand,
   initial,
   nextHref,
+  ai,
 }: {
   attemptId: string;
   status: string;
@@ -37,6 +39,8 @@ export function MockGradeForm({
   initial: Saved;
   /** The next attempt in this mock's grading queue, preserving the return filters. */
   nextHref: string | null;
+  /** AI draft (0063). Absent = the card is not shown. */
+  ai?: { checks: AiCheckView[]; isOwner: boolean };
 }) {
   const router = useRouter();
   const toField = (b: number | null) => (b == null ? "" : String(b));
@@ -58,6 +62,17 @@ export function MockGradeForm({
   const [feedback, setFeedback] = useState(initial.feedback ?? "");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+
+  // "Apply to my grade" only FILLS the form: nothing is saved or visible until the
+  // owner saves, and every band stays editable (before or after release).
+  function applyAiDraft(d: { task1: number | null; task2: number | null; feedback: string }) {
+    if (feedback.trim() && feedback.trim() !== d.feedback.trim() && !confirm("Replace the feedback you've written with Axiom's comments?")) return;
+    if (d.task1 != null) setTask1(String(d.task1));
+    if (d.task2 != null) setTask2(String(d.task2));
+    setOverride("");
+    setFeedback(d.feedback.slice(0, MAX_FEEDBACK));
+    setMsg({ ok: true, text: "Axiom's draft is in the form. Adjust anything, then save." });
+  }
 
   const t1 = task1 === "" ? null : Number(task1);
   const t2 = task2 === "" ? null : Number(task2);
@@ -139,6 +154,8 @@ export function MockGradeForm({
           <b>Released.</b> The student can see this result. Saving changes updates what they see immediately.
         </p>
       )}
+
+      {ai && <MockAiCheck attemptId={attemptId} initial={ai.checks} isOwner={ai.isOwner} onApply={applyAiDraft} />}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1.5">

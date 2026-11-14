@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Clock, Download, Loader2, PenLine, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Download, Loader2, PenLine, Send, Sparkles } from "lucide-react";
 import { savePracticeAnswer } from "@/app/actions/writing-practice";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { TopicChip } from "@/components/writing/topic-chip";
@@ -139,6 +139,7 @@ export function PracticeExam({
   if (done) {
     return (
       <DoneScreen
+        attemptId={attemptId}
         topic={topic}
         summary={full ? `Task 1: ${words1} words · Task 2: ${words2} words` : `${words1} words`}
         onPdf={async () => {
@@ -366,10 +367,12 @@ function clock(ms: number) {
 }
 
 function DoneScreen({
+  attemptId,
   topic,
   summary,
   onPdf,
 }: {
+  attemptId: string;
   topic: string | null;
   summary: string;
   onPdf: () => Promise<void>;
@@ -387,7 +390,7 @@ function DoneScreen({
         </div>
         <p className="mt-3 text-sm text-muted">
           {summary}, saved to your account. Download a PDF of your writing to keep, or to send to a
-          teacher — practice is not marked here.
+          teacher. Your teacher doesn&apos;t mark practice — Premium members can get an AI check instead.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button
@@ -401,6 +404,11 @@ function DoneScreen({
             {making ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download PDF
           </Button>
           <Button asChild>
+            <Link href={`/writing/history/${attemptId}`}>
+              <Sparkles className="h-4 w-4" /> Check with AI
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href="/writing">
               <PenLine className="h-4 w-4" /> Write another
             </Link>

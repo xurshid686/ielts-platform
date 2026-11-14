@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, BookOpen, Headphones, PenLine } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { getReleasedDetail } from "@/lib/mock";
+import { getStudentMockFeedback } from "@/lib/writing-ai";
+import { AiFeedbackCard } from "@/components/writing/ai-feedback-card";
 import { Card } from "@/components/ui/card";
 import { ReviewTable } from "@/components/mock/review-table";
 import { ReportDownloads } from "@/components/mock/report-downloads";
@@ -19,6 +21,9 @@ export default async function MockResultPage({ params }: { params: Promise<{ moc
   if (!detail) redirect(`/mock/${mockId}`);
 
   const { attempt: a, mock } = detail;
+  // Axiom's comments, if the owner switched them on: words only, never its numbers
+  // (the single door strips them). The bands above are the owner's.
+  const aiFeedback = await getStudentMockFeedback(profile.id, a.id).catch(() => null);
   const fmt = (b: number | null) => (b == null ? "—" : b.toFixed(1));
 
   return (
@@ -55,6 +60,15 @@ export default async function MockResultPage({ params }: { params: Promise<{ moc
           <h2 className="font-semibold">Writing feedback</h2>
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{a.writing_feedback}</p>
         </Card>
+      )}
+
+      {aiFeedback && (
+        <AiFeedbackCard
+          results={aiFeedback}
+          showBands={false}
+          heading="AI feedback on your writing"
+          note="Detailed comments to help you improve. Your official Writing bands are the ones shown above."
+        />
       )}
 
       {/* The papers, reopened read-only (2026-09-16): their own answers, marked,

@@ -16,7 +16,8 @@ export type TelegramResult<T = undefined> =
   | { ok: true; value: T }
   | { ok: false; error: string };
 
-const API = "https://api.telegram.org";
+// TELEGRAM_API_BASE is for tests only (a local recorder, like RESEND_BASE_URL); never set it in production.
+const API = (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replace(/\/+$/, "");
 
 function token(): string | null {
   return process.env.TELEGRAM_BOT_TOKEN || null;
@@ -142,5 +143,41 @@ export async function downloadFile(filePath: string): Promise<TelegramResult<str
       ok: false,
       error: e instanceof Error ? e.message : "Failed to download from Telegram.",
     };
+  }
+}
+
+/**
+ * Send a file as a document (multipart, so it cannot go through `call()`).
+ *
+ * Same contract as everything here: it never throws. The bytes are not kept
+ * anywhere — Telegram holds the only copy. Captions are capped at 1024
+ * characters by Telegram and are cut here so an over-long one cannot make the
+ * whole send fail.
+ */
+export async function sendDocument(
+  chatId: number | string,
+  file: { data: Uint8Array; filename: string; contentType: string },
+  caption?: string,
+): Promise<TelegramResult<SentMessage>> {
+  const t = token();
+  if (!t) return { ok: false, error: "TELEGRAM_BOT_TOKEN is not configured." };
+
+  try {
+    const form = new FormData();
+    form.set("chat_id", String(chatId));
+    if (caption) {
+      form.set("caption", caption.length > 1024 ? `${caption.slice(0, 1023)}…` : caption);
+      form.set("parse_mode", "HTML");
+    }
+    form.set("document", new Blob([new Uint8Array(file.data)], { type: file.contentType }), file.filename);
+
+    const res = await fetch(`${API}/bot${t}/sendDocument`, { method: "POST", body: form, cache: "no-store" });
+    const data = (await res.json()) as { ok?: boolean; result?: SentMessage; description?: string };
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.description || `Telegram error (HTTP ${res.status}).` };
+    }
+    return { ok: true, value: data.result as SentMessage };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to reach Telegram." };
   }
 }

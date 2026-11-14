@@ -6,6 +6,7 @@ import {
   imageReader,
   renderReportDocx,
   renderReportPdf,
+  aiFeedbackFor,
   reportData,
   reportFilename,
   type MockReportData,
@@ -52,7 +53,13 @@ export async function GET(req: Request) {
     if (!isAdmin && (a.user_id !== user.id || a.status !== "released")) {
       return new Response("Not found", { status: 404 });
     }
-    reports.push(reportData(detail, await image(a.writing_task1_image_path ?? detail.mock?.writing_task1_image_path)));
+    reports.push(
+      reportData(
+        detail,
+        await image(a.writing_task1_image_path ?? detail.mock?.writing_task1_image_path),
+        await aiFeedbackFor(a),
+      ),
+    );
     name = [detail.mock?.title ?? "Mock", a.student_name?.trim() || a.student_email || "student"];
   } else if (mockId) {
     if (!isAdmin) return new Response("Not found", { status: 404 });
@@ -64,7 +71,11 @@ export async function GET(req: Request) {
       const detail = await getAttemptDetail(row.id);
       if (!detail) continue;
       reports.push(
-        reportData(detail, await image(detail.attempt.writing_task1_image_path ?? detail.mock?.writing_task1_image_path)),
+        reportData(
+          detail,
+          await image(detail.attempt.writing_task1_image_path ?? detail.mock?.writing_task1_image_path),
+          await aiFeedbackFor(detail.attempt),
+        ),
       );
     }
     name = [reports[0]?.mockTitle ?? "Mock", `${reports.length} attempts`];

@@ -3,11 +3,17 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { getMyAttempt, signedPracticeImage } from "@/lib/writing-practice";
+import { getPracticeCheck, mayUseAiChecks, practiceQuota } from "@/lib/writing-ai";
+import { CheckMyWriting } from "@/components/writing/check-my-writing";
 import { TopicChip } from "@/components/writing/topic-chip";
 import { PracticePdfButton } from "@/components/writing/practice-pdf-button";
 import { KIND_LABEL, PracticeAttemptView, wordsSummary } from "@/components/writing/practice-attempt-view";
 
 export const metadata = { title: "Writing practice" };
+
+// A check calls Axiom (6-15 s each, a Full test runs two at once). On a serverless host the
+// default function limit would cut that off, so the page that hosts the button asks for more.
+export const maxDuration = 60;
 
 /**
  * A submitted practice, read-only.
@@ -27,6 +33,15 @@ export default async function WritingPracticeAttemptPage({
   const attempt = await getMyAttempt(profile.id, attemptId);
   if (!attempt) notFound();
   const imageUrl = await signedPracticeImage(attempt.image_path);
+
+  // AI check (0063): Premium only. Free students still see the locked panel, which leads to /premium.
+  const access = mayUseAiChecks(profile) ? ("ok" as const) : ("locked" as const);
+  const [aiQuota, aiCheck] = attempt.submitted_at
+    ? await Promise.all([
+        access === "ok" && profile.role !== "admin" ? practiceQuota(profile) : Promise.resolve(null),
+        getPracticeCheck(profile.id, attempt.id),
+      ])
+    : [null, null];
 
   return (
     <div className="space-y-6">
@@ -63,10 +78,20 @@ export default async function WritingPracticeAttemptPage({
         </div>
       </header>
 
+      {attempt.submitted_at && (
+        <CheckMyWriting
+          attemptId={attempt.id}
+          kind={attempt.kind}
+          access={access}
+          quota={aiQuota}
+          initial={aiCheck ? { results: aiCheck.status === "done" ? aiCheck.results : [], pending: aiCheck.status === "pending" } : null}
+        />
+      )}
+
       <PracticeAttemptView attempt={attempt} imageUrl={imageUrl} answerHeading="Your answer" />
 
       <p className="text-sm text-muted">
-        Practice is not marked here — this is your own copy to keep or to show a teacher.
+        Your teacher doesn&apos;t mark practice — this is your own copy to keep or to show a teacher.
       </p>
     </div>
   );

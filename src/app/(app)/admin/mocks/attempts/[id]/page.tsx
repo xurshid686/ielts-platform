@@ -29,11 +29,15 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { ReviewTable } from "@/components/mock/review-table";
 import { MockGradeForm } from "@/components/admin/mock-grade-form";
+import { listMockChecks } from "@/lib/writing-ai";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { ReportDownloads } from "@/components/mock/report-downloads";
 import { SendResultEmail } from "@/components/admin/send-result-email";
 
 export const metadata = { title: "Mock attempt" };
+
+// "Run AI check" calls Axiom for both tasks (up to ~30 s); a serverless host's default limit would cut it off.
+export const maxDuration = 60;
 
 function minutesBetween(a: string | null, b: string | null): string | null {
   if (!a || !b) return null;
@@ -57,7 +61,7 @@ export default async function AdminMockAttemptPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ back?: string }>;
 }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   await finalizeExpiredAttempts(); // v2.1: an abandoned section is handed in before it is shown
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const detail = await getAttemptDetail(id);
@@ -69,11 +73,13 @@ export default async function AdminMockAttemptPage({
   const withBack = (attemptId: string) =>
     `/admin/mocks/attempts/${attemptId}${back ? `?back=${encodeURIComponent(back)}` : ""}`;
 
-  const [queue, stillSitting, messages] = await Promise.all([
+  const [queue, stillSitting, messages, aiChecks] = await Promise.all([
     gradingQueue(a.id, a.mock_id),
     countStillSitting(a.mock_id, a.id),
     // This attempt's email history (0056) — newest first, both kinds.
     attemptMessages(a.id),
+    // The owner's private AI drafts (0063). Never loaded by a student page.
+    listMockChecks(a.id),
   ]);
   const stage = adminStage(a);
   const integrity = asIntegrity(a.integrity);
@@ -235,6 +241,19 @@ export default async function AdminMockAttemptPage({
                 feedback: a.writing_feedback,
               }}
               nextHref={queue.nextId && queue.nextId !== a.id ? withBack(queue.nextId) : null}
+              ai={{
+                isOwner: !!admin.is_owner,
+                checks: aiChecks.map((c) => ({
+                  id: c.id,
+                  status: c.status,
+                  results: c.results,
+                  show_to_student: c.show_to_student,
+                  error: c.error,
+                  telegram_sent_at: c.telegram_sent_at,
+                  telegram_error: c.telegram_error,
+                  created_at: c.created_at,
+                })),
+              }}
             />
           </div>
         ) : (

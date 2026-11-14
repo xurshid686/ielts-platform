@@ -5,6 +5,8 @@ import { KINDS, isKind, loadCatalogue, type PracticeKind } from "@/lib/writing-p
 import { CHARTS, TOPICS, isChartId, isTopicId } from "@/lib/writing-practice-topics";
 import { parseTask2 } from "@/lib/ielts/writing-prompt";
 import { MAX_SEARCH, TASK2_TYPES, isTask2Type } from "@/lib/ielts/task2-question-type";
+import { mayUseAiChecks, practiceQuota } from "@/lib/writing-ai";
+import { UsageMeter } from "@/components/writing/usage-meter";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TopicChip } from "@/components/writing/topic-chip";
@@ -52,6 +54,10 @@ export default async function WritingPracticePage({
   const q = (sp.q ?? "").trim().slice(0, MAX_SEARCH);
   const page = Number(sp.page) || 1;
 
+  // Premium members see their monthly AI-check allowance here, always (0063).
+  // Admins use the checker uncounted, so they get no meter.
+  const aiQuota = mayUseAiChecks(profile) && profile.role !== "admin" ? await practiceQuota(profile) : null;
+
   const { entries, counts, typeCounts, libraryTotal, total, pages, page: current } = await loadCatalogue(profile.id, {
     kind,
     topic: filter,
@@ -91,6 +97,7 @@ export default async function WritingPracticePage({
             {MENU[kind].blurb} Write, hand in, and download your work as a PDF.
           </p>
         </div>
+        {aiQuota && <UsageMeter quota={aiQuota} />}
         <Link
           href="/writing/history"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"

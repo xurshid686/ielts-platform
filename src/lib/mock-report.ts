@@ -4,6 +4,8 @@ import { getAttemptDetail, type AttemptDetail, type ReviewLine } from "@/lib/moc
 import { createAdminClient } from "@/lib/supabase/admin";
 import { promptLines } from "@/lib/ielts/writing-prompt";
 import { countWords, tashkent } from "@/lib/mock-shared";
+import { getStudentMockFeedback } from "@/lib/writing-ai";
+import type { AiTaskResult } from "@/lib/writing-ai-shared";
 
 import { fileStore } from "@/lib/storage";
 // The saveable mock result (owner, 2026-09-16): one report, two formats.
@@ -28,12 +30,31 @@ export type MockReportData = {
   tables: { heading: string; lines: ReviewLine[] }[];
   image: ReportImage | null;
   autoSubmitted: boolean;
+  /**
+   * Axiom's comments, WORDS ONLY (withoutBands). Filled only for a released
+   * attempt whose owner switched them on — see aiFeedbackFor(). Empty otherwise.
+   */
+  ai: AiTaskResult[];
 };
+
+/**
+ * The AI comments a student's report may carry. getStudentMockFeedback is the one
+ * door: released + owner switched on + numbers removed. Null user (deleted
+ * account) or any failure means "none" — a report never fails over this.
+ */
+export async function aiFeedbackFor(attempt: { id: string; user_id: string | null }): Promise<AiTaskResult[]> {
+  if (!attempt.user_id) return [];
+  try {
+    return (await getStudentMockFeedback(attempt.user_id, attempt.id)) ?? [];
+  } catch {
+    return [];
+  }
+}
 
 const fmt = (b: number | null | undefined) => (b == null ? "—" : Number(b).toFixed(1));
 
 /** The report for one attempt. `image` is fetched by the caller (route) if wanted. */
-export function reportData(detail: AttemptDetail, image: ReportImage | null): MockReportData {
+export function reportData(detail: AttemptDetail, image: ReportImage | null, ai: AiTaskResult[] = []): MockReportData {
   const a = detail.attempt;
   const counters = (a.integrity as { counters?: { writing_auto_submitted?: number } } | null)?.counters;
   return {
@@ -73,6 +94,7 @@ export function reportData(detail: AttemptDetail, image: ReportImage | null): Mo
     ],
     image,
     autoSubmitted: (counters?.writing_auto_submitted ?? 0) > 0,
+    ai,
   };
 }
 
@@ -160,6 +182,22 @@ export async function renderReportPdf(reports: MockReportData[]): Promise<Uint8A
       for (const para of r.feedback.split(/\n/)) {
         if (para.trim()) text(para, 11);
         else gap(2);
+      }
+    }
+
+    if (r.ai.length) {
+      gap(5);
+      text("AI feedback on your writing", 13, "bold");
+      for (const t of r.ai) {
+        gap(2);
+        text(`Task ${t.task}`, 11, "bold");
+        for (const c of t.criteria) {
+          if (!c.description && !c.suggestions.length) continue;
+          gap(1);
+          text(c.label, 10.5, "bold", 2);
+          if (c.description) text(c.description, 10, "normal", 4);
+          for (const sug of c.suggestions) text(`- ${sug}`, 10, "normal", 4);
+        }
       }
     }
 
@@ -255,6 +293,19 @@ export async function renderReportDocx(reports: MockReportData[]): Promise<Buffe
       for (const line of r.feedback.split(/\n/)) children.push(para(line));
     }
 
+    if (r.ai.length) {
+      children.push(new Paragraph({ text: "AI feedback on your writing", heading: HeadingLevel.HEADING_2 }));
+      for (const t of r.ai) {
+        children.push(para(`Task ${t.task}`, { bold: true }));
+        for (const c of t.criteria) {
+          if (!c.description && !c.suggestions.length) continue;
+          children.push(para(c.label, { bold: true, size: 21 }));
+          if (c.description) children.push(para(c.description, { size: 20 }));
+          for (const sug of c.suggestions) children.push(para(`- ${sug}`, { size: 20 }));
+        }
+      }
+    }
+
     for (const t of r.tasks) {
       children.push(new Paragraph({ text: `Writing Task ${t.n}`, heading: HeadingLevel.HEADING_2 }));
       for (const line of t.lines) children.push(para(line));
@@ -348,6 +399,7 @@ export async function buildAttemptReport(
   const report = reportData(
     detail,
     await image(detail.attempt.writing_task1_image_path ?? detail.mock?.writing_task1_image_path),
+    await aiFeedbackFor(detail.attempt),
   );
   const data =
     format === "docx"
