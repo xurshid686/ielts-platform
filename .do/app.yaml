@@ -81,6 +81,21 @@ envs:
   value: ${TELEGRAM_EVENT_SECRET}
   scope: RUN_TIME
   type: SECRET
+- key: AXIOM_BASE_URL
+  value: https://api.axiom.uz
+  scope: RUN_TIME
+- key: AXIOM_PHONE
+  value: ${AXIOM_PHONE}
+  scope: RUN_TIME
+  type: SECRET
+- key: AXIOM_PASSWORD
+  value: ${AXIOM_PASSWORD}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_WRITING_CHAT_ID
+  value: ${TELEGRAM_WRITING_CHAT_ID}
+  scope: RUN_TIME
+  type: SECRET
 - key: RESEND_API_KEY
   value: ${RESEND_API_KEY}
   scope: RUN_TIME
