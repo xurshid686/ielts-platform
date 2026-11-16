@@ -124,21 +124,21 @@ export function TestBrowser({
   );
 
   // Filter tabs differ by skill: reading breaks down by passage.
-  const tabDefs: { key: string; label: string; short: string; match: (i: BrowserItem) => boolean }[] =
+  const tabDefs: { key: string; label: string; match: (i: BrowserItem) => boolean }[] =
     skill === "reading"
       ? [
           // "All formats", not "All" — the tier row above already has an "All",
           // and two stacked buttons both reading "All 121" is unreadable.
-          { key: "all", label: "All formats", short: "All", match: () => true },
-          { key: "p1", label: "Passage 1", short: "P1", match: (i) => i.kind === "single" && i.passage === 1 },
-          { key: "p2", label: "Passage 2", short: "P2", match: (i) => i.kind === "single" && i.passage === 2 },
-          { key: "p3", label: "Passage 3", short: "P3", match: (i) => i.kind === "single" && i.passage === 3 },
-          { key: "full", label: "Full tests", short: "Full", match: (i) => i.kind === "full" },
+          { key: "all", label: "All formats", match: () => true },
+          { key: "p1", label: "Passage 1", match: (i) => i.kind === "single" && i.passage === 1 },
+          { key: "p2", label: "Passage 2", match: (i) => i.kind === "single" && i.passage === 2 },
+          { key: "p3", label: "Passage 3", match: (i) => i.kind === "single" && i.passage === 3 },
+          { key: "full", label: "Full tests", match: (i) => i.kind === "full" },
         ]
       : [
-          { key: "all", label: "All formats", short: "All", match: () => true },
-          { key: "single", label: "Sections", short: "Sections", match: (i) => i.kind === "single" },
-          { key: "full", label: "Full tests", short: "Full", match: (i) => i.kind === "full" },
+          { key: "all", label: "All formats", match: () => true },
+          { key: "single", label: "Sections", match: (i) => i.kind === "single" },
+          { key: "full", label: "Full tests", match: (i) => i.kind === "full" },
         ];
 
   const counts = useMemo(
@@ -224,7 +224,7 @@ export function TestBrowser({
 
       {/* One control bar: search, format, and a Filters popover for the rest. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative order-1 min-w-0 flex-1 sm:max-w-sm">
+        <div className="relative w-full sm:w-auto sm:min-w-[14rem] sm:max-w-sm sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             value={query}
@@ -247,7 +247,7 @@ export function TestBrowser({
         <div
           role="group"
           aria-label="Format"
-          className="order-3 flex w-full min-w-0 gap-0.5 overflow-x-auto rounded-lg border border-border bg-surface-2 p-0.5 sm:order-2 sm:w-auto sm:flex-none"
+          className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-lg border border-border bg-surface-2 p-0.5 sm:flex-none"
         >
           {tabDefs.map((t) => (
             <button
@@ -255,20 +255,19 @@ export function TestBrowser({
               type="button"
               onClick={() => setFilter(t.key)}
               aria-pressed={filter === t.key}
-              className={`inline-flex h-9 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-sm sm:flex-none sm:px-3 font-medium transition-colors ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors ${
                 filter === t.key
                   ? "bg-surface text-foreground shadow-soft"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              <span className="sm:hidden">{t.short}</span>
-              <span className="hidden sm:inline">{t.label}</span>
+              {t.label}
               <span className="text-xs tabular-nums text-muted">{counts[t.key] ?? 0}</span>
             </button>
           ))}
         </div>
 
-        <div ref={popoverRef} className="relative order-2 sm:order-3">
+        <div ref={popoverRef} className="relative">
           <button
             type="button"
             onClick={() => setFiltersOpen((o) => !o)}
