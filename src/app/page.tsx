@@ -94,22 +94,19 @@ export default async function Home() {
   return (
     <div className="relative min-h-screen overflow-x-clip">
       <header className="sticky top-0 z-30 glass">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <span className="flex items-center gap-2.5 text-lg font-semibold">
             <Logo size={38} priority />
             {SITE_NAME}
           </span>
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            {/* Below sm the wordmark, toggle and two buttons do not fit one line
-                (both buttons wrapped to two lines at 375px). Sign in stays one tap
-                away in the page footer. */}
-            <Button asChild variant="ghost" className="hidden whitespace-nowrap sm:inline-flex">
+            <Button asChild variant="ghost">
               <Link href="/login">Sign in</Link>
             </Button>
-            <Button asChild className="whitespace-nowrap">
+            <Button asChild>
               <Link href="/register">
-                Get started <ArrowRight className="hidden h-4 w-4 sm:block" />
+                Get started <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>

@@ -1,20 +1,23 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { PREMIUM_PLANS } from "@/lib/site";
 import {
   Search,
   FileText,
+  Layers,
   ArrowRight,
   X,
+  Sparkles,
   Lock,
   Crown,
+  Repeat2,
+  ListChecks,
   SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { testPath } from "@/lib/tests/ref";
-import { estimatedMinutes } from "@/lib/tests/estimated-minutes";
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
@@ -26,7 +29,7 @@ const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
  * respond — the measured reason /reading felt slower than a static competitor
  * whose TTFB we already beat. Filtering and search still run over the FULL
  * `items` array, so nothing is hidden from a search; only the drawn list is
- * capped. (Rows now, not cards; the cap stays for the same reason.)
+ * capped. A multiple of 12 keeps the 2- and 3-column grids flush.
  */
 const PAGE_SIZE = 24;
 
@@ -73,28 +76,12 @@ export function TestBrowser({
   // Captured once at mount so "new" is stable across re-renders.
   const [now] = useState(() => Date.now());
   const [visible, setVisible] = useState(PAGE_SIZE);
-  // The tier + question-type controls live in one popover on every screen
-  // size, so the bar is always a single row of search, format and "Filters".
+  // Phones only: the filter rows sit behind one button, so the first test card
+  // is on screen without scrolling past three rows of chips. From `sm` up the
+  // rows are always visible and this flag is ignored.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (!popoverRef.current?.contains(e.target as Node)) setFiltersOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFiltersOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [filtersOpen]);
-  // The format segmented control is always visible, so only the two controls
-  // inside the popover count toward the badge on the Filters button.
-  const activeFilters = (qType !== "all" ? 1 : 0) + (access !== "all" ? 1 : 0);
+  const activeFilters =
+    (filter !== "all" ? 1 : 0) + (qType !== "all" ? 1 : 0) + (access !== "all" ? 1 : 0);
 
   const isOpen = useMemo(
     () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium,
@@ -154,13 +141,6 @@ export function TestBrowser({
     return Array.from(set).sort();
   }, [items]);
 
-  // How many tests carry each question type, for the dropdown labels.
-  const typeCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    items.forEach((i) => i.questionTypes.forEach((t) => (m[t] = (m[t] ?? 0) + 1)));
-    return m;
-  }, [items]);
-
   const activeTab = tabDefs.find((t) => t.key === filter) ?? tabDefs[0];
 
   const filtered = useMemo(() => {
@@ -211,26 +191,25 @@ export function TestBrowser({
   }, [filtered, showGroups, tierRank]);
 
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold">All {skill} tests</h2>
-        {/* Say the free count out loud. A list of locked rows with no number
-            next to it is what makes the library look entirely paid. */}
-        <p className="mt-0.5 text-sm text-muted">
-          <span className="font-medium text-foreground">{openCount} you can start now</span>
-          {lockedCount > 0 && <> · {lockedCount} with Premium</>}
-        </p>
-      </div>
-
-      {/* One control bar: search, format, and a Filters popover for the rest. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-auto sm:min-w-[14rem] sm:max-w-sm sm:flex-1">
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">All {skill} tests</h2>
+          {/* Say the free count out loud. A grid of locked cards with no number
+              next to it is what makes the library look entirely paid. */}
+          <p className="mt-0.5 text-sm text-muted">
+            <span className="font-medium text-foreground">
+              {openCount} you can start now
+            </span>
+            {lockedCount > 0 && <> · {lockedCount} with Premium</>}
+          </p>
+        </div>
+        <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by title…"
-            aria-label="Search tests by title"
             className="h-10 w-full rounded-lg border border-border bg-surface pl-9 pr-9 text-sm shadow-soft outline-none focus:border-primary/40 focus:ring-2 focus:ring-ring/30"
           />
           {query && (
@@ -243,142 +222,102 @@ export function TestBrowser({
             </button>
           )}
         </div>
+      </div>
 
-        <div
-          role="group"
-          aria-label="Format"
-          className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto rounded-lg border border-border bg-surface-2 p-0.5 sm:flex-none"
-        >
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((o) => !o)}
+        aria-expanded={filtersOpen}
+        aria-controls="test-filters"
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface text-sm font-medium shadow-soft sm:hidden"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        {filtersOpen ? "Hide filters" : "Filters"}
+        {activeFilters > 0 && (
+          <span className="rounded-full bg-primary/15 px-1.5 text-xs tabular-nums text-primary">
+            {activeFilters}
+          </span>
+        )}
+      </button>
+
+      <div id="test-filters" className={`space-y-4 sm:block ${filtersOpen ? "" : "hidden"}`}>
+      {/* Tier sections — the primary control, on its own line above everything
+          else. This is the question a student actually asks first: what can I
+          use without paying? */}
+      {premiumCount > 0 && freeCount > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: "all", label: "All", count: items.length },
+              { key: "free", label: "Free", count: freeCount },
+              { key: "premium", label: "Premium", count: premiumCount },
+            ] as const
+          ).map((a) => (
+            <button
+              key={a.key}
+              onClick={() => setAccess(a.key)}
+              className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                access === a.key
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
+              }`}
+            >
+              {a.label}
+              <span
+                className={`rounded-full px-1.5 text-xs tabular-nums ${
+                  access === a.key ? "bg-primary/15" : "bg-surface-2"
+                }`}
+              >
+                {a.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Secondary filters: format tabs + question-type dropdown */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
           {tabDefs.map((t) => (
             <button
               key={t.key}
-              type="button"
               onClick={() => setFilter(t.key)}
-              aria-pressed={filter === t.key}
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors ${
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 filter === t.key
-                  ? "bg-surface text-foreground shadow-soft"
-                  : "text-muted hover:text-foreground"
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
               }`}
             >
               {t.label}
-              <span className="text-xs tabular-nums text-muted">{counts[t.key] ?? 0}</span>
+              <span
+                className={`rounded-full px-1.5 text-xs tabular-nums ${
+                  filter === t.key ? "bg-primary/15" : "bg-surface-2"
+                }`}
+              >
+                {counts[t.key] ?? 0}
+              </span>
             </button>
           ))}
         </div>
 
-        <div ref={popoverRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-            aria-controls="test-filters"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface px-3.5 text-sm font-medium shadow-soft hover:bg-surface-2"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-            {activeFilters > 0 && (
-              <span className="rounded-full bg-primary/15 px-1.5 text-xs tabular-nums text-primary">
-                {activeFilters}
-              </span>
-            )}
-          </button>
-          {filtersOpen && (
-            <div
-              id="test-filters"
-              className="absolute right-0 top-full z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] space-y-4 rounded-xl border border-border bg-surface p-4 shadow-elevated"
+        <div className="flex flex-wrap items-center gap-2">
+          {availableTypes.length > 0 && (
+            <select
+              value={qType}
+              onChange={(e) => setQType(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-surface px-3 text-sm shadow-soft outline-none focus:border-primary/40"
             >
-              {premiumCount > 0 && freeCount > 0 && (
-                <fieldset>
-                  <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Tier
-                  </legend>
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        { key: "all", label: "All", count: items.length },
-                        { key: "free", label: "Free", count: freeCount },
-                        { key: "premium", label: "Premium", count: premiumCount },
-                      ] as const
-                    ).map((a) => (
-                      <button
-                        key={a.key}
-                        type="button"
-                        onClick={() => setAccess(a.key)}
-                        aria-pressed={access === a.key}
-                        className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
-                          access === a.key
-                            ? "border-primary/40 bg-primary/10 text-primary"
-                            : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
-                        }`}
-                      >
-                        {a.label}
-                        <span className="text-xs tabular-nums">{a.count}</span>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-              {availableTypes.length > 0 && (
-                <div>
-                  <label
-                    htmlFor="test-qtype"
-                    className="mb-2 block text-xs font-semibold uppercase tracking-wide text-muted"
-                  >
-                    Question type
-                  </label>
-                  <select
-                    id="test-qtype"
-                    value={qType}
-                    onChange={(e) => setQType(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-primary/40"
-                  >
-                    <option value="all">All question types</option>
-                    {availableTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t} ({typeCounts[t] ?? 0})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setFiltersOpen(false)}
-                  className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                >
-                  Show {filtered.length} test{filtered.length === 1 ? "" : "s"}
-                </button>
-              </div>
-            </div>
+              <option value="all">All question types</option>
+              {availableTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           )}
         </div>
       </div>
-
-      {/* Active filters as removable chips, so a closed popover never hides why
-          the list is short. */}
-      {(access !== "all" || qType !== "all") && (
-        <div className="flex flex-wrap items-center gap-2">
-          {access !== "all" && (
-            <FilterChip
-              label={access === "free" ? "Free" : "Premium"}
-              onRemove={() => setAccess("all")}
-            />
-          )}
-          {qType !== "all" && <FilterChip label={qType} onRemove={() => setQType("all")} />}
-          <button
-            type="button"
-            onClick={() => {
-              setAccess("all");
-              setQType("all");
-            }}
-            className="text-sm text-muted underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
+      </div>
 
       {/* Results */}
       {filtered.length === 0 ? (
@@ -409,7 +348,7 @@ export function TestBrowser({
           />
         )
       ) : (
-        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {showGroups && (
             <GroupHeading
               label={leadingTier === "free" ? "Free tests" : "Your Premium tests"}
@@ -419,16 +358,6 @@ export function TestBrowser({
           {shown.map((t, idx) => {
             const locked = !isOpen(t);
             const isNew = now - new Date(t.createdAt).getTime() < NEW_WINDOW_MS;
-            const mins = estimatedMinutes(skill, t.kind);
-            const kindLabel =
-              t.kind === "full"
-                ? "Full test"
-                : skill === "reading"
-                  ? t.passage
-                    ? `Passage ${t.passage}`
-                    : "Passage"
-                  : "Section";
-            const hasQs = t.questionCount != null && t.questionCount > 0;
             return (
               <Fragment key={t.id}>
                 {idx === groupBreakAt && (
@@ -442,102 +371,114 @@ export function TestBrowser({
                     }
                   />
                 )}
-                <li>
-                  {/* A locked row keeps its real title at full contrast and is never
-                      blurred (owner, 2026-11-10): the title is what sells a premium
-                      passage. It gets a Premium rule, tint and its price instead. */}
-                  <Link
-                    href={testPath(skill, t)}
-                    className={`group relative flex min-h-14 items-center gap-3 py-3 pl-5 pr-4 transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none ${
-                      locked ? "bg-premium/5" : ""
-                    }`}
-                  >
+              <Link href={testPath(skill, t)} className="group">
+                {/* A locked card keeps its real title at full contrast and is never
+                    blurred (owner, 2026-11-10): the title is what sells a premium
+                    passage. It gets a Premium-tinted frame and its price instead. */}
+                <div
+                  className={`flex h-full flex-col rounded-2xl border bg-surface p-4 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated sm:p-5 ${
+                    locked
+                      ? "border-premium/30 hover:border-premium/50"
+                      : "border-border hover:border-primary/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
                     <span
-                      aria-hidden
-                      className={`absolute inset-y-0 left-0 w-1 ${
-                        locked
-                          ? "bg-premium"
-                          : skill === "reading"
-                            ? "bg-skill-reading/70"
-                            : "bg-skill-listening/70"
+                      className={`relative flex h-9 w-9 items-center justify-center rounded-xl ${
+                        t.kind === "full"
+                          ? "bg-accent/15 text-accent"
+                          : "bg-primary/10 text-primary"
                       }`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-semibold leading-snug">
-                        <span>{t.title}</span>
-                        {t.tier === "premium" && (
-                          <Crown
-                            className="h-3.5 w-3.5 shrink-0 text-premium"
-                            aria-label="Premium"
-                          />
-                        )}
-                        {isNew && (
-                          <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                            New
-                          </span>
-                        )}
-                      </h3>
-                      {/* Phones: one compact facts line. md+: the same facts sit in
-                          their own columns on the right. */}
-                      <p className="mt-0.5 text-xs text-muted md:hidden">
-                        {kindLabel}
-                        {hasQs && <> · {t.questionCount} Qs</>} · ~{mins} min
-                      </p>
-                      {t.questionTypes.length > 0 && (
-                        <p className="mt-0.5 hidden line-clamp-1 text-xs text-muted sm:block">
-                          {t.questionTypes.join(" · ")}
-                        </p>
+                    >
+                      {t.kind === "full" ? (
+                        <Layers className="h-5 w-5" />
+                      ) : (
+                        <FileText className="h-5 w-5" />
                       )}
+                      {locked && (
+                        <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-premium text-white">
+                          <Lock className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {isNew && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                          <Sparkles className="h-3 w-3" /> NEW
+                        </span>
+                      )}
+                      {t.tier === "premium" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-premium-gradient px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                          <Crown className="h-3 w-3" /> Premium
+                        </span>
+                      )}
+                      <Badge kind={t.kind} passage={t.passage} skill={skill} />
+                      {t.questionCount != null && t.questionCount > 0 && (
+                        <span
+                          title={`${t.questionCount} question${t.questionCount > 1 ? "s" : ""}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                        >
+                          <ListChecks className="h-3 w-3" /> {t.questionCount}
+                        </span>
+                      )}
+                      {/* Admins see the global completion count; students see
+                          their own attempt count instead. */}
+                      {isAdmin
+                        ? t.timesDone > 0 && (
+                            <span
+                              title={`Completed ${t.timesDone} time${t.timesDone > 1 ? "s" : ""} across all students`}
+                              className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted tabular-nums"
+                            >
+                              <Repeat2 className="h-3 w-3" /> {t.timesDone}
+                            </span>
+                          )
+                        : t.attempts > 0 && (
+                            <span
+                              title={`Your attempts: ${t.attempts}`}
+                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary tabular-nums"
+                            >
+                              <Repeat2 className="h-3 w-3" /> {t.attempts}
+                            </span>
+                          )}
+                      {/* `level` is deliberately not shown: it is NULL on 119 of
+                          121 reading tests (only the admin upload form ever set
+                          it, as free text), so the pill was noise that implied a
+                          band grading the library does not actually have. */}
                     </div>
+                  </div>
 
-                    <span
-                      className={`hidden w-24 shrink-0 text-sm md:block ${
-                        t.kind === "full" ? "font-medium text-foreground" : "text-muted"
-                      }`}
-                    >
-                      {kindLabel}
-                    </span>
-                    <span className="hidden w-16 shrink-0 text-sm tabular-nums text-muted md:block">
-                      {hasQs ? `${t.questionCount} Qs` : ""}
-                    </span>
-                    <span className="hidden w-20 shrink-0 text-sm tabular-nums text-muted md:block">
-                      ~{mins} min
-                    </span>
+                  <h3 className="mt-2 font-semibold leading-snug sm:mt-3">{t.title}</h3>
 
-                    <span
-                      className={`shrink-0 text-right text-sm tabular-nums md:w-36 ${
-                        locked ? "font-medium text-premium" : "text-muted"
-                      }`}
-                    >
-                      {locked ? (
-                        <>Unlock from {PREMIUM_PLANS[0].price}</>
-                      ) : isAdmin ? (
-                        t.timesDone > 0 ? (
-                          <span title="Completed across all students">{t.timesDone} done</span>
-                        ) : null
-                      ) : t.attempts > 0 ? (
-                        <>
-                          <span className="font-semibold text-foreground">
-                            {t.best != null ? `Best ${t.best}` : "Attempted"}
-                          </span>
-                          {t.attempts > 1 && <> · {t.attempts}×</>}
-                        </>
-                      ) : isGuest ? null : (
-                        "Not attempted"
-                      )}
-                    </span>
+                  {t.questionTypes.length > 0 && (
+                    <p className="mt-1 line-clamp-1 text-xs text-muted">
+                      {t.questionTypes.join(" · ")}
+                    </p>
+                  )}
 
+                  <div className="mt-2 flex items-center justify-between text-sm text-muted sm:mt-3">
+                    <span className={`tabular-nums ${locked ? "font-medium text-premium" : ""}`}>
+                      {locked
+                        ? `Unlock from ${PREMIUM_PLANS[0].price}`
+                        : t.attempts
+                          ? t.best != null
+                            ? `Best band ${t.best}`
+                            : "Attempted"
+                          : isGuest
+                            ? "Start test"
+                            : "Not attempted"}
+                    </span>
                     {locked ? (
-                      <Lock className="h-4 w-4 shrink-0 text-premium" />
+                      <Lock className="h-4 w-4 text-premium" />
                     ) : (
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted transition-colors group-hover:text-primary" />
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     )}
-                  </Link>
-                </li>
+                  </div>
+                </div>
+              </Link>
               </Fragment>
             );
           })}
-        </ul>
+        </div>
       )}
 
       {remaining > 0 && (
@@ -556,8 +497,9 @@ export function TestBrowser({
 }
 
 /**
- * A label row between the two tier groups, inside the same bordered list so the
- * boundary is unmistakable without splitting the list in two.
+ * A full-width label between the two tier groups. Sits inside the card grid and
+ * spans every column so the boundary is unmistakable without splitting the list
+ * into two separately-scrolling sections.
  */
 function GroupHeading({
   label,
@@ -569,26 +511,37 @@ function GroupHeading({
   note?: string;
 }) {
   return (
-    <li className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 bg-surface-2/60 px-5 py-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</h3>
-      <span className="text-xs tabular-nums text-muted">{count}</span>
+    <div className="col-span-full flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-2 first:pt-0">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">{label}</h3>
+      <span className="rounded-full bg-surface-2 px-1.5 text-xs tabular-nums text-muted">
+        {count}
+      </span>
       {note && <span className="text-xs text-muted">· {note}</span>}
-    </li>
+    </div>
   );
 }
 
-function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function Badge({
+  kind,
+  passage,
+  skill,
+}: {
+  kind: "single" | "full";
+  passage: number | null;
+  skill: "reading" | "listening";
+}) {
+  if (kind === "full") {
+    return (
+      <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
+        Full test
+      </span>
+    );
+  }
+  const label =
+    skill === "reading" ? (passage ? `Passage ${passage}` : "Passage") : "Section";
   return (
-    <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 pl-3 pr-1.5 text-sm font-medium text-primary">
+    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
       {label}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove filter ${label}`}
-        className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-primary/15"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
     </span>
   );
 }
