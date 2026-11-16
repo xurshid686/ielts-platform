@@ -113,7 +113,13 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+            skill === "reading"
+              ? "bg-skill-reading/10 text-skill-reading"
+              : "bg-skill-listening/10 text-skill-listening"
+          }`}
+        >
           <Icon className="h-5 w-5" />
         </div>
         <div>
@@ -126,34 +132,22 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
           thing asking them to sign up, and it says what they get for it rather
           than blocking the page. */}
       {!profile && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-primary/5 px-4 py-3 sm:p-4">
-          <p className="text-sm">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border py-2.5 text-sm">
+          <span>
             <span className="font-semibold">
               {freeTotal} free {skill} tests, open to everyone.
             </span>{" "}
-            {/* Phones get the short form: the long sentence pushed the first
-                test off the first screen. */}
-            <span className="text-muted sm:hidden">Sign up to save your scores.</span>
-            <span className="hidden text-muted sm:inline">
-              Create a free account to save your scores, see a full answer review and track your
-              band over time.
-            </span>
-          </p>
-          <div className="flex shrink-0 gap-2">
-            <Link
-              href="/register"
-              className="inline-flex h-9 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90"
-            >
+            <span className="hidden text-muted sm:inline">Free account saves your scores.</span>
+          </span>
+          <span className="flex items-center gap-3">
+            <Link href="/register" className="font-semibold text-primary hover:underline">
               Create free account
             </Link>
-            <Link
-              href="/login"
-              className="hidden h-9 items-center rounded-lg border border-border px-4 text-sm font-medium hover:bg-surface-2 sm:inline-flex"
-            >
+            <Link href="/login" className="text-muted hover:text-foreground hover:underline">
               Sign in
             </Link>
-          </div>
-        </div>
+          </span>
+        </p>
       )}
 
       {/* Stats only once there is something real to show. For a new user these
@@ -182,8 +176,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
 
         <RecentBandsChart
           points={recent}
-          color={skill === "reading" ? "var(--primary)" : "var(--accent)"}
-          avgColor={skill === "reading" ? "var(--accent)" : "var(--primary)"}
+          color={skill === "reading" ? "var(--skill-reading)" : "var(--skill-listening)"}
+          avgColor={skill === "reading" ? "var(--skill-listening)" : "var(--skill-reading)"}
         />
       </section>
       )}
