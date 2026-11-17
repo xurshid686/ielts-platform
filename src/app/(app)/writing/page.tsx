@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, History, PenLine, Search, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, ClipboardCheck, History, PenLine, Search, X } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { KINDS, isKind, loadCatalogue, type PracticeKind } from "@/lib/writing-practice";
 import { CHARTS, TOPICS, isChartId, isTopicId } from "@/lib/writing-practice-topics";
@@ -98,6 +98,12 @@ export default async function WritingPracticePage({
           </p>
         </div>
         {aiQuota && <UsageMeter quota={aiQuota} />}
+        <Link
+          href="/writing/reports"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+        >
+          <ClipboardCheck className="h-4 w-4" /> My reports
+        </Link>
         <Link
           href="/writing/history"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"

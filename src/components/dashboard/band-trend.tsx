@@ -53,8 +53,9 @@ export function BandTrend({
   const gridBands: number[] = [];
   for (let b = lo; b <= hi; b++) gridBands.push(b);
 
+  // Fixed locale + zone: the server and the browser must print the same text or hydration fails.
   const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    new Date(iso).toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: "Asia/Tashkent" });
 
   const latest = points[points.length - 1].band;
   const prev = points[points.length - 2].band;
@@ -142,9 +143,7 @@ export function BandTrend({
                 strokeWidth={2}
                 className="stroke-surface"
               >
-                <title>
-                  Band {p.band} · {fmt(p.at)}
-                </title>
+                <title>{`Band ${p.band} · ${fmt(p.at)}`}</title>
               </circle>
             </g>
           );

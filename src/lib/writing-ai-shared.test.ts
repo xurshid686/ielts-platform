@@ -140,3 +140,55 @@ describe("the month", () => {
     expect(criterionLabel("ta", 2)).toBe("Task Response");
   });
 });
+
+// ---- saved reports: the headline band and the criteria profile
+
+import { criteriaProfile, headlineBand, weakestCriterion, type AiTaskResult } from "./writing-ai-shared";
+
+const task = (n: 1 | 2, overall: number | null, bands: [number | null, number | null, number | null, number | null]): AiTaskResult => ({
+  task: n,
+  axiomId: `ax-${n}`,
+  overall,
+  criteria: (["ta", "cc", "lr", "gra"] as const).map((key, i) => ({
+    key,
+    label: key,
+    band: bands[i],
+    description: "",
+    suggestions: [],
+    revisions: [],
+  })),
+});
+
+describe("headlineBand", () => {
+  it("is the task's own overall for a single task", () => {
+    expect(headlineBand([task(2, 6.5, [6, 7, 6, 7])])).toBe(6.5);
+  });
+  it("weights Task 2 double for a full test", () => {
+    // (6 + 2 x 7) / 3 = 6.67 -> 6.5 ; (5 + 2 x 6) / 3 = 5.67 -> 5.5 ; (6.5 + 2 x 7) / 3 = 6.83 -> 7
+    expect(headlineBand([task(1, 6, [6, 6, 6, 6]), task(2, 7, [7, 7, 7, 7])])).toBe(6.5);
+    expect(headlineBand([task(1, 6.5, [6, 6, 6, 6]), task(2, 7, [7, 7, 7, 7])])).toBe(7);
+  });
+  it("falls back to the criteria mean when a task has no overall, and to the other task when one is empty", () => {
+    expect(headlineBand([task(2, null, [6, 6, 7, 7])])).toBe(6.5);
+    expect(headlineBand([task(1, null, [null, null, null, null]), task(2, 7, [7, 7, 7, 7])])).toBe(7);
+  });
+  it("is null with nothing scored", () => {
+    expect(headlineBand([])).toBeNull();
+    expect(headlineBand([task(2, null, [null, null, null, null])])).toBeNull();
+  });
+});
+
+describe("criteriaProfile / weakestCriterion", () => {
+  it("averages each criterion across tasks, in IELTS order", () => {
+    const p = criteriaProfile([task(1, 6, [6, 6, 6, 6]), task(2, 7, [8, 7, 6, 5])]);
+    expect(p.map((c) => c.key)).toEqual(["ta", "cc", "lr", "gra"]);
+    expect(p.map((c) => c.band)).toEqual([7, 6.5, 6, 5.5]);
+  });
+  it("keeps an unscored criterion null rather than zero", () => {
+    expect(criteriaProfile([task(2, 6, [6, null, 6, 6])])[1].band).toBeNull();
+  });
+  it("names the lowest criterion, and nothing when they are level", () => {
+    expect(weakestCriterion([task(2, 6, [7, 6.5, 6, 5.5])])?.key).toBe("gra");
+    expect(weakestCriterion([task(2, 6, [6, 6, 6, 6])])).toBeNull();
+  });
+});

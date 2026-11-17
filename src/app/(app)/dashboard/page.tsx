@@ -25,6 +25,8 @@ import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CriteriaBars } from "@/components/dashboard/criteria-bars";
 import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
+import { WritingReportsCard } from "@/components/dashboard/writing-reports-card";
+import { listMyReports } from "@/lib/writing-ai";
 import { RatingCard } from "@/components/rating/rating-card";
 import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
 import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
@@ -52,6 +54,10 @@ function roundHalf(n: number) {
 export default async function DashboardPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
+  // Saved AI writing reports (a card appears once there is one). A failure here must never take the dashboard down.
+  const writingReports = await listMyReports(profile.id, 20)
+    .then((r) => r.map((x) => ({ id: x.check.id, at: x.check.finished_at ?? x.check.created_at, results: x.check.results })))
+    .catch(() => []);
 
   const readingCols =
     "id, title, kind, tier, passage, question_types, difficulty, track";
@@ -367,6 +373,8 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        <WritingReportsCard reports={writingReports} />
+
         <div id="goal" className="scroll-mt-20">
           <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
         </div>
@@ -473,6 +481,8 @@ export default async function DashboardPage() {
         ratedCount={profile.rated_count ?? 0}
         globalRank={globalRank}
       />
+
+      <WritingReportsCard reports={writingReports} />
 
       {/* Goal tracker + study plan */}
       <div id="goal" className="scroll-mt-20">

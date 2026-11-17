@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, PenLine } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, FileText, PenLine } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { listMyAttempts } from "@/lib/writing-practice";
+import { listMyReports } from "@/lib/writing-ai";
+import { headlineBand } from "@/lib/writing-ai-shared";
 import { parseTask2 } from "@/lib/ielts/writing-prompt";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,7 +15,14 @@ export const metadata = { title: "My writing practice" };
 /** Everything this student has written here — drafts included, newest first. */
 export default async function WritingHistoryPage() {
   const profile = await requireProfile();
-  const attempts = await listMyAttempts(profile.id);
+  const [attempts, reports] = await Promise.all([listMyAttempts(profile.id), listMyReports(profile.id)]);
+  // The newest report per attempt (listMyReports is newest first).
+  const aiBand = new Map<string, number | null>();
+  for (const r of reports) {
+    if (r.check.practice_attempt_id && !aiBand.has(r.check.practice_attempt_id)) {
+      aiBand.set(r.check.practice_attempt_id, headlineBand(r.check.results));
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -27,6 +36,12 @@ export default async function WritingHistoryPage() {
             Everything you have written here — Task 1, Task 2 and full tests. Open one to read it back or download it as a PDF.
           </p>
         </div>
+        <Link
+          href="/writing/reports"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+        >
+          <ClipboardCheck className="h-4 w-4" /> My reports
+        </Link>
         <Link
           href="/writing"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
@@ -71,6 +86,11 @@ export default async function WritingHistoryPage() {
                     <span className="text-xs text-muted">
                       {new Date(a.submitted_at ?? a.started_at).toLocaleDateString()}
                     </span>
+                    {aiBand.has(a.id) && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary" data-ai-chip>
+                        AI report · band {aiBand.get(a.id)?.toFixed(1) ?? "—"}
+                      </span>
+                    )}
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                         a.submitted_at ? "bg-success/10 text-success" : "bg-warning/10 text-warning"

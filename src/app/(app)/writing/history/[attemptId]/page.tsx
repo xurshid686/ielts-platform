@@ -84,7 +84,12 @@ export default async function WritingPracticeAttemptPage({
           kind={attempt.kind}
           access={access}
           quota={aiQuota}
-          initial={aiCheck ? { results: aiCheck.status === "done" ? aiCheck.results : [], pending: aiCheck.status === "pending" } : null}
+          target={profile.target_band ?? null}
+          initial={
+            aiCheck
+              ? { results: aiCheck.status === "done" ? aiCheck.results : [], pending: aiCheck.status === "pending", checkId: aiCheck.status === "done" ? aiCheck.id : null }
+              : null
+          }
         />
       )}
 

@@ -151,6 +151,50 @@ export function withoutBands(results: AiTaskResult[]): AiTaskResult[] {
   return results.map((t) => ({ ...t, overall: null, criteria: t.criteria.map((c) => ({ ...c, band: null })) }));
 }
 
+/** A task's overall, falling back to the mean of its criteria. */
+function taskOverall(t: AiTaskResult): number | null {
+  return t.overall ?? overallFromCriteria(t.criteria);
+}
+
+/**
+ * The one headline band for a saved report. One task: that task's overall. A full
+ * test: the IELTS Writing weighting, (Task 1 + 2 x Task 2) / 3, to the nearest half
+ * band. If one task has no band, the other stands alone.
+ */
+export function headlineBand(results: AiTaskResult[]): number | null {
+  const t1 = results.find((r) => r.task === 1);
+  const t2 = results.find((r) => r.task === 2);
+  const b1 = t1 ? taskOverall(t1) : null;
+  const b2 = t2 ? taskOverall(t2) : null;
+  if (b1 != null && b2 != null) return roundHalf((b1 + 2 * b2) / 3);
+  const only = b1 ?? b2;
+  return only == null ? null : roundHalf(only);
+}
+
+/** The four criteria across a report, in IELTS order, averaged over its tasks (unrounded; draw it, don't quote it). */
+export function criteriaProfile(results: AiTaskResult[]): { key: CriterionKey; label: string; band: number | null }[] {
+  const LABEL: Record<CriterionKey, string> = {
+    ta: "Task",
+    cc: "Coherence",
+    lr: "Vocabulary",
+    gra: "Grammar",
+  };
+  return (["ta", "cc", "lr", "gra"] as const).map((key) => {
+    const bands = results
+      .map((t) => t.criteria.find((c) => c.key === key)?.band)
+      .filter((b): b is number => b != null);
+    return { key, label: LABEL[key], band: bands.length ? bands.reduce((a, b) => a + b, 0) / bands.length : null };
+  });
+}
+
+/** The criterion that most needs work (lowest band), or null if none was scored or all are level. */
+export function weakestCriterion(results: AiTaskResult[]): { key: CriterionKey; label: string; band: number } | null {
+  const scored = criteriaProfile(results).filter((c): c is { key: CriterionKey; label: string; band: number } => c.band != null);
+  if (scored.length < 2) return null;
+  const lowest = scored.reduce((a, b) => (b.band < a.band ? b : a));
+  return scored.every((c) => c.band === lowest.band) ? null : lowest;
+}
+
 /** The owner's grade-form pre-fill: each task's overall, to the nearest half band. */
 export function draftBands(results: AiTaskResult[]): { task1: number | null; task2: number | null } {
   const pick = (n: 1 | 2) => {

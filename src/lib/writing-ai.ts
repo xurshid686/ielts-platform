@@ -213,6 +213,63 @@ export async function getPracticeCheck(userId: string, attemptId: string): Promi
   return data ? toCheck(data) : null;
 }
 
+/** A saved report: the finished check plus the attempt it was run on. */
+export type SavedReport = { check: CheckRow; attempt: AttemptRow };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Every finished practice check this student has, newest first. A report stays
+ * the student's for good: no Premium test here (only running a NEW check needs
+ * it), and the user id always comes from the verified session.
+ */
+export async function listMyReports(userId: string, limit = 100): Promise<SavedReport[]> {
+  const { data, error } = await checks()
+    .from("writing_ai_checks")
+    .select(CHECK_COLUMNS)
+    .eq("user_id", userId)
+    .eq("source", "practice")
+    .eq("status", "done")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  const list = (data ?? []).map(toCheck).filter((c) => c.practice_attempt_id && c.results.length);
+  if (!list.length) return [];
+
+  const { data: attempts, error: aErr } = await createAdminClient()
+    .from("writing_practice_attempts")
+    .select(
+      "id, user_id, practice_id, prompt, topic, answer, word_count, revision, started_at, saved_at, submitted_at, kind, image_path, practice2_id, prompt2, topic2, answer2, word_count2",
+    )
+    .eq("user_id", userId)
+    .in("id", list.map((c) => c.practice_attempt_id as string));
+  if (aErr) throw new Error(aErr.message);
+  const byId = new Map((attempts ?? []).map((a) => [a.id, a as unknown as AttemptRow]));
+  return list.flatMap((check) => {
+    const attempt = byId.get(check.practice_attempt_id as string);
+    return attempt ? [{ check, attempt }] : [];
+  });
+}
+
+/** One saved report, only if it is this student's own finished practice check. */
+export async function getMyReport(userId: string, checkId: string): Promise<SavedReport | null> {
+  if (!UUID_RE.test(checkId)) return null;
+  const { data, error } = await checks()
+    .from("writing_ai_checks")
+    .select(CHECK_COLUMNS)
+    .eq("id", checkId)
+    .eq("user_id", userId)
+    .eq("source", "practice")
+    .eq("status", "done")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const check = toCheck(data);
+  if (!check.practice_attempt_id || !check.results.length) return null;
+  const attempt = await getMyAttempt(userId, check.practice_attempt_id);
+  return attempt ? { check, attempt } : null;
+}
+
 export async function runPracticeCheck(
   profile: PracticeProfile,
   attemptId: string,

@@ -30,6 +30,28 @@ function studentData(data: AiReportData, student: string, checkedAt: string): Ai
   };
 }
 
+const TASHKENT_WHEN = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tashkent", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+
+/**
+ * The student's PDF for one practice check. The email attachment and the in-app
+ * download both come from here, so the two files cannot drift. The caller has
+ * already proved the check is the signed-in student's own.
+ */
+export async function renderStudentReport(
+  checkId: string,
+): Promise<{ pdf: Uint8Array; filename: string; student: string } | null> {
+  const check = await getCheck(checkId);
+  if (!check || check.status !== "done" || check.source !== "practice") return null;
+  const built = await buildPractice(checkId);
+  if (!built) return null;
+  const when = TASHKENT_WHEN(check.finished_at ?? check.created_at);
+  const pdf = await renderAiCheckPdf(studentData(built.data, built.student, when), { variant: "student" });
+  const kindLabel = built.sourceLabel.replace(/^Practice - /, "").replace(/ \(Task 1 \+ Task 2\)$/, "");
+  const day = (check.finished_at ?? check.created_at).slice(0, 10);
+  return { pdf, filename: reportFilename(["AI writing check", built.student, kindLabel, day], "pdf"), student: built.student };
+}
+
 export async function deliverCheckEmail(checkId: string): Promise<EmailDeliverResult> {
   const supabase = createAdminClient() as unknown as import("@supabase/supabase-js").SupabaseClient;
   const stamp = async (patch: Record<string, unknown>) => {
@@ -56,19 +78,20 @@ export async function deliverCheckEmail(checkId: string): Promise<EmailDeliverRe
       return { ok: false, error: "No email address on file." };
     }
 
-    const when = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tashkent", dateStyle: "medium", timeStyle: "short" }).format(
-      new Date(check.finished_at ?? check.created_at),
-    );
-    const pdf = await renderAiCheckPdf(studentData(built.data, built.student, when), { variant: "student" });
+    const rendered = await renderStudentReport(checkId);
+    if (!rendered) {
+      await stamp({ email_error: "The report could not be built." });
+      return { ok: false, error: "The report could not be built." };
+    }
     const kindLabel = built.sourceLabel.replace(/^Practice - /, "").replace(/ \(Task 1 \+ Task 2\)$/, "");
-    const day = (check.finished_at ?? check.created_at).slice(0, 10);
     const res = await sendWritingCheckEmail({
       to: email,
       name: built.student,
       kindLabel,
       bands: check.results.map((r) => ({ label: `Task ${r.task} overall`, band: fmt(r.overall) })),
-      historyUrl: `${EMAIL_BASE_URL}/writing/history/${check.practice_attempt_id}`,
-      pdf: { filename: reportFilename(["AI writing check", built.student, kindLabel, day], "pdf"), content: pdf },
+      // The saved report page: charts there, and the same PDF to download again.
+      historyUrl: `${EMAIL_BASE_URL}/writing/reports/${check.id}`,
+      pdf: { filename: rendered.filename, content: rendered.pdf },
     });
     if (!res.sent) {
       console.error(`[writing-ai] email failed: ${res.error}`);

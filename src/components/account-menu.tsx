@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
+  ClipboardCheck,
   LayoutDashboard,
   Shield,
   LogOut,
@@ -146,6 +147,9 @@ export function AccountMenu({ profile }: { profile: Profile }) {
           <div className="border-t border-border p-1.5">
             <MenuItem href="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Dashboard
+            </MenuItem>
+            <MenuItem href="/writing/reports" icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen(false)}>
+              Writing reports
             </MenuItem>
             <MenuItem href={`/u/${profile.id}`} icon={<UserCircle className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Public profile

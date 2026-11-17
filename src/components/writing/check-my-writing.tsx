@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Loader2, Lock, Sparkles } from "lucide-react";
+import { Download, FileText, Loader2, Lock, Sparkles } from "lucide-react";
 import { checkPracticeWriting } from "@/app/actions/writing-ai";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AiFeedbackCard } from "@/components/writing/ai-feedback-card";
+import { BandGauge, CriteriaRadar } from "@/components/writing/report-charts";
 import { UsageMeter } from "@/components/writing/usage-meter";
-import type { AiTaskResult, CheckQuota } from "@/lib/writing-ai-shared";
+import { headlineBand, type AiTaskResult, type CheckQuota } from "@/lib/writing-ai-shared";
 
 /**
  * "Check my writing with AI" for a SUBMITTED practice attempt.
@@ -24,15 +24,19 @@ export function CheckMyWriting({
   access,
   quota: initialQuota,
   initial,
+  target = null,
 }: {
   attemptId: string;
   kind: "task1" | "task2" | "full";
   access: "ok" | "locked";
   /** Null for an admin (their checks are not counted). */
   quota: CheckQuota | null;
-  initial: { results: AiTaskResult[]; pending: boolean } | null;
+  initial: { results: AiTaskResult[]; pending: boolean; checkId: string | null } | null;
+  /** The student's target band, drawn on the charts. */
+  target?: number | null;
 }) {
   const [results, setResults] = useState<AiTaskResult[]>(initial?.results ?? []);
+  const [checkId, setCheckId] = useState<string | null>(initial?.checkId ?? null);
   const [quota, setQuota] = useState<CheckQuota | null>(initialQuota);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +49,7 @@ export function CheckMyWriting({
       const res = await checkPracticeWriting(attemptId);
       if (res.ok) {
         setResults(res.check.results);
+        setCheckId(res.check.id);
         setQuota(res.quota);
         setJustRan(true);
       } else {
@@ -60,15 +65,40 @@ export function CheckMyWriting({
   if (results.length) {
     return (
       <div className="space-y-4">
-        <AiFeedbackCard
-          results={results}
-          showBands
-          heading="AI feedback on your writing"
-          note="An AI estimate to guide your practice — not an official IELTS result."
-        />
+        <Card className="space-y-5 p-6" data-ai-feedback data-ai-summary>
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <Sparkles className="h-5 w-5 text-primary" aria-hidden /> Your AI report is ready
+            </h2>
+            <p className="text-sm text-muted">
+              An AI estimate to guide your practice — not an official IELTS result. It is saved in your account.
+            </p>
+          </div>
+          <div className="grid items-center gap-6 md:grid-cols-2">
+            <BandGauge band={headlineBand(results)} target={target} />
+            <CriteriaRadar results={results} target={target} />
+          </div>
+          {checkId && (
+            <div className="flex flex-wrap gap-3">
+              <Button asChild className="h-11">
+                <Link href={`/writing/reports/${checkId}`} data-open-report>
+                  <FileText className="h-4 w-4" aria-hidden /> Open full report
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="h-11">
+                <a href={`/api/writing-report/${checkId}`} download data-report-download>
+                  <Download className="h-4 w-4" aria-hidden /> Download PDF
+                </a>
+              </Button>
+              <Button asChild variant="ghost" className="h-11">
+                <Link href="/writing/reports">All my reports</Link>
+              </Button>
+            </div>
+          )}
+        </Card>
         {justRan && (
           <p className="text-sm text-muted" data-ai-emailed>
-            We're also emailing you this report as a PDF.
+            We&apos;re also emailing you this report as a PDF.
           </p>
         )}
         {quota && <UsageMeter quota={quota} />}
