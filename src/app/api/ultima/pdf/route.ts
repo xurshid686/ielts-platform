@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasTestPdf, linkedChatFor, mintLinkCode, teacherBotUsername } from "@/lib/ultima";
 import { buildPdfPayload } from "@/lib/telegram/teacher-router";
+import { publicOrigin } from "@/lib/public-origin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     const next = `${url.pathname}?test=${encodeURIComponent(testId)}`;
-    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, url.origin));
+    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, publicOrigin(req)));
   }
 
   if (!(await hasTestPdf(testId))) return new NextResponse(null, { status: 404 });
