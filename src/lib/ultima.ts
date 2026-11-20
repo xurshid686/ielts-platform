@@ -66,6 +66,18 @@ export async function getTestPdf(testId: string): Promise<TestPdf | null> {
   return data as TestPdf;
 }
 
+/**
+ * The ids of every test that has a PDF, but only for an Ultima viewer on a site where the teacher
+ * bot is configured; otherwise []. The catalogue uses it to draw a PDF button on those cards, so
+ * non-Ultima users never see the button at all (the bot still re-checks the plan).
+ */
+export async function ultimaPdfIds(userId: string): Promise<string[]> {
+  if (!teacherBotUsername() || !(await isUltima(userId))) return [];
+  const { data, error } = await db().from("test_pdfs").select("test_id");
+  if (error || !data) return [];
+  return data.map((r: { test_id: string }) => r.test_id);
+}
+
 export async function hasTestPdf(testId: string): Promise<boolean> {
   return (await getTestPdf(testId)) !== null;
 }

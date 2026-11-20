@@ -7,6 +7,7 @@ import {
   Search,
   FileText,
   Layers,
+  FileDown,
   ArrowRight,
   X,
   Sparkles,
@@ -61,6 +62,7 @@ export function TestBrowser({
   canAccessPremium,
   isAdmin = false,
   isGuest = false,
+  pdfIds = [],
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
@@ -68,7 +70,10 @@ export function TestBrowser({
   isAdmin?: boolean;
   /** No account: "Not attempted" means nothing to them, so the card says "Start test". */
   isGuest?: boolean;
+  /** Tests that have a PDF AND the viewer may fetch it (Ultima). Empty for everyone else. */
+  pdfIds?: string[];
 }) {
+  const hasPdf = useMemo(() => new Set(pdfIds), [pdfIds]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [qType, setQType] = useState("all");
@@ -467,11 +472,29 @@ export function TestBrowser({
                             ? "Start test"
                             : "Not attempted"}
                     </span>
-                    {locked ? (
-                      <Lock className="h-4 w-4 text-premium" />
-                    ) : (
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                    )}
+                    <span className="flex items-center gap-2">
+                      {!locked && hasPdf.has(t.id) && (
+                        // The card is one big link, so this must not navigate it: stop the click,
+                        // open the PDF hand-off in a new tab (it redirects into the teacher bot).
+                        <button
+                          type="button"
+                          title="Get this test as a PDF in Telegram"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(`/api/ultima/pdf?test=${t.id}`, "_blank", "noopener");
+                          }}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 text-xs font-semibold text-primary hover:bg-primary/15"
+                        >
+                          <FileDown className="h-3.5 w-3.5" /> PDF
+                        </button>
+                      )}
+                      {locked ? (
+                        <Lock className="h-4 w-4 text-premium" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                      )}
+                    </span>
                   </div>
                 </div>
               </Link>

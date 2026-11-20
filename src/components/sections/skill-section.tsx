@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
+import { ultimaPdfIds } from "@/lib/ultima";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import { TestIndexLinks } from "@/components/sections/test-index-links";
@@ -57,6 +58,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   const testList = ((tests ?? []) as Test[]).filter((t) => (t.track ?? "regular") === "regular");
   const res = results ?? [];
   const canAccessPremium = !!profile && (profile.role === "admin" || isPremiumActive(profile));
+  // Ultima teachers get a "PDF" button on every reading card that has one. [] for everyone else.
+  const pdfIds = skill === "reading" && profile ? await ultimaPdfIds(profile.id) : [];
 
   // Attempts indexed by test, built in ONE pass. This was a `res.filter` per
   // card, i.e. O(tests x attempts) — 185 cards against a student's whole
@@ -199,6 +202,7 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         canAccessPremium={canAccessPremium}
         isAdmin={profile?.role === "admin"}
         isGuest={!profile}
+        pdfIds={pdfIds}
       />
 
       {!canAccessPremium && <PremiumContact className="mt-2" />}
