@@ -216,7 +216,15 @@ export async function setUltima(email: string, months: number): Promise<SetUltim
   if (!target) return { ok: false, error: `No account with the email ${email.trim()}.` };
 
   try {
-    const until = await setUltimaMonths(target.id, Math.floor(months), gate.user?.id ?? null);
+    const n = Math.floor(months);
+    const until = await setUltimaMonths(target.id, n, gate.user?.id ?? null);
+    // Ultima INCLUDES Premium: extend Premium by the same period through the same admin-only RPC the
+    // Premium button uses, so the access rules (premium.ts / access.ts) need no knowledge of Ultima.
+    // Revoking Ultima (n <= 0) deliberately leaves Premium alone.
+    if (n > 0) {
+      const { error: pErr } = await gate.supabase.rpc("set_premium", { target_email: target.email ?? email.trim(), months: n });
+      if (pErr) return { ok: false, error: `Ultima was granted, but extending Premium failed: ${pErr.message}` };
+    }
     revalidatePath("/admin/members");
     return { ok: true, email: target.email ?? email, ultima_until: until };
   } catch (e) {

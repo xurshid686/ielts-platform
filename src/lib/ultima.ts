@@ -49,6 +49,12 @@ export async function isUltima(userId: string): Promise<boolean> {
   return !!data?.ultima_until && new Date(data.ultima_until).getTime() > Date.now();
 }
 
+/** The end of this account's Ultima plan (ISO), or null if it never had one. For the Premium page. */
+export async function ultimaUntil(userId: string): Promise<string | null> {
+  const { data } = await db().from("ultima_members").select("ultima_until").eq("user_id", userId).maybeSingle();
+  return (data?.ultima_until as string | undefined) ?? null;
+}
+
 /** Everyone who has ever held Ultima: user id -> ISO end date. A small table, so read whole. */
 export async function allUltima(): Promise<Map<string, string>> {
   const { data } = await db().from("ultima_members").select("user_id, ultima_until");

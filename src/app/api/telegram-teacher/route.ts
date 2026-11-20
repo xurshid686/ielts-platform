@@ -116,8 +116,8 @@ async function handle(chatId: number, text: string | undefined): Promise<void> {
   if (!(await isUltima(userId))) {
     await sendText(
       chatId,
-      "PDF downloads are part of the <b>Ultima</b> plan for teachers. Your account is connected, so they will start working here as soon as Ultima is active.",
-      { label: "See the plans", href: `${SITE_URL}/premium` },
+      "PDF downloads (with the answers) are part of the <b>Ultima</b> plan for teachers, which also includes Premium. Your account is connected, so they will start working here as soon as Ultima is active.",
+      { label: "See Ultima", href: `${SITE_URL}/premium#ultima` },
     );
     return;
   }

@@ -5,17 +5,27 @@ import {
   Check,
   ClipboardCheck,
   Crown,
+  FileDown,
   Gift,
   Send,
 } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
-import { PREMIUM_PLANS, PREMIUM_TELEGRAM_HANDLE, premiumRequestUrl } from "@/lib/site";
+import {
+  PREMIUM_PLANS,
+  PREMIUM_TELEGRAM_HANDLE,
+  ULTIMA_PLANS,
+  premiumRequestUrl,
+  ultimaRequestUrl,
+} from "@/lib/site";
+import { ultimaUntil } from "@/lib/ultima";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Premium",
   description: `IELTS practice Premium: every premium test and instant mock exam entry. ${PREMIUM_PLANS.map(
+    (p) => `${p.price} for ${p.label}`,
+  ).join(", ")}. Ultima for teachers adds a PDF of every reading test with answers: ${ULTIMA_PLANS.map(
     (p) => `${p.price} for ${p.label}`,
   ).join(", ")}.`,
   alternates: { canonical: "/premium" },
@@ -49,6 +59,9 @@ export default async function PremiumPage() {
 
   const active = !!profile && isPremiumActive(profile);
   const isAdmin = profile?.role === "admin";
+  // Ultima lives in its own table (0066), so it is read separately. The same end-date rule as Premium.
+  const ultimaEnds = profile ? await ultimaUntil(profile.id) : null;
+  const ultimaActive = isPremiumActive({ premium_until: ultimaEnds });
 
   const libraryLine =
     premiumTests.length > 0
@@ -125,6 +138,69 @@ export default async function PremiumPage() {
         })}
       </section>
 
+      {/* Ultima: the teachers' plan. Same flow as Premium (request on Telegram, owner grants it). */}
+      <section id="ultima" aria-label="Ultima for teachers" className="scroll-mt-24 space-y-4">
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <FileDown className="h-6 w-6" />
+          </div>
+          <h2 className="mt-3 text-2xl font-bold tracking-tight">For teachers: Ultima</h2>
+          <p className="mx-auto mt-2 max-w-xl text-muted">
+            Everything in Premium, plus a PDF of every reading test with its answers, sent straight
+            to your Telegram. Print it for class, or share it with students.
+          </p>
+          {ultimaActive && ultimaEnds && (
+            <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium">
+              <FileDown className="h-4 w-4 text-primary" />
+              You have Ultima until {new Date(ultimaEnds).toISOString().slice(0, 10)}
+            </p>
+          )}
+        </div>
+        <div className="grid items-stretch gap-4 sm:grid-cols-2">
+          {ULTIMA_PLANS.map((plan, i) => {
+            const best = i === ULTIMA_PLANS.length - 1 && ULTIMA_PLANS.length > 1;
+            return (
+              <div
+                key={plan.months}
+                className={`flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-soft ${
+                  best ? "border-primary/60 shadow-elevated" : "border-border"
+                }`}
+              >
+                <div
+                  className={`px-6 py-2 text-xs font-bold uppercase tracking-wide ${
+                    best ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted"
+                  }`}
+                >
+                  {best ? `Best value${plan.note ? ` · ${plan.note}` : ""}` : "Try it"}
+                </div>
+                <div className="flex flex-1 flex-col p-6">
+                  <p className="text-sm font-medium text-muted">Ultima · {plan.label}</p>
+                  <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
+                  <p className="mt-2 flex-1 text-sm text-muted">
+                    Includes Premium for the same period. One payment; nothing renews automatically.
+                  </p>
+                  {!isAdmin && (
+                    <a
+                      href={ultimaRequestUrl(profile?.email, plan.months)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold ${
+                        best
+                          ? "bg-primary text-primary-foreground shadow-sm hover:opacity-95"
+                          : "border border-primary/40 text-primary hover:bg-primary/10"
+                      }`}
+                    >
+                      <Send className="h-4 w-4" />
+                      {ultimaActive ? "Add" : "Get"} Ultima {plan.label} on Telegram
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {isAdmin ? (
         <p className="text-center text-sm text-muted">
           You are an admin, so every test is already open to you. This is the page students see.
@@ -135,7 +211,7 @@ export default async function PremiumPage() {
             {[
               `Tap a button above. It opens a chat with our admin, ${PREMIUM_TELEGRAM_HANDLE}, with your message ready to send.`,
               "We send you the payment details.",
-              "After you pay, we switch Premium on for your account and it shows here.",
+              "After you pay, we switch your plan (Premium or Ultima) on for your account and it shows here.",
             ].map((step, i) => (
               <li
                 key={step}
@@ -184,6 +260,7 @@ export default async function PremiumPage() {
                 <th className="px-4 py-3 font-medium text-premium">
                   Premium
                 </th>
+                <th className="px-4 py-3 font-medium text-primary">Ultima</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -192,6 +269,8 @@ export default async function PremiumPage() {
               <Row label="Writing practice" free={<Yes />} premium={<Yes />} />
               <Row label="Premium tests" free="No" premium={<Yes />} />
               <Row label="Mock exam place" free="On request" premium="Instant" />
+              <Row label="PDF of every reading test (print or share)" free="No" premium="No" ultima={<Yes />} />
+              <Row label="Answers, hidden behind a blur on Telegram" free="No" premium="No" ultima={<Yes />} />
             </tbody>
           </table>
         </div>
@@ -246,10 +325,13 @@ function Row({
   label,
   free,
   premium,
+  ultima,
 }: {
   label: string;
   free: React.ReactNode;
   premium: React.ReactNode;
+  /** Ultima includes Premium, so its cell defaults to the Premium one. */
+  ultima?: React.ReactNode;
 }) {
   return (
     <tr>
@@ -258,6 +340,7 @@ function Row({
       </th>
       <td className="px-4 py-3 text-muted">{free}</td>
       <td className="px-4 py-3 font-medium">{premium}</td>
+      <td className="px-4 py-3 font-medium">{ultima ?? premium}</td>
     </tr>
   );
 }

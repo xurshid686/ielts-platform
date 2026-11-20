@@ -42,6 +42,43 @@ export function premiumRequestUrl(account?: string | null, months?: number): str
   return `${PREMIUM_TELEGRAM_URL}?text=${encodeURIComponent(lines.join("\n"))}`;
 }
 
+/**
+ * Ultima: the teachers' plan (2026-11-20). It INCLUDES Premium plus a PDF of every reading test and
+ * its answers, sent by the teacher bot. Sold exactly like Premium: the student messages the owner on
+ * Telegram, pays, and the owner grants it on /admin/members (which also extends Premium by the same
+ * period). Prices are set by the owner and live here only.
+ */
+export const ULTIMA_PLANS: { months: number; label: string; price: string; note?: string }[] = [
+  { months: 1, label: "1 month", price: "$5" },
+  { months: 3, label: "3 months", price: "$12", note: "Save $3" },
+];
+
+/** One line for small spaces: "$5 for 1 month · $12 for 3 months". */
+export const ULTIMA_PRICE_LINE = ULTIMA_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");
+
+/** The Ultima request link: the owner's chat with a message already typed (see premiumRequestUrl). */
+export function ultimaRequestUrl(account?: string | null, months?: number): string {
+  const plan = ULTIMA_PLANS.find((p) => p.months === months);
+  const lines = [
+    plan
+      ? `Hello! I would like ${SITE_NAME} Ultima (includes Premium) for ${plan.label} (${plan.price}).`
+      : `Hello! I would like ${SITE_NAME} Ultima (includes Premium).`,
+  ];
+  if (account) lines.push(`My account: ${account}`);
+  return `${PREMIUM_TELEGRAM_URL}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+/**
+ * The periods the owner can grant on /admin/members, for Premium AND Ultima. Every `months` value
+ * sold above (PREMIUM_PLANS, ULTIMA_PLANS) must appear here: site.test.ts enforces it.
+ */
+export const GRANT_PERIODS: { months: number; label: string }[] = [
+  { months: 1, label: "1 month" },
+  { months: 3, label: "3 months" },
+  { months: 6, label: "6 months" },
+  { months: 12, label: "1 year" },
+];
+
 // Support / general contact: the same admin account that arranges Premium.
 export const CONTACT_TELEGRAM = "ListeningReadingTests";
 export const CONTACT_TELEGRAM_HANDLE = "@ListeningReadingTests";

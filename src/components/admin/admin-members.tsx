@@ -32,13 +32,9 @@ import {
   type MembershipStage,
 } from "@/lib/premium";
 import { ALL_LEVELS, levelLabel } from "@/lib/levels";
+import { GRANT_PERIODS } from "@/lib/site";
 
-const PERIODS = [
-  { months: 1, label: "1 month" },
-  { months: 3, label: "3 months" },
-  { months: 6, label: "6 months" },
-  { months: 12, label: "1 year" },
-];
+const PERIODS = GRANT_PERIODS; // shared with the plans in lib/site.ts (site.test.ts keeps them in step)
 
 // Who to show. "expiring" and "lapsed" are the two groups worth a message: the
 // same windows the student's own renewal banner uses (lib/premium.ts).
@@ -119,7 +115,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     setMsg({
       ok: true,
       text: res.ultima_until
-        ? `${res.email} has Ultima until ${new Date(res.ultima_until).toLocaleDateString()}.`
+        ? `${res.email} has Ultima until ${new Date(res.ultima_until).toLocaleDateString()} (Premium extended by the same period).`
         : `Ultima removed from ${res.email}.`,
     });
   }
