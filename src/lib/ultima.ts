@@ -89,6 +89,11 @@ export async function getTestPdf(testId: string): Promise<TestPdf | null> {
     .maybeSingle();
   // A missing table (0066 not applied yet) reads as "no PDF" so the site keeps working.
   if (error || !data) return null;
+  // PDFs are for READING tests only (owner, 2026-11-20). Checked here, at the one door every
+  // caller uses (the site button, the catalogue and the bot), so a listening test can never get
+  // one even if a row were registered for it by mistake.
+  const { data: test } = await db().from("tests").select("skill").eq("id", testId).maybeSingle();
+  if (test?.skill !== "reading") return null;
   return data as TestPdf;
 }
 
@@ -101,7 +106,10 @@ export async function ultimaPdfIds(userId: string): Promise<string[]> {
   if (!teacherBotUsername() || !(await isUltima(userId))) return [];
   const { data, error } = await db().from("test_pdfs").select("test_id");
   if (error || !data) return [];
-  return data.map((r: { test_id: string }) => r.test_id);
+  // reading tests only (see getTestPdf)
+  const { data: reading } = await db().from("tests").select("id").eq("skill", "reading");
+  const readingIds = new Set((reading ?? []).map((r: { id: string }) => r.id));
+  return data.map((r: { test_id: string }) => r.test_id).filter((id: string) => readingIds.has(id));
 }
 
 export async function hasTestPdf(testId: string): Promise<boolean> {
