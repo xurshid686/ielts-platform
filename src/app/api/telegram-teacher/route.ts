@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { SECRET_HEADER, secretsMatch } from "@/lib/telegram/auth";
 import { parseStart } from "@/lib/telegram/teacher-router";
 import { sendText, sendDocumentById, sendDocumentBytes, escapeHtml } from "@/lib/telegram/teacher-api";
 import { answerMessage } from "@/lib/telegram/answers-text";
+import { createDedupe } from "@/lib/telegram/dedupe";
 import type { TelegramUpdate } from "@/lib/telegram/types";
 import {
   consumeLinkCode,
@@ -20,6 +21,10 @@ import { SITE_URL } from "@/lib/site";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+// Telegram redelivers an update it did not get a quick 200 for; a repeat would send a second copy of
+// the PDF. In-memory is enough (one app instance, retries within seconds): see lib/telegram/dedupe.ts.
+const recentUpdates = createDedupe();
 
 /**
  * The TEACHER bot: sends a reading test's PDF to an Ultima account that has linked its chat.
@@ -52,12 +57,23 @@ export async function POST(req: Request) {
   const msg = update.message;
   if (!msg || typeof msg.chat?.id !== "number") return NextResponse.json({ ok: true });
 
-  try {
-    await handle(msg.chat.id, msg.text);
-  } catch (e) {
-    console.error("[telegram-teacher] handler failed", e);
-    await sendText(msg.chat.id, "Something went wrong. Please try again in a minute.");
+  if (typeof update.update_id === "number" && recentUpdates.isRepeat(update.update_id)) {
+    return NextResponse.json({ ok: true, deduped: true });
   }
+
+  // Answer Telegram at once and do the work afterwards. Loading a PDF and sending it can take
+  // seconds, and a slow 200 is what makes Telegram redeliver the same update. `after()` runs the
+  // callback once the response is sent; the handler reports its own failures into the chat.
+  const chatId = msg.chat.id;
+  const text = msg.text;
+  after(async () => {
+    try {
+      await handle(chatId, text);
+    } catch (e) {
+      console.error("[telegram-teacher] handler failed", e);
+      await sendText(chatId, "Something went wrong. Please try again in a minute.");
+    }
+  });
   return NextResponse.json({ ok: true });
 }
 

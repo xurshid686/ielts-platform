@@ -4,6 +4,8 @@ import "server-only";
 // bound to TELEGRAM_BOT_TOKEN (the owner's admin bot) and a bot has exactly one webhook.
 // Same contract as api.ts: nothing throws; every call returns a result object.
 
+import { with429Retry } from "./retry";
+
 export { escapeHtml } from "./api";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -22,15 +24,22 @@ async function post<T>(method: string, init: { json?: unknown; form?: FormData }
   const t = token();
   if (!t) return { ok: false, error: "TELEGRAM_TEACHER_BOT_TOKEN is not configured." };
   try {
-    const res = await fetch(`${API}/bot${t}/${method}`, {
-      method: "POST",
-      ...(init.form
-        ? { body: init.form }
-        : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(init.json) }),
-      cache: "no-store",
+    // Telegram answers 429 + retry_after when a bot sends too fast (about 30 messages a second
+    // overall). Wait the time it names and try again instead of failing the teacher's request.
+    type Body = { ok?: boolean; result?: T; description?: string; parameters?: { retry_after?: number } };
+    const attempt = await with429Retry(async () => {
+      const res = await fetch(`${API}/bot${t}/${method}`, {
+        method: "POST",
+        ...(init.form
+          ? { body: init.form }
+          : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(init.json) }),
+        cache: "no-store",
+      });
+      const data = (await res.json()) as Body;
+      return { status: res.ok && data.ok ? 200 : res.status, retryAfter: data.parameters?.retry_after, data };
     });
-    const data = (await res.json()) as { ok?: boolean; result?: T; description?: string };
-    if (!res.ok || !data.ok) return { ok: false, error: data.description || `Telegram error (HTTP ${res.status}).` };
+    const { status, data } = attempt;
+    if (status !== 200) return { ok: false, error: data.description || `Telegram error (HTTP ${status}).` };
     return { ok: true, value: data.result as T };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to reach Telegram." };

@@ -28,6 +28,9 @@ const supabase = createClient(url, serviceKey, { auth: { persistSession: false }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const progressFile = arg("resume") || "send-progress.json";
 const done = new Set(existsSync(progressFile) ? JSON.parse(readFileSync(progressFile, "utf8")) : []);
+// Message ids of everything sent, so a later fix can EDIT (or delete) those messages in place.
+const idsFile = progressFile.replace(/\.json$/, "") + "-message-ids.json";
+const ids = existsSync(idsFile) ? JSON.parse(readFileSync(idsFile, "utf8")) : {};
 
 // Same formatting as src/lib/telegram/answers-text.ts (kept in step by hand: this is a script).
 const WORDS = new Set(["true", "false", "not given", "yes", "no"]);
@@ -107,13 +110,17 @@ for (let i = 0; i < total; i++) {
       const msg = answerMessage(t.title, t.answer_key, t.passage_label);
       if (msg) {
         await sleep(1100);
-        await tg("sendMessage", {
+        const ans = await tg("sendMessage", {
           chat_id: CHAT,
           text: msg,
           parse_mode: "HTML",
           reply_parameters: { message_id: result.message_id, allow_sending_without_reply: true },
         });
+        ids[t.test_id] = { doc: result.message_id, answers: ans.message_id };
+      } else {
+        ids[t.test_id] = { doc: result.message_id };
       }
+      writeFileSync(idsFile, JSON.stringify(ids));
     }
     done.add(t.test_id);
     sent++;
