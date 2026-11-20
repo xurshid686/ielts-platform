@@ -36,7 +36,7 @@ const showAns = (a) => {
   return WORDS.has(t.toLowerCase()) || /^[a-k]$/i.test(t) ? t.toUpperCase() : t;
 };
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-function answerMessage(title, key) {
+function answerMessage(title, key, label) {
   if (!key) return null;
   const lines = Object.keys(key)
     .map((k) => ({ k, n: Number(k.replace(/^q/i, "")) }))
@@ -46,7 +46,8 @@ function answerMessage(title, key) {
       const list = (Array.isArray(key[k]) ? key[k] : [key[k]]).filter((v) => typeof v === "string" && v.trim());
       return `${n}   ${list.map(showAns).join(" / ")}`;
     });
-  return lines.length ? `<b>Answers · ${esc(title)}</b>\n<tg-spoiler>${esc(lines.join("\n"))}</tg-spoiler>` : null;
+  const head = [label, title].filter(Boolean).map(esc).join(" · ");
+  return lines.length ? `<b>Answers · ${head}</b>\n<tg-spoiler>${esc(lines.join("\n"))}</tg-spoiler>` : null;
 }
 
 async function tg(method, body) {
@@ -68,7 +69,7 @@ async function tg(method, body) {
   throw new Error("gave up after repeated rate limits");
 }
 
-const { data: rows } = await supabase.from("test_pdfs").select("test_id, pages, bytes, tg_file_id");
+const { data: rows } = await supabase.from("test_pdfs").select("test_id, pages, bytes, tg_file_id, passage_label");
 const { data: tests } = await supabase.from("tests").select("id, title, kind, skill, answer_key").eq("skill", "reading");
 const meta = new Map(tests.map((t) => [t.id, t]));
 const list = rows
@@ -85,8 +86,8 @@ for (let i = 0; i < total; i++) {
   const t = list[i];
   if (done.has(t.test_id)) continue;
   try {
-    const label = `${t.kind === "full" ? "Full test" : "Passage"} · ${t.pages} pages`;
-    const caption = `${i + 1}/${list.length}  ${t.title}\n${label}`.slice(0, 1000);
+    const label = t.passage_label || (t.kind === "full" ? "Full test" : "Passage");
+    const caption = `${i + 1}/${list.length}  ${label} · ${t.title}\n${t.pages} pages`.slice(0, 1000);
     let result;
     if (t.tg_file_id) {
       result = await tg("sendDocument", { chat_id: CHAT, document: t.tg_file_id, caption });
@@ -103,7 +104,7 @@ for (let i = 0; i < total; i++) {
       if (fileId) await supabase.from("test_pdfs").update({ tg_file_id: fileId }).eq("test_id", t.test_id);
     }
     if (WITH_ANSWERS) {
-      const msg = answerMessage(t.title, t.answer_key);
+      const msg = answerMessage(t.title, t.answer_key, t.passage_label);
       if (msg) {
         await sleep(1100);
         await tg("sendMessage", {

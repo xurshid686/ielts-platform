@@ -30,8 +30,13 @@ export function answerLines(key: Record<string, unknown> | null | undefined): st
 }
 
 /** The Telegram HTML message: a bold title, then every answer inside ONE spoiler. */
-export function answerMessage(title: string, key: Record<string, unknown> | null | undefined): string | null {
+export function answerMessage(
+  title: string,
+  key: Record<string, unknown> | null | undefined,
+  label?: string | null,
+): string | null {
   const lines = answerLines(key);
   if (!lines.length) return null;
-  return `<b>Answers · ${esc(title)}</b>\n<tg-spoiler>${esc(lines.join("\n"))}</tg-spoiler>`;
+  const head = [label, title].filter(Boolean).map((x) => esc(x as string)).join(" · ");
+  return `<b>Answers · ${head}</b>\n<tg-spoiler>${esc(lines.join("\n"))}</tg-spoiler>`;
 }

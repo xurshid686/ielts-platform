@@ -30,6 +30,8 @@ export type TestPdf = {
   bytes: number;
   pages: number;
   tg_file_id: string | null;
+  /** "Reading Passage 2" / "Full test · Passages 1–3" (0067), shown in Telegram. */
+  passage_label: string | null;
 };
 
 /** The bot's public username (without @). Unset = the PDF button is hidden everywhere. */
@@ -84,7 +86,7 @@ export async function grantUltima(userId: string, until: Date, grantedBy: string
 export async function getTestPdf(testId: string): Promise<TestPdf | null> {
   const { data, error } = await db()
     .from("test_pdfs")
-    .select("test_id, r2_key, bytes, pages, tg_file_id")
+    .select("test_id, r2_key, bytes, pages, tg_file_id, passage_label")
     .eq("test_id", testId)
     .maybeSingle();
   // A missing table (0066 not applied yet) reads as "no PDF" so the site keeps working.

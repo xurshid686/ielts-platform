@@ -19,6 +19,11 @@ describe("answerLines", () => {
 });
 
 describe("answerMessage", () => {
+  it("puts the passage label in the header", () => {
+    expect(answerMessage("Rights for apes", { "1": ["a"] }, "Reading Passage 2")!).toContain(
+      "<b>Answers · Reading Passage 2 · Rights for apes</b>",
+    );
+  });
   it("wraps every answer in one spoiler and escapes HTML", () => {
     const m = answerMessage("A & B <test>", { "1": ["x < y"] })!;
     expect(m).toContain("<b>Answers · A &amp; B &lt;test&gt;</b>");
