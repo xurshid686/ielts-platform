@@ -2,7 +2,6 @@ import { AppShell } from "@/components/app-shell";
 import { PublicShell } from "@/components/public-shell";
 import { PremiumWelcome } from "@/components/premium-welcome";
 import { TimezoneSync } from "@/components/timezone-sync";
-import { ReferralRedeemer } from "@/components/referral-redeemer";
 import { getProfile, isDisciplineMember } from "@/lib/auth";
 import { PremiumRenewalBanner } from "@/components/premium-renewal-banner";
 import { isPremiumActive, membershipStage } from "@/lib/premium";
@@ -59,7 +58,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       discipline={discipline}
     >
       <TimezoneSync current={profile.timezone ?? "UTC"} />
-      <ReferralRedeemer />
       <PremiumWelcome
         show={profile.premium_announce && isPremiumActive(profile)}
         until={profile.premium_until}

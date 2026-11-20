@@ -1,5 +1,5 @@
-// One-off read-only check: are migrations 0019 (referrals) and 0020
-// (leaderboard visibility) applied? Uses the service role key.
+// One-off read-only check: is migration 0020 (leaderboard visibility) applied?
+// Uses the service role key. (0019, the referral program, was removed by 0068.)
 import { createClient } from "@supabase/supabase-js";
 import { loadEnv } from "./env.mjs";
 
@@ -22,10 +22,6 @@ async function fnExists(name, args) {
 }
 
 const results = {
-  "0019 · profiles.referral_code": await colExists("profiles", "referral_code"),
-  "0019 · profiles.referred_by": await colExists("profiles", "referred_by"),
-  "0019 · referrals table": await tableExists("referrals"),
-  "0019 · redeem_referral()": await fnExists("redeem_referral", { p_code: "__none__" }),
   "0020 · profiles.hidden_from_leaderboard": await colExists(
     "profiles",
     "hidden_from_leaderboard",

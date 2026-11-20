@@ -11,7 +11,6 @@ import {
   Crown,
   X,
   UserCircle,
-  Gift,
   Flame,
   Zap,
   Trophy,
@@ -174,9 +173,6 @@ export function AccountMenu({ profile }: { profile: Profile }) {
                 {premium ? "Your Premium" : "Get Premium"}
               </MenuItem>
             )}
-            <MenuItem href="/refer" icon={<Gift className="h-4 w-4" />} onClick={() => setOpen(false)}>
-              Invite friends
-            </MenuItem>
             {profile.role === "admin" && (
               <MenuItem href="/admin" icon={<Shield className="h-4 w-4" />} onClick={() => setOpen(false)}>
                 Admin panel

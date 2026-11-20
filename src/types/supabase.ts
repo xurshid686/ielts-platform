@@ -1298,8 +1298,6 @@ export type Database = {
           premium_until: string | null
           rated_count: number
           rating: number
-          referral_code: string | null
-          referred_by: string | null
           role: string
           streak: number
           target_band: number | null
@@ -1324,8 +1322,6 @@ export type Database = {
           premium_until?: string | null
           rated_count?: number
           rating?: number
-          referral_code?: string | null
-          referred_by?: string | null
           role?: string
           streak?: number
           target_band?: number | null
@@ -1350,8 +1346,6 @@ export type Database = {
           premium_until?: string | null
           rated_count?: number
           rating?: number
-          referral_code?: string | null
-          referred_by?: string | null
           role?: string
           streak?: number
           target_band?: number | null
@@ -1360,142 +1354,6 @@ export type Database = {
           xp?: number
         }
         Relationships: [
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_global"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_monthly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_weekly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "profile_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_referred_by_fkey"
-            columns: ["referred_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      referrals: {
-        Row: {
-          created_at: string
-          id: string
-          qualified_at: string | null
-          referred_id: string
-          referrer_id: string
-          reward_months: number
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          qualified_at?: string | null
-          referred_id: string
-          referrer_id: string
-          reward_months?: number
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          qualified_at?: string | null
-          referred_id?: string
-          referrer_id?: string
-          reward_months?: number
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "leaderboard_global"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "leaderboard_monthly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "leaderboard_weekly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "profile_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referred_id_fkey"
-            columns: ["referred_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_global"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_monthly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "leaderboard_weekly"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "profile_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referrals_referrer_id_fkey"
-            columns: ["referrer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
         ]
       }
       reminder_log: {
@@ -2459,7 +2317,6 @@ export type Database = {
         }[]
       }
       ensure_weekly_report: { Args: never; Returns: string }
-      gen_referral_code: { Args: never; Returns: string }
       gift_xp: {
         Args: { amount: number; target_email: string }
         Returns: {
@@ -2521,9 +2378,6 @@ export type Database = {
           xp: number
         }[]
       }
-      redeem_referral: { Args: { p_code: string }; Returns: boolean }
-      referral_reward_months: { Args: never; Returns: number }
-      referral_welcome_xp: { Args: never; Returns: number }
       reset_discipline: { Args: { target_email: string }; Returns: string }
       revoke_discipline: { Args: { target_email: string }; Returns: string }
       set_leaderboard_hidden: {

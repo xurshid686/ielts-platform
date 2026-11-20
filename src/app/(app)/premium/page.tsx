@@ -6,7 +6,6 @@ import {
   ClipboardCheck,
   Crown,
   FileDown,
-  Gift,
   Send,
 } from "lucide-react";
 import { getProfile } from "@/lib/auth";
@@ -275,26 +274,6 @@ export default async function PremiumPage() {
             </tbody>
           </table>
         </div>
-      </section>
-
-      {/* The free route */}
-      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-6 shadow-soft sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <Gift className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div>
-            <h2 className="font-semibold">Or earn it free</h2>
-            <p className="mt-0.5 text-sm text-muted">
-              Invite a friend. When they join and complete their first test, you get a month of
-              Premium. There is no limit.
-            </p>
-          </div>
-        </div>
-        <Link
-          href={profile ? "/refer" : "/register?next=%2Frefer"}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-surface-2"
-        >
-          Invite friends <ArrowRight className="h-4 w-4" />
-        </Link>
       </section>
     </div>
   );

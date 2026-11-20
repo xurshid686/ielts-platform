@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Crown, Gift } from "lucide-react";
+import { ArrowRight, Crown } from "lucide-react";
 import { PREMIUM_PRICE_LINE } from "@/lib/site";
 
 /**
- * The "How to get Premium" box: the price, a button to the Premium page, and
- * the free route (invite a friend).
+ * The "How to get Premium" box: the price and a button to the Premium page.
  *
  * It deliberately does NOT link to Telegram (owner, 2026-11-10). Every Premium
  * prompt on the site leads to /premium, which explains what is included and
@@ -19,8 +18,7 @@ export function PremiumContact({ className = "" }: { className?: string }) {
         Premium: <span className="tabular-nums">{PREMIUM_PRICE_LINE}</span>
       </p>
       <p className="mt-1 text-muted">
-        Every premium test and instant mock exam entry. Or invite a friend: when they join and
-        complete their first test, you get a month free.
+        Every premium test and instant mock exam entry.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
@@ -28,12 +26,6 @@ export function PremiumContact({ className = "" }: { className?: string }) {
           className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
           <Crown className="h-4 w-4" /> Get Premium <ArrowRight className="h-4 w-4" />
-        </Link>
-        <Link
-          href="/refer"
-          className="inline-flex items-center gap-2 rounded-lg border border-premium/40 px-4 py-2 text-sm font-semibold text-premium hover:bg-premium/10"
-        >
-          <Gift className="h-4 w-4" /> Earn it free
         </Link>
       </div>
     </div>

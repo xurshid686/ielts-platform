@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Gift } from "lucide-react";
 import { AuthForm } from "@/components/auth/auth-form";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -8,9 +7,9 @@ import { RegisterPanel } from "@/components/auth/auth-panels";
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; ref?: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
-  const { next, ref } = await searchParams;
+  const { next } = await searchParams;
 
   return (
     <AuthShell panel={<RegisterPanel />}>
@@ -24,13 +23,6 @@ export default async function RegisterPage({
           tracks your band.
         </p>
       </div>
-
-      {ref && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-primary">
-          <Gift className="h-4 w-4 shrink-0" />
-          <span>You&apos;ve been invited — sign up to claim your welcome bonus.</span>
-        </div>
-      )}
 
       <GoogleButton next={next} />
 

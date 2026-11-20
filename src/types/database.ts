@@ -124,7 +124,6 @@ export type Profile = Narrow<
   }
 >;
 
-export type Referral = Narrow<Row<"referrals">, { status: "pending" | "qualified" }>;
 
 export type Test = Narrow<
   Row<"tests">,

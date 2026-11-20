@@ -39,8 +39,8 @@ export type NavItem = {
  * has nowhere to put "Practise" / "Compete" headings, and the groups only ever
  * existed to break up a tall column.
  *
- * Links that did not earn a slot on the bar were NOT deleted — /refer and the
- * beginner-track page live in the account dropdown (see account-menu.tsx).
+ * Links that did not earn a slot on the bar were NOT deleted — the beginner-track
+ * page lives in the account dropdown (see account-menu.tsx).
  */
 export function navItemsFor(
   profile: Profile | null,

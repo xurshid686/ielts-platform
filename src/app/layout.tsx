@@ -3,7 +3,6 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { Bricolage_Grotesque, Hanken_Grotesk, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ReferralCapture } from "@/components/referral-capture";
 
 // Display: warm, characterful grotesque for headings.
 const display = Bricolage_Grotesque({
@@ -68,7 +67,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <ReferralCapture />
           {children}
         </ThemeProvider>
       </body>
