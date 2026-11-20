@@ -37,13 +37,19 @@ async function post<T>(method: string, init: { json?: unknown; form?: FormData }
   }
 }
 
-export async function sendText(chatId: number, text: string, url?: { label: string; href: string }) {
+export async function sendText(
+  chatId: number,
+  text: string,
+  url?: { label: string; href: string },
+  replyTo?: number,
+) {
   return post<{ message_id: number }>("sendMessage", {
     json: {
       chat_id: chatId,
       text,
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
+      ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}),
       ...(url ? { reply_markup: { inline_keyboard: [[{ text: url.label, url: url.href }]] } } : {}),
     },
   });

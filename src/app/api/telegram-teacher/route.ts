@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SECRET_HEADER, secretsMatch } from "@/lib/telegram/auth";
 import { parseStart } from "@/lib/telegram/teacher-router";
 import { sendText, sendDocumentById, sendDocumentBytes, escapeHtml } from "@/lib/telegram/teacher-api";
+import { answerMessage } from "@/lib/telegram/answers-text";
 import type { TelegramUpdate } from "@/lib/telegram/types";
 import {
   consumeLinkCode,
@@ -112,7 +113,7 @@ async function handle(chatId: number, text: string | undefined): Promise<void> {
   }
 
   const admin = createAdminClient();
-  const { data: test } = await admin.from("tests").select("title").eq("id", action.testId).maybeSingle();
+  const { data: test } = await admin.from("tests").select("title, answer_key").eq("id", action.testId).maybeSingle();
   const title = test?.title ?? "IELTS Reading";
   const caption = `<b>${escapeHtml(title)}</b>`;
   const filename = `${title.replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "IELTS Reading"}.pdf`;
@@ -120,7 +121,10 @@ async function handle(chatId: number, text: string | undefined): Promise<void> {
   // Cheapest first: a document Telegram already holds costs no upload at all.
   if (pdf.tg_file_id) {
     const sent = await sendDocumentById(chatId, pdf.tg_file_id, caption);
-    if (sent.ok) return;
+    if (sent.ok) {
+      await sendAnswers(chatId, title, test?.answer_key, sent.value.message_id);
+      return;
+    }
     await forgetFileId(action.testId); // stale id: fall through to a fresh upload
   }
 
@@ -136,6 +140,16 @@ async function handle(chatId: number, text: string | undefined): Promise<void> {
   }
   const fileId = sent.value.document?.file_id;
   if (fileId) await rememberFileId(action.testId, fileId);
+  await sendAnswers(chatId, title, test?.answer_key, sent.value.message_id);
+}
+
+/**
+ * The answers, written but BLURRED (a Telegram spoiler, tap to reveal), as a reply under the PDF.
+ * The PDF itself never carries answers. A failure here must not undo a PDF already delivered.
+ */
+async function sendAnswers(chatId: number, title: string, key: unknown, replyTo: number): Promise<void> {
+  const msg = answerMessage(title, (key ?? null) as Record<string, unknown> | null);
+  if (msg) await sendText(chatId, msg, undefined, replyTo);
 }
 
 // Telegram never GETs a webhook, so there is nothing to show here.
