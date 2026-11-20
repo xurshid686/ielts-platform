@@ -13,7 +13,7 @@ import { loadTestSeoData, questionOrder } from "@/lib/seo/test-seo-data";
 import { TestSeoContent } from "@/components/sections/test-seo-content";
 import { RelatedTests } from "@/components/sections/related-tests";
 import { refColumn, testPath } from "@/lib/tests/ref";
-import { hasTestPdf, teacherBotUsername } from "@/lib/ultima";
+import { hasTestPdf, isUltima, teacherBotUsername } from "@/lib/ultima";
 import type { Test } from "@/types/database";
 
 export async function TestDetail({
@@ -132,10 +132,10 @@ export async function TestDetail({
   // itself is no longer selectable from a page that renders for a student.
   const graded = (t.total ?? 0) > 0;
 
-  // "Get a PDF" (Ultima): shown only when the teacher bot is configured and this reading test has
-  // a built PDF. Whether the account holds Ultima is decided by the bot, not here.
+  // "Get a PDF" (Ultima): shown only to an Ultima account, when the teacher bot is configured and
+  // this reading test has a built PDF. The bot re-checks the plan, so a forged link gets nothing.
   const pdfHref =
-    skill === "reading" && teacherBotUsername() && (await hasTestPdf(t.id))
+    skill === "reading" && teacherBotUsername() && (await isUltima(profile.id)) && (await hasTestPdf(t.id))
       ? `/api/ultima/pdf?test=${t.id}`
       : null;
 
