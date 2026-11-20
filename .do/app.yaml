@@ -77,6 +77,17 @@ envs:
   value: ${TELEGRAM_WEBHOOK_SECRET}
   scope: RUN_TIME
   type: SECRET
+- key: TELEGRAM_TEACHER_BOT_TOKEN
+  value: ${TELEGRAM_TEACHER_BOT_TOKEN}
+  scope: RUN_TIME
+  type: SECRET
+- key: TELEGRAM_TEACHER_WEBHOOK_SECRET
+  value: ${TELEGRAM_TEACHER_WEBHOOK_SECRET}
+  scope: RUN_TIME
+  type: SECRET
+- key: TEACHER_BOT_USERNAME
+  value: MockOnlineMaterials_bot
+  scope: RUN_TIME
 - key: TELEGRAM_EVENT_SECRET
   value: ${TELEGRAM_EVENT_SECRET}
   scope: RUN_TIME
