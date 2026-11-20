@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, ListChecks } from "lucide-react";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, FileText, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, ListChecks } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { Button } from "@/components/ui/button";
 import { tierForRating } from "@/lib/rating";
@@ -20,6 +20,9 @@ type Props = {
   // fallback never renders; saveResult refuses a keyless test outright and
   // says so, rather than saving a number nobody can check.
   graded?: boolean;
+  // Link to the "Get a PDF" hand-off (/api/ultima/pdf?test=<id>). Null/absent hides the
+  // button: no teacher bot configured, or this test has no PDF yet. Ultima is checked by the bot.
+  pdfHref?: string | null;
   // My-students may send their submitted answers to the teacher (Telegram).
   // No account: the attempt is graded but nothing is saved, and the result
   // screen asks them to register rather than showing a streak/rating.
@@ -99,6 +102,7 @@ export function TestRunner({
   title,
   skill,
   graded = false,
+  pdfHref = null,
   guest = false,
 }: Props) {
   const router = useRouter();
@@ -306,6 +310,17 @@ export function TestRunner({
               <span className="sm:hidden">Manual score</span>
               <span className="hidden sm:inline">Score didn&apos;t save?</span>
             </button>
+          )}
+          {pdfHref && (
+            <a
+              href={pdfHref}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-surface-2"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Get a PDF</span>
+            </a>
           )}
           <button
             onClick={toggleFullscreen}
