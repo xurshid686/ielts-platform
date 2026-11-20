@@ -11,10 +11,12 @@ import {
   EyeOff,
   Eye,
   GraduationCap,
+  FileDown,
 } from "lucide-react";
 import {
   searchUsers,
   setPremium,
+  setUltima,
   giftXp,
   setLeaderboardHidden,
   setUserLevel,
@@ -63,6 +65,8 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [months, setMonths] = useState<Record<string, number>>({});
+  const [ultimaMonths, setUltimaMonths] = useState<Record<string, number>>({});
+  const [ultimaBusyId, setUltimaBusyId] = useState<string | null>(null);
   const [giftBusyId, setGiftBusyId] = useState<string | null>(null);
   const [giftAmount, setGiftAmount] = useState<Record<string, number>>({});
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
@@ -98,6 +102,25 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
       text: res.premium_until
         ? `${res.email} is Premium until ${new Date(res.premium_until).toLocaleDateString()}.`
         : `Premium removed from ${res.email}.`,
+    });
+  }
+
+  async function grantUltima(u: MemberRow, m: number) {
+    if (!u.email) return;
+    setUltimaBusyId(u.id);
+    setMsg(null);
+    const res = await setUltima(u.email, m);
+    setUltimaBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, ultima_until: res.ultima_until } : x)));
+    setMsg({
+      ok: true,
+      text: res.ultima_until
+        ? `${res.email} has Ultima until ${new Date(res.ultima_until).toLocaleDateString()}.`
+        : `Ultima removed from ${res.email}.`,
     });
   }
 
@@ -248,6 +271,8 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
             {shown.map(({ u, membership }) => {
               const premium = isPremiumActive(u);
               const m = months[u.id] ?? 1;
+              const ultima = isPremiumActive({ premium_until: u.ultima_until ?? null }); // same date rule as Premium
+              const um = ultimaMonths[u.id] ?? 1;
               return (
                 <li key={u.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
@@ -260,6 +285,14 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         {premium && (
                           <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-premium-gradient px-1.5 py-0.5 text-xs font-bold text-white">
                             <Crown className="h-2.5 w-2.5" /> Premium
+                          </span>
+                        )}
+                        {ultima && (
+                          <span
+                            title={`Ultima until ${new Date(u.ultima_until!).toLocaleDateString()}`}
+                            className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-xs font-bold text-primary-foreground"
+                          >
+                            <FileDown className="h-2.5 w-2.5" /> Ultima
                           </span>
                         )}
                         {u.hidden_from_leaderboard && (
@@ -342,6 +375,41 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                         className="rounded-lg border border-danger/30 px-2.5 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
                       >
                         Revoke
+                      </button>
+                    )}
+
+                    <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
+                    {/* Ultima (teacher plan: PDFs of every reading test via the bot) */}
+                    <select
+                      value={um}
+                      onChange={(e) =>
+                        setUltimaMonths((prev) => ({ ...prev, [u.id]: Number(e.target.value) }))
+                      }
+                      aria-label="Ultima period"
+                      className="h-9 rounded-lg border border-border bg-surface-2 px-2 text-sm outline-none focus:border-primary/40"
+                    >
+                      {PERIODS.map((p) => (
+                        <option key={p.months} value={p.months}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button size="sm" onClick={() => grantUltima(u, um)} disabled={ultimaBusyId === u.id}>
+                      {ultimaBusyId === u.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileDown className="h-3.5 w-3.5" />
+                      )}
+                      {ultima ? "Extend Ultima" : "Grant Ultima"}
+                    </Button>
+                    {ultima && (
+                      <button
+                        onClick={() => grantUltima(u, 0)}
+                        disabled={ultimaBusyId === u.id}
+                        className="rounded-lg border border-danger/30 px-2.5 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+                      >
+                        Revoke Ultima
                       </button>
                     )}
 

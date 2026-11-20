@@ -47,6 +47,32 @@ export async function isUltima(userId: string): Promise<boolean> {
   return !!data?.ultima_until && new Date(data.ultima_until).getTime() > Date.now();
 }
 
+/** Everyone who has ever held Ultima: user id -> ISO end date. A small table, so read whole. */
+export async function allUltima(): Promise<Map<string, string>> {
+  const { data } = await db().from("ultima_members").select("user_id, ultima_until");
+  return new Map((data ?? []).map((r: { user_id: string; ultima_until: string }) => [r.user_id, r.ultima_until]));
+}
+
+/**
+ * Grant or extend (months > 0) or revoke (months <= 0) Ultima. Extending counts from the later of
+ * now and the current end date, like set_premium. Returns the new end date, or null when revoked.
+ * Callers must gate (assertAdmin) — this trusts its arguments.
+ */
+export async function setUltimaMonths(userId: string, months: number, grantedBy: string | null): Promise<string | null> {
+  const client = db();
+  if (months <= 0) {
+    const { error } = await client.from("ultima_members").delete().eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return null;
+  }
+  const { data } = await client.from("ultima_members").select("ultima_until").eq("user_id", userId).maybeSingle();
+  const start = data?.ultima_until && new Date(data.ultima_until).getTime() > Date.now() ? new Date(data.ultima_until) : new Date();
+  const until = new Date(start);
+  until.setMonth(until.getMonth() + months);
+  await grantUltima(userId, until, grantedBy);
+  return until.toISOString();
+}
+
 /** Grant Ultima until a date (owner-side; callers must gate). */
 export async function grantUltima(userId: string, until: Date, grantedBy: string | null): Promise<void> {
   const { error } = await db()

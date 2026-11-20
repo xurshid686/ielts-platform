@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AdminMembers } from "@/components/admin/admin-members";
 import type { MemberRow } from "@/app/actions/admin";
 import { rows } from "@/types/database";
+import { allUltima } from "@/lib/ultima";
 
 export default async function AdminMembersPage() {
   await requireAdmin();
@@ -28,10 +29,11 @@ export default async function AdminMembersPage() {
 
   const recent = rows<MemberRow>(data);
   const seen = new Set(recent.map((u) => u.id));
+  const ultima = await allUltima();
   const initialUsers = [
     ...recent,
     ...rows<MemberRow>(everPremium).filter((u) => !seen.has(u.id)),
-  ];
+  ].map((u) => ({ ...u, ultima_until: ultima.get(u.id) ?? null }));
 
   return (
     <div className="space-y-8">

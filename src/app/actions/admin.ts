@@ -8,6 +8,7 @@ import { createTestFromHtml, type Track } from "@/lib/tests/create";
 import { attachTestToDay } from "@/lib/discipline";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 import { fileStore } from "@/lib/storage";
+import { allUltima, setUltimaMonths } from "@/lib/ultima";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -163,6 +164,8 @@ export type MemberRow = {
   hidden_from_leaderboard: boolean;
   /** `YYYY-MM-DD` of the student's last scored activity. */
   last_activity_date: string | null;
+  /** End of the Ultima plan (0066), merged in from `ultima_members`; absent = never had it. */
+  ultima_until?: string | null;
 };
 
 // Search accounts by email or name (admin-only). Empty query returns recent users.
@@ -191,7 +194,34 @@ export async function searchUsers(
 
   const { data, error } = await req;
   if (error) return { ok: false, error: error.message };
-  return { ok: true, users: rows<MemberRow>(data) };
+  const ultima = await allUltima();
+  return { ok: true, users: rows<MemberRow>(data).map((u) => ({ ...u, ultima_until: ultima.get(u.id) ?? null })) };
+}
+
+export type SetUltimaResult =
+  | { ok: true; email: string; ultima_until: string | null }
+  | { ok: false; error: string };
+
+// Grant/extend (months > 0) or revoke (months <= 0) the Ultima plan for a user by email.
+export async function setUltima(email: string, months: number): Promise<SetUltimaResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  if (!Number.isFinite(months) || months > 36) return { ok: false, error: "Choose 1 to 36 months, or 0 to revoke." };
+
+  const { data: target } = await createAdminClient()
+    .from("profiles")
+    .select("id, email")
+    .ilike("email", email.trim())
+    .maybeSingle();
+  if (!target) return { ok: false, error: `No account with the email ${email.trim()}.` };
+
+  try {
+    const until = await setUltimaMonths(target.id, Math.floor(months), gate.user?.id ?? null);
+    revalidatePath("/admin/members");
+    return { ok: true, email: target.email ?? email, ultima_until: until };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not update Ultima." };
+  }
 }
 
 export type SetPremiumResult =
