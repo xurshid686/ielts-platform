@@ -10,10 +10,11 @@ import { isPremiumActive } from "@/lib/premium";
 import { countWords } from "@/lib/mock-shared";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { getAttemptDetail } from "@/lib/mock";
+import { ultimaUntil } from "@/lib/ultima";
 import { getMyAttempt, type AttemptRow, type LibResult } from "@/lib/writing-practice";
 import {
-  MONTHLY_CHECKS,
   asResults,
+  monthlyLimitFor,
   buildCriteria,
   monthKey,
   overallFromCriteria,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/writing-ai-shared";
 
 // AI writing checks (Axiom), migration 0063 — the engine for two features:
-//   * PRACTICE: a premium student checks a SUBMITTED attempt, MONTHLY_CHECKS a
+//   * PRACTICE: a premium student checks a SUBMITTED attempt, MONTHLY_CHECKS a (20 on Ultima)
 //     calendar month. A Full test is ONE check (both tasks); a lone Task 1 or
 //     Task 2 attempt is one check each.
 //   * MOCK: the owner runs a check on a submitted mock Writing. It is a private
@@ -173,6 +174,12 @@ export function mayUseAiChecks(p: Pick<PracticeProfile, "role" | "premium_until"
   return p.role === "admin" || isPremiumActive(p);
 }
 
+/** This account's monthly allowance: 20 with an active Ultima plan, otherwise 10. Admins never use it. */
+export async function checkLimitFor(userId: string): Promise<number> {
+  const until = await ultimaUntil(userId);
+  return monthlyLimitFor(isPremiumActive({ premium_until: until }));
+}
+
 export async function practiceQuota(p: Pick<PracticeProfile, "id" | "timezone">): Promise<CheckQuota> {
   const month = monthKey(localDay(p.timezone));
   const { count, error } = await checks()
@@ -183,7 +190,7 @@ export async function practiceQuota(p: Pick<PracticeProfile, "id" | "timezone">)
     .eq("source", "practice")
     .in("status", ["pending", "done"]);
   if (error) throw new Error(error.message);
-  return quotaOf(count ?? 0, month);
+  return quotaOf(count ?? 0, month, await checkLimitFor(p.id));
 }
 
 /** The tasks of a submitted attempt that are worth checking, in task order. */
@@ -289,12 +296,13 @@ export async function runPracticeCheck(
   }
 
   const month = monthKey(localDay(profile.timezone));
+  // Admins are exempt: the limit is simply out of reach. Ultima gets 20, other Premium 10.
+  const limit = profile.role === "admin" ? 1_000_000 : await checkLimitFor(profile.id);
   const { data: reserved, error: rpcError } = await checks().rpc("reserve_writing_check", {
     p_user: profile.id,
     p_attempt: attempt.id,
     p_month: month,
-    // Admins are exempt: the limit is simply out of reach.
-    p_limit: profile.role === "admin" ? 1_000_000 : MONTHLY_CHECKS,
+    p_limit: limit,
   });
   if (rpcError) {
     console.error("[writing-ai] reserve failed", rpcError.message);
@@ -304,7 +312,7 @@ export async function runPracticeCheck(
 
   if (!r.ok) {
     if (r.reason === "quota") {
-      const q = quotaOf(MONTHLY_CHECKS, month);
+      const q = quotaOf(limit, month, limit);
       return { ok: false, error: `You've used all ${q.limit} AI checks for this month. They renew on ${q.renews}.` };
     }
     // 'already': a second click or tab. Show the same check rather than spend another.

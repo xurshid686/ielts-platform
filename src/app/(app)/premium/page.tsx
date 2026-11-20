@@ -147,7 +147,8 @@ export default async function PremiumPage() {
           <h2 className="mt-3 text-2xl font-bold tracking-tight">For teachers: Ultima</h2>
           <p className="mx-auto mt-2 max-w-xl text-muted">
             Everything in Premium, plus a PDF of every reading test with its answers, sent straight
-            to your Telegram. Print it for class, or share it with students.
+            to your Telegram, and 20 AI writing checks a month (Premium has 10). Print the PDFs for
+            class, or share them with students.
           </p>
           {ultimaActive && ultimaEnds && (
             <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium">
@@ -270,7 +271,7 @@ export default async function PremiumPage() {
               <Row label="Premium tests" free="No" premium={<Yes />} />
               <Row label="Mock exam place" free="On request" premium="Instant" />
               <Row label="PDF of every reading test (print or share)" free="No" premium="No" ultima={<Yes />} />
-              <Row label="Answers, hidden behind a blur on Telegram" free="No" premium="No" ultima={<Yes />} />
+              <Row label="AI writing checks each month" free="No" premium="10" ultima="20" />
             </tbody>
           </table>
         </div>

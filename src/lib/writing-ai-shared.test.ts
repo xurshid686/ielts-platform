@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  MONTHLY_CHECKS,
+  ULTIMA_MONTHLY_CHECKS,
   asResults,
   buildCriteria,
   criterionLabel,
   draftBands,
   draftFeedbackText,
   monthKey,
+  monthlyLimitFor,
   overallFromCriteria,
   parseBand,
   quotaOf,
@@ -23,6 +26,18 @@ const axiom = {
   Grammatical_Range_and_Accuracy: { Score: "8.0", Description: "Accurate." },
   Task_Achievement: { Score: "8.0", Description: "Complete.", Suggestions: ["Add detail."] },
 };
+
+describe("monthly check allowance", () => {
+  it("is 10 for Premium and 20 for Ultima", () => {
+    expect(monthlyLimitFor(false)).toBe(10);
+    expect(monthlyLimitFor(true)).toBe(20);
+    expect(ULTIMA_MONTHLY_CHECKS).toBeGreaterThan(MONTHLY_CHECKS);
+  });
+  it("quotaOf reports the Ultima limit when given it", () => {
+    expect(quotaOf(3, "2026-11", monthlyLimitFor(true)).left).toBe(17);
+    expect(quotaOf(3, "2026-11", monthlyLimitFor(false)).left).toBe(7);
+  });
+});
 
 describe("parseBand", () => {
   it("reads Axiom's string scores", () => {

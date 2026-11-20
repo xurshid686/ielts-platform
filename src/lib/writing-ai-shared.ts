@@ -6,6 +6,14 @@
 /** Premium students' practice checks per calendar month (owner decision, 2026-11-14). */
 export const MONTHLY_CHECKS = 10;
 
+/** Ultima (the teachers' plan, 2026-11-20) doubles it: 20 practice checks a month. */
+export const ULTIMA_MONTHLY_CHECKS = 20;
+
+/** The monthly allowance for a non-admin account: Ultima 20, any other Premium 10. */
+export function monthlyLimitFor(ultimaActive: boolean): number {
+  return ultimaActive ? ULTIMA_MONTHLY_CHECKS : MONTHLY_CHECKS;
+}
+
 export type CriterionKey = "ta" | "cc" | "lr" | "gra";
 
 export type AiRevision = { original: string; revised: string };

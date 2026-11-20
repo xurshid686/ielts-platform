@@ -10,7 +10,9 @@ import { imageMeta, reportFilename, type ReportImage } from "@/lib/mock-report";
 import { getAttemptForAdmin } from "@/lib/writing-practice";
 import { getCheck, readImage } from "@/lib/writing-ai";
 import { renderAiCheckPdf, type AiReportData, type AiReportTask } from "@/lib/writing-ai-report";
-import { MONTHLY_CHECKS, type AiTaskResult } from "@/lib/writing-ai-shared";
+import { monthlyLimitFor, type AiTaskResult } from "@/lib/writing-ai-shared";
+import { ultimaUntil } from "@/lib/ultima";
+import { isPremiumActive } from "@/lib/premium";
 import { EMAIL_BASE_URL } from "@/lib/email/send";
 
 // (The student's emailed copy lives in writing-ai-email.ts.)
@@ -75,7 +77,8 @@ export async function buildPractice(checkId: string): Promise<Built | null> {
       .eq("month", check.month)
       .eq("source", "practice")
       .in("status", ["pending", "done"]);
-    usedLine = `${count ?? 0} of ${MONTHLY_CHECKS} (${check.month})`;
+    const limit = monthlyLimitFor(isPremiumActive({ premium_until: await ultimaUntil(check.user_id) }));
+    usedLine = `${count ?? 0} of ${limit} (${check.month})`;
   }
 
   const image = a.kind !== "task2" ? await toReportImage("writing-practice", a.image_path) : null;
