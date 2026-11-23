@@ -2072,12 +2072,16 @@ the director log (Claude memory `director-log.md`); KPIs: `node scripts/growth-k
   writing checks, none of which a trial gets (owner's choice). Offered on the
   review page and dashboard once the student has >= 1 result and never had
   Premium or a trial (`trialEligible`).
-- **Student bot** (0070): its own token `TELEGRAM_STUDENT_BOT_TOKEN` +
-  `TELEGRAM_STUDENT_WEBHOOK_SECRET` + `STUDENT_BOT_USERNAME` (never the admin or
-  teacher bot). Webhook `/api/telegram-student` (private chats only), link via
-  `/api/student-bot/link` (single-use code, 15 min), daily cron
-  `/api/cron/telegram-daily` 05:00 UTC on Vercel (`?dry=1`), `last_daily` stops a
-  double send, a 403 turns the daily push off. Unconfigured = no UI anywhere.
+- **Student daily test** (0070) runs on **@MockOnlineMaterials_bot**, the SAME
+  bot as the Ultima PDFs (owner, 2026-11-23): one token
+  (`TELEGRAM_TEACHER_BOT_TOKEN`), one webhook (`/api/telegram-teacher`), which
+  routes `/start link_<code>`, `/test`, `/stop`, `/daily` to
+  `lib/student-bot-handler.ts` and keeps its own `/start pdf_…` flow. Never the
+  ADMIN bot. Link via `/api/student-bot/link` (single-use code, 15 min); daily
+  cron `/api/cron/telegram-daily` 05:00 UTC on VERCEL production (so Vercel
+  prod needs the teacher bot vars too), `?dry=1`, `last_daily` stops a double
+  send, a 403 turns the push off. `student_bot_links` is separate from
+  `teacher_bot_links` on purpose (daily opt-in lives on it).
 - `lib/passes.ts` and `lib/student-bot.ts` use an untyped `db()` client (the
   lib/ultima.ts stopgap) until `npm run types` is run with a token.
 - Channel posts are drafted in `docs/growth/` and are NEVER sent without the

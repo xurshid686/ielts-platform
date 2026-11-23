@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 
 import { SECRET_HEADER, secretsMatch } from "@/lib/telegram/auth";
 import { parseStart } from "@/lib/telegram/teacher-router";
+import { parseStudentText } from "@/lib/telegram/student-router";
+import { STUDENT_HELP, handleStudentCommand, isStudentCommand } from "@/lib/student-bot-handler";
 import { sendText, sendDocumentById, sendDocumentBytes, escapeHtml } from "@/lib/telegram/teacher-api";
 import { answerMessage } from "@/lib/telegram/answers-text";
 import { createDedupe } from "@/lib/telegram/dedupe";
@@ -78,12 +80,24 @@ export async function POST(req: Request) {
 }
 
 async function handle(chatId: number, text: string | undefined): Promise<void> {
+  // The same bot also runs the students' daily test (0070): /start link_<code>,
+  // /test, /stop, /daily. Its own /start pdf_… flow below is untouched.
+  const studentCmd = parseStudentText(text);
+  if (isStudentCommand(studentCmd)) {
+    await handleStudentCommand(chatId, studentCmd);
+    return;
+  }
+
   const action = parseStart(text);
 
   if (action.kind === "none") {
     await sendText(
       chatId,
-      "Hello! To get a test as a PDF, open the test on the site and press <b>Get a PDF</b>.",
+      `Hello! 👋
+
+${STUDENT_HELP}
+
+📄 Teachers on Ultima: open a test on the site and press <b>Get a PDF</b>.`,
       { label: "Open the site", href: SITE_URL },
     );
     return;

@@ -1,8 +1,9 @@
 import "server-only";
 
-// The STUDENT bot's slice of the Bot API (0070). Its own file and token: a bot
-// has exactly one webhook, and the admin (TELEGRAM_BOT_TOKEN) and teacher
-// (TELEGRAM_TEACHER_BOT_TOKEN) bots must never receive student traffic.
+// The daily-test sender (0070). It uses @MockOnlineMaterials_bot — the same bot
+// and token as the Ultima PDFs (TELEGRAM_TEACHER_BOT_TOKEN), owner's choice
+// 2026-11-23: one bot, one webhook (/api/telegram-teacher), which routes the
+// student commands to lib/student-bot-handler.ts. Never the ADMIN bot.
 // Same contract as api.ts / teacher-api.ts: nothing throws.
 
 import { with429Retry } from "./retry";
@@ -14,18 +15,18 @@ type Result<T> = { ok: true; value: T } | { ok: false; error: string; code?: num
 const API = (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replace(/\/+$/, "");
 
 export function studentBotConfigured(): boolean {
-  return Boolean(process.env.TELEGRAM_STUDENT_BOT_TOKEN && process.env.TELEGRAM_STUDENT_WEBHOOK_SECRET);
+  return Boolean(process.env.TELEGRAM_TEACHER_BOT_TOKEN && process.env.TELEGRAM_TEACHER_WEBHOOK_SECRET);
 }
 
 /** Public username (no @). Unset = no "Get a daily test on Telegram" button anywhere. */
 export function studentBotUsername(): string | null {
-  const u = (process.env.STUDENT_BOT_USERNAME || "").trim();
+  const u = (process.env.TEACHER_BOT_USERNAME || process.env.NEXT_PUBLIC_TEACHER_BOT_USERNAME || "").trim();
   return u ? u.replace(/^@/, "") : null;
 }
 
 async function call<T>(method: string, json: unknown): Promise<Result<T>> {
-  const t = process.env.TELEGRAM_STUDENT_BOT_TOKEN;
-  if (!t) return { ok: false, error: "TELEGRAM_STUDENT_BOT_TOKEN is not configured." };
+  const t = process.env.TELEGRAM_TEACHER_BOT_TOKEN;
+  if (!t) return { ok: false, error: "TELEGRAM_TEACHER_BOT_TOKEN is not configured." };
   try {
     type Body = { ok?: boolean; result?: T; description?: string; error_code?: number; parameters?: { retry_after?: number } };
     const { status, data } = await with429Retry(async () => {
