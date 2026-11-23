@@ -35,6 +35,7 @@ import { recommendForWeakType } from "@/lib/recommend";
 import { isPremiumActive, TRIAL_DAYS } from "@/lib/premium";
 import { hasActiveTrial, trialEligible } from "@/lib/passes";
 import { TrialOffer } from "@/components/premium/trial-offer";
+import { TelegramDailyCard } from "@/components/premium/telegram-daily-card";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 import { rows } from "@/types/database";
@@ -383,6 +384,8 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        <TelegramDailyCard userId={profile.id} />
+
         <WritingReportsCard reports={writingReports} />
       </div>
     );
@@ -423,6 +426,8 @@ export default async function DashboardPage() {
       </section>
 
       {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
+
+      <TelegramDailyCard userId={profile.id} />
 
       {/* Streak hero + overall band + key stats */}
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

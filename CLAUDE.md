@@ -2049,3 +2049,36 @@ time with unsubscribe.
   email links to `/premium` only, and nothing advertises Speaking.
 - `lib/recommend.ts` is the one "what next" rule, shared by the dashboard and
   the review screen, which now picks the next paper by weakest question type.
+
+# Growth: weekly passes, the 3-day trial, the student bot (0069 + 0070, owner 2026-11-23)
+
+Why: ~400 tests went Premium on 2026-11-15..18 (21 of 437 reading left free) and
+new-account activation fell from 55-65% to 32%. Every growth action is logged in
+the director log (Claude memory `director-log.md`); KPIs: `node scripts/growth-kpis.mjs` (read-only).
+
+- **Premium access is ONE rule: `canOpenPremium()` in `src/lib/tests/access.ts`**,
+  called by `resolveTestAccess` (every API route + saveResult) AND `TestDetail`.
+  Open = admin | active membership | active trial | a pass on THIS test.
+  Do not check `canAccessTest` alone for a premium paper any more.
+- **Weekly passes:** `PASSES_PER_WEEK = 3` (lib/premium.ts), week = Monday,
+  Asia/Tashkent (`passWeekStart` must match `claim_premium_pass()`'s SQL). A pass
+  opens its test FOREVER. Passes are spent ONLY by the explicit "Open this test
+  free" click (`claimPassAction`) - never by opening a page or calling an API, so
+  one attempt's html/key/video/saveResult calls cannot use passes up. Regular
+  track only (the RPC refuses others).
+- **Trial:** one per account, `TRIAL_DAYS = 3`, tests only. It lives in
+  `premium_trials`, NOT `profiles.premium_until`: that column drives the
+  Premium-expiring email, the renewal banner, instant mock entry and the paid AI
+  writing checks, none of which a trial gets (owner's choice). Offered on the
+  review page and dashboard once the student has >= 1 result and never had
+  Premium or a trial (`trialEligible`).
+- **Student bot** (0070): its own token `TELEGRAM_STUDENT_BOT_TOKEN` +
+  `TELEGRAM_STUDENT_WEBHOOK_SECRET` + `STUDENT_BOT_USERNAME` (never the admin or
+  teacher bot). Webhook `/api/telegram-student` (private chats only), link via
+  `/api/student-bot/link` (single-use code, 15 min), daily cron
+  `/api/cron/telegram-daily` 05:00 UTC on Vercel (`?dry=1`), `last_daily` stops a
+  double send, a 403 turns the daily push off. Unconfigured = no UI anywhere.
+- `lib/passes.ts` and `lib/student-bot.ts` use an untyped `db()` client (the
+  lib/ultima.ts stopgap) until `npm run types` is run with a token.
+- Channel posts are drafted in `docs/growth/` and are NEVER sent without the
+  owner's approval of that batch.
