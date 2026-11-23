@@ -11,7 +11,7 @@
 //       message id is appended to docs/growth/posted.log.
 //
 // A post is the text between a "## <Day> <D> <Mon>: …" heading and the next "---".
-import { readFileSync, appendFileSync } from "node:fs";
+import { readFileSync, appendFileSync, existsSync } from "node:fs";
 import { loadEnv } from "./env.mjs";
 
 loadEnv({ quiet: true });
@@ -99,12 +99,26 @@ if (mode === "--preview") {
   }
   console.log(`previewed ${posts.length} posts to the owner`);
 } else {
-  const day = arg;
+  // --send today  -> today's date in Tashkent (UTC+5), for the scheduled task.
+  const day = arg === "today" ? new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10) : arg;
   const ci = process.argv.indexOf("--channel");
   const channel = ci > 0 ? process.argv[ci + 1] : "@ReadinMarathons";
   const p = posts.find((x) => x.date === day);
-  if (!p) throw new Error(`no post for ${day}`);
+  if (!p) {
+    console.log(`no post for ${day} in ${file}; nothing sent`);
+    process.exit(0);
+  }
+  // Never post the same day to the same channel twice (a re-run, a retried task).
+  const logUrl = new URL("../docs/growth/posted.log", import.meta.url);
+  const already = existsSync(logUrl) && readFileSync(logUrl, "utf8").split(/\r?\n/).some((l) => {
+    const [, d, ch] = l.split("\t");
+    return d === day && ch === channel;
+  });
+  if (already) {
+    console.log(`${day} was already posted to ${channel}; nothing sent`);
+    process.exit(0);
+  }
   const id = await sendPost(env("TELEGRAM_TEACHER_BOT_TOKEN"), channel, p);
-  appendFileSync(new URL("../docs/growth/posted.log", import.meta.url), `${new Date().toISOString()}\t${day}\t${channel}\t${id}\n`);
+  appendFileSync(logUrl, `${new Date().toISOString()}\t${day}\t${channel}\t${id}\n`);
   console.log(`posted ${day} to ${channel}: message ${id}`);
 }

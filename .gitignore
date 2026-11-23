@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# daily channel-post task output
+docs/growth/channel-post-task.log
