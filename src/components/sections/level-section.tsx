@@ -1,6 +1,7 @@
 import { BookOpen, Headphones } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isPremiumActive } from "@/lib/premium";
+import { hasActiveTrial } from "@/lib/passes";
 import { LEVELS, type ContentLevel } from "@/lib/levels";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
@@ -36,7 +37,10 @@ export async function LevelSection({
 
   const testList = (tests ?? []) as Test[];
   const res = (results ?? []) as Result[];
-  const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
+  // The 3-day trial opens level-track Premium too (access.ts canOpenPremium agrees).
+  // Weekly passes do not apply here: claim_premium_pass() is regular-track only.
+  const canAccessPremium =
+    profile.role === "admin" || isPremiumActive(profile) || (await hasActiveTrial(profile.id));
 
   const toItem = (t: Test): BrowserItem => {
     const attempts = res.filter((r) => r.test_id === t.id);

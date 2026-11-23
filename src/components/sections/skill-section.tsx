@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/auth";
 import { avg } from "@/lib/utils";
 import { isPremiumActive } from "@/lib/premium";
 import { ultimaPdfIds } from "@/lib/ultima";
+import { hasActiveTrial, passState } from "@/lib/passes";
 import { Card } from "@/components/ui/card";
 import { TestBrowser, type BrowserItem } from "@/components/sections/test-browser";
 import { TestIndexLinks } from "@/components/sections/test-index-links";
@@ -57,7 +58,13 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
   // (pre_ielts / intro) live in their own menus. Missing track = regular.
   const testList = ((tests ?? []) as Test[]).filter((t) => (t.track ?? "regular") === "regular");
   const res = results ?? [];
-  const canAccessPremium = !!profile && (profile.role === "admin" || isPremiumActive(profile));
+  const member = !!profile && (profile.role === "admin" || isPremiumActive(profile));
+  // Weekly free passes + the 3-day trial (0069). Read only for a signed-in non-member.
+  const [trialOn, passes] =
+    profile && !member
+      ? await Promise.all([hasActiveTrial(profile.id), passState(profile.id)])
+      : [false, null];
+  const canAccessPremium = member || trialOn;
   // Ultima teachers get a "PDF" button on every reading card that has one. [] for everyone else.
   const pdfIds = skill === "reading" && profile ? await ultimaPdfIds(profile.id) : [];
 
@@ -203,6 +210,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
         isAdmin={profile?.role === "admin"}
         isGuest={!profile}
         pdfIds={pdfIds}
+        passTestIds={passes ? [...passes.testIds] : []}
+        passesLeft={passes && !canAccessPremium ? passes.left : null}
       />
 
       {!canAccessPremium && <PremiumContact className="mt-2" />}

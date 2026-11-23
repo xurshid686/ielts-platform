@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { canAccessTest } from "@/lib/premium";
-import { canOpenTrack } from "@/lib/tests/access";
+import { PASSES_PER_WEEK } from "@/lib/premium";
+import { canOpenPremium, canOpenTrack } from "@/lib/tests/access";
+import { passState } from "@/lib/passes";
+import { PassClaim } from "@/components/premium/pass-claim";
 import { TestRunner } from "@/components/test-runner";
 import { PremiumContact } from "@/components/premium-contact";
 import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
@@ -83,8 +85,12 @@ export async function TestDetail({
   // full-screen overlay around an entitlement-gated iframe.
   if (!profile) return <GuestTestGate skill={skill} test={t} />;
 
-  // Premium tests are locked unless subscriber/admin.
-  if (!canAccessTest(profile, t)) {
+  // Premium tests open for a member, an admin, an active trial, or a weekly
+  // free pass already spent on this test — one rule, shared with the API.
+  const locked = t.tier === "premium" && !(await canOpenPremium(profile, profile.id, t.id));
+  if (locked) {
+    // Weekly passes apply to the main library only (claim_premium_pass checks).
+    const passes = (t.track ?? "regular") === "regular" ? await passState(profile.id) : null;
     return (
       <div className="mx-auto max-w-md py-12 text-center">
         <Link
@@ -121,6 +127,9 @@ export async function TestDetail({
             is included with Premium, along with every other test in the library.
           </p>
         </div>
+        {passes && (
+          <PassClaim testId={t.id} left={passes.left} perWeek={PASSES_PER_WEEK} />
+        )}
         <PremiumContact className="mt-4 text-left" />
       </div>
     );
@@ -271,7 +280,7 @@ async function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; 
         <p className="mt-3 text-xs text-muted">
           {isFree
             ? "No account needed to try it. Create one to save your score and track your band over time."
-            : "It takes a moment, and your scores are saved so you can track your band over time."}
+            : "Every free account gets 3 Premium tests free each week, and your scores are saved so you can track your band."}
         </p>
       </div>
     </div>

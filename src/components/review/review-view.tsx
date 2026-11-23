@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TrialOffer } from "@/components/premium/trial-offer";
 import { ArrowLeft, ArrowRight, Check, X, CircleSlash, FileQuestion, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PremiumContact } from "@/components/premium-contact";
@@ -24,6 +25,7 @@ export function ReviewView({
   backLabel,
   nextTest,
   showUpgrade = false,
+  trialDays = null,
   lockedCount = 0,
   focus = null,
   lockedTest = null,
@@ -45,6 +47,8 @@ export function ReviewView({
   // looking at someone else's attempt gets neither.
   nextTest?: { id: string; title: string; kind: "single" | "full" } | null;
   showUpgrade?: boolean;
+  /** Offer the one-time free trial (days), or null. Own attempt only. */
+  trialDays?: number | null;
   lockedCount?: number;
   // The student's weakest question type in this skill. `nextTrainsIt` says the
   // "Keep going" paper was picked because it carries that type.
@@ -146,6 +150,8 @@ export function ReviewView({
       {/* What next — the point of maximum motivation, so it carries the only
           upgrade prompt on the page. Hidden when an admin is reviewing
           someone else's attempt. */}
+      {!subjectName && trialDays != null && <TrialOffer days={trialDays} />}
+
       {!subjectName && (nextTest || showUpgrade) && (
         <div className="grid items-start gap-3 sm:grid-cols-2">
           {nextTest && (

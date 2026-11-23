@@ -63,6 +63,8 @@ export function TestBrowser({
   isAdmin = false,
   isGuest = false,
   pdfIds = [],
+  passTestIds = [],
+  passesLeft = null,
 }: {
   items: BrowserItem[];
   skill: "reading" | "listening";
@@ -72,7 +74,12 @@ export function TestBrowser({
   isGuest?: boolean;
   /** Tests that have a PDF AND the viewer may fetch it (Ultima). Empty for everyone else. */
   pdfIds?: string[];
+  /** Premium tests this account opened with a weekly free pass (open forever). */
+  passTestIds?: string[];
+  /** Free passes left this week; null for guests and members (no pass UI). */
+  passesLeft?: number | null;
 }) {
+  const passSet = useMemo(() => new Set(passTestIds), [passTestIds]);
   const hasPdf = useMemo(() => new Set(pdfIds), [pdfIds]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -89,8 +96,8 @@ export function TestBrowser({
     (filter !== "all" ? 1 : 0) + (qType !== "all" ? 1 : 0) + (access !== "all" ? 1 : 0);
 
   const isOpen = useMemo(
-    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium,
-    [canAccessPremium],
+    () => (i: BrowserItem) => i.tier !== "premium" || canAccessPremium || passSet.has(i.id),
+    [canAccessPremium, passSet],
   );
 
   const openCount = useMemo(() => items.filter(isOpen).length, [items, isOpen]);
@@ -371,7 +378,9 @@ export function TestBrowser({
                     count={leadingTier === "free" ? premiumCount : freeCount}
                     note={
                       leadingTier === "free"
-                        ? `Included with Premium, from ${PREMIUM_PLANS[0].price}`
+                        ? passesLeft != null && passesLeft > 0
+                          ? `${passesLeft} free this week · or all of them with Premium, from ${PREMIUM_PLANS[0].price}`
+                          : `Included with Premium, from ${PREMIUM_PLANS[0].price}`
                         : undefined
                     }
                   />
@@ -461,9 +470,19 @@ export function TestBrowser({
                   )}
 
                   <div className="mt-2 flex items-center justify-between text-sm text-muted sm:mt-3">
-                    <span className={`tabular-nums ${locked ? "font-medium text-premium" : ""}`}>
+                    <span
+                      className={`tabular-nums ${
+                        locked
+                          ? passesLeft != null && passesLeft > 0
+                            ? "font-medium text-primary"
+                            : "font-medium text-premium"
+                          : ""
+                      }`}
+                    >
                       {locked
-                        ? `Unlock from ${PREMIUM_PLANS[0].price}`
+                        ? passesLeft != null && passesLeft > 0
+                          ? "Free this week"
+                          : `Unlock from ${PREMIUM_PLANS[0].price}`
                         : t.attempts
                           ? t.best != null
                             ? `Best band ${t.best}`

@@ -195,3 +195,16 @@ export async function notifyMockJoined(input: {
     console.error("[telegram] notifyMockJoined failed", e);
   }
 }
+
+/** A student started the one-time 3-day trial (0069). Info only. */
+export async function notifyTrialStarted(userId: string): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    const db = createAdminClient();
+    const { data: prof } = await db.from("profiles").select("name, email").eq("id", userId).maybeSingle();
+    const who = (prof as { name?: string | null; email?: string | null } | null) ?? {};
+    await push(`🎁 <b>${escapeHtml(who.name || who.email || "A student")}</b> started the 3-day free trial`);
+  } catch {
+    // Never let a notification fail the student's action.
+  }
+}

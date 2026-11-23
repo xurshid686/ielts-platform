@@ -4,7 +4,9 @@ import { PremiumWelcome } from "@/components/premium-welcome";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { getProfile, isDisciplineMember } from "@/lib/auth";
 import { PremiumRenewalBanner } from "@/components/premium-renewal-banner";
-import { isPremiumActive, membershipStage } from "@/lib/premium";
+import { isPremiumActive, membershipStage, trialDaysLeft } from "@/lib/premium";
+import { trialEndsAt } from "@/lib/passes";
+import { TrialBanner } from "@/components/premium/trial-banner";
 import { createClient } from "@/lib/supabase/server";
 import type { Notification } from "@/types/database";
 
@@ -51,6 +53,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ? { stage: membership.stage, days: membership.days, until: profile.premium_until }
       : null;
 
+  // 3-day trial (0069): a slim line while it runs. Members and admins never see it.
+  const trialDays =
+    profile.role !== "admin" && !isPremiumActive(profile)
+      ? trialDaysLeft(await trialEndsAt(profile.id))
+      : 0;
+
   return (
     <AppShell
       profile={profile}
@@ -65,6 +73,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {renewal && (
         <PremiumRenewalBanner {...renewal} />
       )}
+      {trialDays > 0 && <TrialBanner days={trialDays} />}
       {children}
     </AppShell>
   );

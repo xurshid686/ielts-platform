@@ -11,6 +11,7 @@ import { canAccessTest } from "@/lib/premium";
 import { canAccessTrack } from "@/lib/levels";
 import { canOpenMockPaper } from "@/lib/mock";
 import { fileStore } from "@/lib/storage";
+import { hasActiveTrial, hasPass } from "@/lib/passes";
 
 export type TestRow = {
   file_path?: string;
@@ -99,6 +100,27 @@ export type AccessResult =
   | { ok: false; status: 403 | 404 | 502; message: string };
 
 /**
+ * MAY THIS SIGNED-IN VIEWER OPEN A PREMIUM TEST? The one answer for the page
+ * (`TestDetail`) and the API (`resolveTestAccess`) — same reasoning as
+ * `canOpenTrack`: if they disagreed, the key route would leak or the page
+ * would refuse a paper the API serves.
+ *
+ * Open when: admin, an active membership, an active 3-day trial, or a weekly
+ * free pass already spent on THIS test (a pass opens its test forever).
+ * Nothing here SPENDS a pass — that is only the explicit claim action — so the
+ * html, key, video and saveResult calls of one attempt cannot use passes up.
+ */
+export async function canOpenPremium(
+  profile: { role: string; premium_until: string | null },
+  userId: string,
+  testId: string,
+): Promise<boolean> {
+  if (canAccessTest(profile, { tier: "premium" })) return true;
+  const [trial, pass] = await Promise.all([hasActiveTrial(userId), hasPass(userId, testId)]);
+  return trial || pass;
+}
+
+/**
  * Resolves a test and decides whether this request may have it.
  *
  * Anonymous callers may have FREE, regular-track tests only — that is what
@@ -158,10 +180,11 @@ export async function resolveTestAccess(id: string): Promise<AccessResult> {
   // second lock on the same door (the reasoning the Discipline upload uses).
   if (row.tier === "premium" && row.track !== "mock") {
     if (
-      !canAccessTest(
+      !(await canOpenPremium(
         { role: profile.role ?? "student", premium_until: profile.premium_until ?? null },
-        { tier: "premium" },
-      )
+        user.id,
+        id,
+      ))
     ) {
       return { ok: false, status: 403, message: "Premium membership required" };
     }

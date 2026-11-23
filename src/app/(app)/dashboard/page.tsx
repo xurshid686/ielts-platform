@@ -32,7 +32,9 @@ import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-tre
 import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
 import { computeTypeStats, weakestType } from "@/lib/analytics";
 import { recommendForWeakType } from "@/lib/recommend";
-import { isPremiumActive } from "@/lib/premium";
+import { isPremiumActive, TRIAL_DAYS } from "@/lib/premium";
+import { hasActiveTrial, trialEligible } from "@/lib/passes";
+import { TrialOffer } from "@/components/premium/trial-offer";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 import { rows } from "@/types/database";
@@ -278,7 +280,13 @@ export default async function DashboardPage() {
   const attemptedReadingIds = new Set(
     all.filter((r) => r.skill === "reading").map((r) => r.test_id),
   );
-  const canAccessPremium = profile.role === "admin" || isPremiumActive(profile);
+  const member = profile.role === "admin" || isPremiumActive(profile);
+  // 0069: the trial opens the library; a student who finished a test but never
+  // started it is offered it here as well as on their review page.
+  const [trialOn, offerTrial] = !member
+    ? await Promise.all([hasActiveTrial(profile.id), trialEligible(profile)])
+    : [false, false];
+  const canAccessPremium = member || trialOn;
   const userRating = profile.rating ?? 1000;
   const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
     attempted: attemptedReadingIds,
@@ -413,6 +421,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
 
       {/* Streak hero + overall band + key stats */}
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

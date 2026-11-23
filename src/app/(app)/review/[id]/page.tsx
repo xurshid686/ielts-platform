@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
-import { isPremiumActive } from "@/lib/premium";
+import { isPremiumActive, TRIAL_DAYS } from "@/lib/premium";
+import { hasActiveTrial, trialEligible } from "@/lib/passes";
 import { asAnswerKey, asAnswers, isAnswerCorrect } from "@/lib/ielts/grade";
 import { computeTypeStats, weakestType, type ResultLite } from "@/lib/analytics";
 import { lockedForWeakType, recommendForWeakType } from "@/lib/recommend";
@@ -67,7 +68,15 @@ export default async function ReviewPage({
   // how much of the library is still behind the paywall. Only computed for the
   // student's own attempt — an admin reviewing someone else sees neither.
   const isOwnAttempt = result.user_id === viewer.id;
-  const hasPremium = viewer.role === "admin" || isPremiumActive(viewer);
+  const member = viewer.role === "admin" || isPremiumActive(viewer);
+  // The 3-day trial opens the library like a membership does (tests only), and
+  // a student who has never had either is offered it here, at the moment of
+  // their result (0069, owner 2026-11-23).
+  const [trialOn, offerTrial] =
+    isOwnAttempt && !member
+      ? await Promise.all([hasActiveTrial(viewer.id), trialEligible(viewer)])
+      : [false, false];
+  const hasPremium = member || trialOn;
   let nextTest: { id: string; title: string; kind: "single" | "full" } | null = null;
   let lockedCount = 0;
   // The question type this student is weakest at in this skill, and whether
@@ -180,6 +189,7 @@ export default async function ReviewPage({
       backLabel={backLabel}
       nextTest={nextTest}
       showUpgrade={isOwnAttempt && !hasPremium}
+      trialDays={offerTrial ? TRIAL_DAYS : null}
       lockedCount={lockedCount}
       focus={focus}
       lockedTest={lockedTest}
