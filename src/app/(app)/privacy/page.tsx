@@ -126,8 +126,9 @@ export default function PrivacyPage() {
               from public rankings.
             </>,
             <>
-              <strong>Delete everything.</strong> Ask for deletion and your account and
-              all associated work will be removed. This cannot be undone.
+              <strong>Delete everything.</strong> Choose &ldquo;Delete account&rdquo; in
+              the account menu (or ask us) and your account and all associated work will
+              be removed. This cannot be undone.
             </>,
           ]}
         />

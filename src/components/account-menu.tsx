@@ -18,15 +18,31 @@ import {
   Compass,
   BellRing,
   BellOff,
+  Trash2,
 } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
 import { LEVELS, isContentLevel } from "@/lib/levels";
 import { setEmailReminders } from "@/app/actions/reminders";
+import { deleteMyAccount } from "@/app/actions/account";
 import type { Profile } from "@/types/database";
 
 export function AccountMenu({ profile }: { profile: Profile }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  // Delete account: a second dialog that needs the word DELETE typed.
+  const [deleting, setDeleting] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletePending, startDelete] = useTransition();
+  const canDelete = profile.role !== "admin" && !profile.is_owner;
+  function confirmDelete() {
+    setDeleteError(null);
+    startDelete(async () => {
+      // On success the action redirects, so this only returns on failure.
+      const res = await deleteMyAccount(deleteText);
+      if (res && !res.ok) setDeleteError(res.error);
+    });
+  }
   const ref = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   // Reminder emails (0061). Local state, because the profile prop is only
@@ -201,12 +217,76 @@ export function AccountMenu({ profile }: { profile: Profile }) {
             >
               <LogOut className="h-4 w-4" /> Sign out
             </button>
+            {canDelete && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setDeleteText("");
+                  setDeleteError(null);
+                  setDeleting(true);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs text-muted hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 className="h-4 w-4" /> Delete account
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {/* Hidden real sign-out form (POST) */}
       <form ref={formRef} action="/auth/signout" method="post" className="hidden" />
+
+      {/* Confirm delete account */}
+      {deleting && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-elevated">
+            <button
+              onClick={() => !deletePending && setDeleting(false)}
+              className="absolute right-3 top-3 text-muted hover:text-foreground"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <h3 className="mt-3 text-center font-semibold">Delete your account?</h3>
+            <p className="mt-2 text-sm text-muted">
+              This permanently deletes your account, test results, writing and speaking work, streak, XP and
+              rating{premium ? ", and any remaining Premium time" : ""}. It cannot be undone.
+            </p>
+            <label className="mt-4 block text-sm">
+              Type <span className="font-semibold">DELETE</span> to confirm
+              <input
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                autoFocus
+                autoComplete="off"
+                disabled={deletePending}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-danger"
+              />
+            </label>
+            {deleteError && <p className="mt-2 text-sm text-danger">{deleteError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setDeleting(false)}
+                disabled={deletePending}
+                className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-surface-2 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deletePending || deleteText.trim().toUpperCase() !== "DELETE"}
+                className="flex-1 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {deletePending ? "Deleting…" : "Delete forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm sign out */}
       {confirm && (
