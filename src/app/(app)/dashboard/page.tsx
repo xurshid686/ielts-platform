@@ -331,8 +331,10 @@ export default async function DashboardPage() {
   // A student who has not finished anything used to get the full dashboard:
   // a streak hero showing 0, four stat cards showing 0, an empty band box, an
   // empty rating card and five empty charts, with three different "start here"
-  // areas between them. They get ONE screen instead: what to do first, and
-  // their target band. Everything else appears once there is something in it.
+  // areas between them. They get ONE screen instead: what to do first.
+  // The target-band picker was removed from here (owner, 2026-11-23): it was a
+  // second decision standing between a new account and its first test. It
+  // appears on the full dashboard once they have finished something.
   if (totalCompleted === 0) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
@@ -374,10 +376,6 @@ export default async function DashboardPage() {
         </section>
 
         <WritingReportsCard reports={writingReports} />
-
-        <div id="goal" className="scroll-mt-20">
-          <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
-        </div>
       </div>
     );
   }
