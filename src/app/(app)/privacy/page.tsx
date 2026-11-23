@@ -110,7 +110,10 @@ export default function PrivacyPage() {
           Your account and practice history are kept for as long as your account exists,
           because your progress charts and history are the point of having one. When an
           account is deleted, its profile, results, submissions and recordings are deleted
-          with it.
+          with it. The one exception is a mock exam you sat: the record of that sitting
+          (your name, email, answers and marks) is kept so the exam&rsquo;s results stay
+          complete, but it is no longer linked to any account. Ask us if you want it
+          removed too.
         </p>
       </Section>
 
