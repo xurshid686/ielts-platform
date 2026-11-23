@@ -44,10 +44,33 @@ async function failure(res: Response, what: string): Promise<StorageError> {
   return err(`${what} failed: ${res.status}${code ? ` ${code}` : ""}`);
 }
 
-function toBody(body: Blob | ArrayBuffer | Uint8Array | Buffer): BodyInit {
-  if (body instanceof Blob || body instanceof ArrayBuffer) return body;
+async function toArrayBuffer(body: Blob | ArrayBuffer | Uint8Array | Buffer): Promise<ArrayBuffer> {
+  if (body instanceof Blob) return body.arrayBuffer();
+  if (body instanceof ArrayBuffer) return body;
   // Copy into a plain ArrayBuffer: a Buffer can be a view over a larger pool.
   return new Uint8Array(body).buffer as ArrayBuffer;
+}
+
+/**
+ * Signs with aws4fetch but SENDS with `fetch(url, init)` — never a `Request`.
+ *
+ * aws4fetch's own `.fetch()` hands the global fetch a `Request` object. Inside
+ * Next, the patched fetch rebuilds a Request input as
+ * `new Request(url, { body: req.body })`, and `req.body` is a ReadableStream:
+ * the length is lost, the PUT goes out chunked, and R2 answers
+ * `411 MissingContentLength` (owner report 2026-11-23 — every admin upload
+ * failed). An ArrayBuffer in `init.body` passes through the patch untouched,
+ * so Content-Length is set. Retries 5xx/429 as aws4fetch did.
+ */
+async function signedFetch(target: string, init: { method: string; headers: Record<string, string>; body: ArrayBuffer }) {
+  let res: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    const signed = await client().sign(target, init);
+    res = await fetch(signed.url, { method: init.method, headers: signed.headers, body: init.body });
+    if (res.status < 500 && res.status !== 429) return res;
+    await new Promise((r) => setTimeout(r, 100 * 2 ** i));
+  }
+  return res as Response;
 }
 
 /** Decodes the five XML entities S3 escapes in `<Key>`. */
@@ -81,7 +104,7 @@ export function r2Bucket(bucket: string): FileStore {
         // Supabase's `upsert: false` refuses to overwrite; R2 honours the same
         // conditional PUT, so a path collision fails here as it did there.
         if (!opts?.upsert) headers["If-None-Match"] = "*";
-        const res = await client().fetch(url(path), { method: "PUT", headers, body: toBody(body) });
+        const res = await signedFetch(url(path), { method: "PUT", headers, body: await toArrayBuffer(body) });
         if (res.status === 412) return { error: err("The resource already exists") };
         if (!res.ok) return { error: await failure(res, "Upload") };
         return { error: null };

@@ -23,7 +23,12 @@ beforeEach(() => {
   respond = () => new Response(null, { status: 200 });
   vi.stubGlobal("fetch", async (input: Request | string, init?: RequestInit) => {
     const req = input instanceof Request ? input : new Request(input, init);
-    const c = { url: req.url, method: req.method, headers: req.headers };
+    const c = {
+      url: req.url,
+      method: req.method,
+      headers: req.headers,
+      body: input instanceof Request ? "REQUEST_OBJECT" : init?.body,
+    };
     calls.push(c);
     return respond(c);
   });
@@ -85,6 +90,26 @@ describe("R2 backend", () => {
     expect(calls[0].method).toBe("PUT");
     expect(calls[0].headers.get("if-none-match")).toBe("*");
     expect(calls[0].headers.get("content-type")).toBe("text/html");
+  });
+
+  it("upload sends a sized ArrayBuffer body via (url, init), never a Request (R2 411 fix)", async () => {
+    // Next's patched fetch turns a Request input's body into a stream, which
+    // drops Content-Length and R2 answers 411 MissingContentLength.
+    for (const body of [new Blob(["<html>"]), Buffer.from("<html>"), new Uint8Array([1, 2, 3])]) {
+      calls = [];
+      const { error } = await fileStore("tests", null as never).upload("a", body, { upsert: true });
+      expect(error).toBeNull();
+      expect(calls[0].body).toBeInstanceOf(ArrayBuffer);
+      expect(calls[0].headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256 /);
+    }
+  });
+
+  it("upload retries a 5xx and then succeeds", async () => {
+    let n = 0;
+    respond = () => new Response(null, { status: n++ === 0 ? 503 : 200 });
+    const { error } = await fileStore("tests", null as never).upload("a", new Blob(["x"]), { upsert: true });
+    expect(error).toBeNull();
+    expect(calls.length).toBe(2);
   });
 
   it("upload with upsert overwrites", async () => {
