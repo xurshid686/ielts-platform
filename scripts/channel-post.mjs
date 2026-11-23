@@ -31,30 +31,71 @@ if (!file || !["--preview", "--send"].includes(mode)) {
 const md = readFileSync(file, "utf8");
 const MONTHS = { Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06", Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12" };
 const year = (/(\d{4})/.exec(file) || [])[1] || String(new Date().getFullYear());
-const posts = [...md.matchAll(/^## \w+ (\d{1,2}) (\w{3})[^\n]*\n([\s\S]*?)(?=\n---|\s*$)/gm)].map((m) => ({
+// Normalise CRLF first: git checks this file out with Windows line endings,
+// and a CR before "$" cut every post down to its first line (2026-11-23).
+const posts = md
+  .replace(/\r\n/g, "\n")
+  .split(/\n---\s*\n/)
+  .map((b) => /^## \w+ (\d{1,2}) (\w{3})[^\n]*\n([\s\S]*)$/m.exec(b))
+  .filter(Boolean)
+  .map((m) => ({
   date: `${year}-${MONTHS[m[2]]}-${m[1].padStart(2, "0")}`,
   text: m[3].trim(),
 }));
 if (!posts.length) throw new Error("no posts found");
 
-async function send(token, chatId, text) {
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
-  });
+const FOOTER = '\n\n🌐 <a href="https://mockonline.uz">mockonline.uz</a> · 📢 @ReadinMarathons';
+
+/** Caption = the post + footer; the test link also goes on a button under the photo. */
+function build(p) {
+  const url = (/https:\/\/mockonline\.uz\/(?:reading|listening)\/[0-9a-f-]{36}/.exec(p.text) || [])[0];
+  if (!url) throw new Error(`${p.date}: no test link in the post`);
+  const caption = p.text + FOOTER;
+  if (caption.length > 1024) throw new Error(`${p.date}: caption ${caption.length} > 1024`);
+  const shot = new URL(`../docs/growth/shots/${p.date}.png`, import.meta.url);
+  return { url, caption, shot };
+}
+
+async function api(token, method, body) {
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", body });
   const j = await res.json();
-  if (!j.ok) throw new Error(j.description);
+  if (!j.ok) throw new Error(`${method}: ${j.description}`);
   return j.result.message_id;
+}
+
+async function sendText(token, chatId, text) {
+  const f = new FormData();
+  f.set("chat_id", String(chatId));
+  f.set("text", text);
+  f.set("parse_mode", "HTML");
+  return api(token, "sendMessage", f);
+}
+
+/** Photo (the test in the real exam screen) + caption + "Start the test" button. */
+async function sendPost(token, chatId, p, prefix = "") {
+  const { url, caption, shot } = build(p);
+  const f = new FormData();
+  f.set("chat_id", String(chatId));
+  f.set("photo", new Blob([readFileSync(shot)], { type: "image/png" }), `${p.date}.png`);
+  f.set("caption", prefix + caption);
+  f.set("parse_mode", "HTML");
+  f.set("reply_markup", JSON.stringify({ inline_keyboard: [[{ text: "▶️ Start the test", url }]] }));
+  return api(token, "sendPhoto", f);
+}
+
+// Fail before sending anything if any post is broken (no link, too long, no picture).
+for (const p of posts) {
+  const { shot } = build(p);
+  readFileSync(shot);
 }
 
 if (mode === "--preview") {
   const token = env("TELEGRAM_BOT_TOKEN");
   const owner = env("TELEGRAM_OWNER_ID");
-  await send(token, owner, `👀 <b>Preview: ${posts.length} channel posts</b> (${posts[0].date} … ${posts.at(-1).date}).\nNothing has been posted to the channel. Reply to Claude with approve / changes.`);
+  await sendText(token, owner, `👀 <b>Preview: ${posts.length} channel posts</b> (${posts[0].date} … ${posts.at(-1).date}).\nEach is a picture + text + a button. Nothing has been posted to the channel. Reply to Claude with approve / changes.`);
   for (const p of posts) {
-    await send(token, owner, `🗓 <i>${p.date}</i>\n\n${p.text}`);
-    await new Promise((r) => setTimeout(r, 400));
+    await sendPost(token, owner, p, `🗓 <i>${p.date}</i>\n\n`);
+    await new Promise((r) => setTimeout(r, 600));
   }
   console.log(`previewed ${posts.length} posts to the owner`);
 } else {
@@ -63,7 +104,7 @@ if (mode === "--preview") {
   const channel = ci > 0 ? process.argv[ci + 1] : "@ReadinMarathons";
   const p = posts.find((x) => x.date === day);
   if (!p) throw new Error(`no post for ${day}`);
-  const id = await send(env("TELEGRAM_TEACHER_BOT_TOKEN"), channel, p.text);
+  const id = await sendPost(env("TELEGRAM_TEACHER_BOT_TOKEN"), channel, p);
   appendFileSync(new URL("../docs/growth/posted.log", import.meta.url), `${new Date().toISOString()}\t${day}\t${channel}\t${id}\n`);
   console.log(`posted ${day} to ${channel}: message ${id}`);
 }
