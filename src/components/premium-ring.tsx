@@ -10,10 +10,13 @@ import { Crown } from "lucide-react";
 export function PremiumRing({
   on,
   crown = "sm",
+  inner = "bg-surface",
   children,
 }: {
   on: boolean;
   crown?: "sm" | "md" | "lg" | "none";
+  /** Solid colour behind the avatar (a see-through initials circle sits on it). */
+  inner?: string;
   children: React.ReactNode;
 }) {
   if (!on) return <>{children}</>;
@@ -21,7 +24,7 @@ export function PremiumRing({
   const icon = crown === "lg" ? "h-4 w-4" : crown === "md" ? "h-3 w-3" : "h-2.5 w-2.5";
   return (
     <span className="premium-ring" title="Premium member">
-      {children}
+      <span className={`premium-ring-inner ${inner}`}>{children}</span>
       {crown !== "none" && (
         <span className={`premium-crown ${box}`} aria-label="Premium member">
           <Crown className={icon} />
