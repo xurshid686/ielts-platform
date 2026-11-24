@@ -46,6 +46,8 @@ export function PricingCards({
   const ultima = ULTIMA_PLANS.find((p) => p.months === months) ?? ULTIMA_PLANS[0];
   const monthly = PREMIUM_PLANS.find((p) => p.months === 1)!;
   const saved = monthly.priceUzs * months - premium.priceUzs;
+  const ultimaMonthly = ULTIMA_PLANS.find((p) => p.months === 1)!;
+  const ultimaSaved = ultimaMonthly.priceUzs * months - ultima.priceUzs;
 
   function buy(plan: Buy["plan"]) {
     if (!signedIn) {
@@ -117,7 +119,7 @@ export function PricingCards({
           <Price
             main={formatUzs(premium.priceUzs)}
             per={`/ ${premium.label}`}
-            sub={`≈ ${premium.price}${months > 1 ? ` · ${formatUzs(Math.round(premium.priceUzs / months))} a month` : ""}`}
+            sub={`≈ ${premium.usd}${months > 1 ? ` · ${formatUzs(Math.round(premium.priceUzs / months))} a month` : ""}`}
             save={saved > 0 ? `Save ${formatUzs(saved)}` : undefined}
           />
           {!isAdmin && (
@@ -139,7 +141,12 @@ export function PricingCards({
         {/* Ultima */}
         <Card>
           <CardHead title="Ultima" tag="For teachers" icon={<FileDown className="h-4 w-4" />} />
-          <Price main={ultima.price} per={`/ ${ultima.label}`} sub="includes Premium for the same period" />
+          <Price
+            main={formatUzs(ultima.priceUzs)}
+            per={`/ ${ultima.label}`}
+            sub={`≈ ${ultima.usd} · includes Premium for the same period`}
+            save={ultimaSaved > 0 ? `Save ${formatUzs(ultimaSaved)}` : undefined}
+          />
           {!isAdmin && (
             <button
               onClick={() => buy("ultima")}

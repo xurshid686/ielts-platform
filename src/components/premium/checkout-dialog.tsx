@@ -42,7 +42,7 @@ export function CheckoutDialog({
   const [error, setError] = useState<string | null>(null);
 
   const label = plan === "premium" ? "Premium" : "Ultima";
-  const price = plan === "premium" ? formatUzs(premium.priceUzs) : ultima.price;
+  const price = formatUzs(plan === "premium" ? premium.priceUzs : ultima.priceUzs);
   const period = plan === "premium" ? premium.label : ultima.label;
   const telegramUrl =
     plan === "premium" ? premiumRequestUrl(email, premium.months) : ultimaRequestUrl(email, ultima.months);

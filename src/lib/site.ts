@@ -14,16 +14,21 @@ export const PREMIUM_TELEGRAM_URL = "https://t.me/ListeningReadingTests";
  * owner directly, and the owner grants the period on /admin/members, whose
  * period list must keep offering every `months` value below.
  */
-export const PREMIUM_PLANS: {
+export type Plan = {
   months: number;
   label: string;
+  /** The price shown everywhere: so'm (owner, 2026-11-24: one currency across plans). */
   price: string;
-  /** What Payme/Click charge, in so'm (owner, 2026-11-24). The server's own number, never the browser's. */
+  /** What Payme/Click charge, in so'm. The server's own number, never the browser's. */
   priceUzs: number;
+  /** A small "≈ $2" hint for visitors thinking in dollars. */
+  usd: string;
   note?: string;
-}[] = [
-  { months: 1, label: "1 month", price: "$2", priceUzs: 25_000 },
-  { months: 3, label: "3 months", price: "$5", priceUzs: 60_000, note: "Save $1" },
+};
+
+export const PREMIUM_PLANS: Plan[] = [
+  { months: 1, label: "1 month", price: formatUzs(25_000), priceUzs: 25_000, usd: "$2" },
+  { months: 3, label: "3 months", price: formatUzs(60_000), priceUzs: 60_000, usd: "$5", note: `Save ${formatUzs(15_000)}` },
 ];
 
 /** "25 000 so'm": a no-break space between thousands, the Uzbek way. */
@@ -31,7 +36,7 @@ export function formatUzs(n: number): string {
   return `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0")} so'm`;
 }
 
-/** One line for small spaces: "$2 for 1 month · $5 for 3 months". */
+/** One line for small spaces: "25 000 so'm for 1 month · 60 000 so'm for 3 months". */
 export const PREMIUM_PRICE_LINE = PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");
 
 /**
@@ -60,12 +65,12 @@ export function premiumRequestUrl(account?: string | null, months?: number): str
  * Telegram, pays, and the owner grants it on /admin/members (which also extends Premium by the same
  * period). Prices are set by the owner and live here only.
  */
-export const ULTIMA_PLANS: { months: number; label: string; price: string; note?: string }[] = [
-  { months: 1, label: "1 month", price: "$5" },
-  { months: 3, label: "3 months", price: "$12", note: "Save $3" },
+export const ULTIMA_PLANS: Plan[] = [
+  { months: 1, label: "1 month", price: formatUzs(50_000), priceUzs: 50_000, usd: "$4" },
+  { months: 3, label: "3 months", price: formatUzs(120_000), priceUzs: 120_000, usd: "$10", note: `Save ${formatUzs(30_000)}` },
 ];
 
-/** One line for small spaces: "$5 for 1 month · $12 for 3 months". */
+/** One line for small spaces: "50 000 so'm for 1 month · 120 000 so'm for 3 months". */
 export const ULTIMA_PRICE_LINE = ULTIMA_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");
 
 /** The Ultima request link: the owner's chat with a message already typed (see premiumRequestUrl). */

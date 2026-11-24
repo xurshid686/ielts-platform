@@ -17,12 +17,12 @@ describe("plans", () => {
     const n = (s: string) => Number(s.replace(/[^0-9.]/g, ""));
     for (const u of ULTIMA_PLANS) {
       const p = PREMIUM_PLANS.find((x) => x.months === u.months);
-      if (p) expect(n(u.price)).toBeGreaterThan(n(p.price));
+      if (p) expect(u.priceUzs).toBeGreaterThan(p.priceUzs);
     }
   });
   it("the price line lists every plan", () => {
-    expect(ULTIMA_PRICE_LINE).toContain("$5 for 1 month");
-    expect(ULTIMA_PRICE_LINE).toContain("$12 for 3 months");
+    expect(ULTIMA_PRICE_LINE).toContain("50\u00a0000 so'm for 1 month");
+    expect(ULTIMA_PRICE_LINE).toContain("120\u00a0000 so'm for 3 months");
   });
 });
 
@@ -32,7 +32,7 @@ describe("ultimaRequestUrl", () => {
     expect(url.startsWith("https://t.me/ListeningReadingTests?text=")).toBe(true);
     const text = decodeURIComponent(url.split("?text=")[1]);
     expect(text).toContain("Ultima (includes Premium)");
-    expect(text).toContain("3 months ($12)");
+    expect(text).toContain("3 months (120\u00a0000 so'm)");
     expect(text).toContain("My account: teacher@example.com");
   });
   it("still works without a plan or an account", () => {
