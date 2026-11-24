@@ -33,6 +33,9 @@ import { listMockChecks } from "@/lib/writing-ai";
 import { WritingPrompt } from "@/components/mock/writing-prompt";
 import { ReportDownloads } from "@/components/mock/report-downloads";
 import { SendResultEmail } from "@/components/admin/send-result-email";
+import { SendResultSms } from "@/components/admin/send-result-sms";
+import { getResultSmsStatus } from "@/lib/mock-sms";
+import { formatUzPhone } from "@/lib/sms/format";
 
 export const metadata = { title: "Mock attempt" };
 
@@ -73,13 +76,15 @@ export default async function AdminMockAttemptPage({
   const withBack = (attemptId: string) =>
     `/admin/mocks/attempts/${attemptId}${back ? `?back=${encodeURIComponent(back)}` : ""}`;
 
-  const [queue, stillSitting, messages, aiChecks] = await Promise.all([
+  const [queue, stillSitting, messages, aiChecks, sms] = await Promise.all([
     gradingQueue(a.id, a.mock_id),
     countStillSitting(a.mock_id, a.id),
     // This attempt's email history (0056) — newest first, both kinds.
     attemptMessages(a.id),
     // The owner's private AI drafts (0063). Never loaded by a student page.
     listMockChecks(a.id),
+    // The result SMS record (0071).
+    getResultSmsStatus(a.id),
   ]);
   const stage = adminStage(a);
   const integrity = asIntegrity(a.integrity);
@@ -165,6 +170,14 @@ export default async function AdminMockAttemptPage({
         sentAt={a.result_email_sent_at ? tashkent(a.result_email_sent_at) : null}
         to={a.result_email_to ?? a.student_email}
         error={a.result_email_error}
+        released={a.status === "released"}
+      />
+
+      <SendResultSms
+        attemptId={a.id}
+        sentAt={sms?.sentAt ? tashkent(sms.sentAt) : null}
+        to={sms?.to ? formatUzPhone(sms.to) : null}
+        error={sms?.error ?? null}
         released={a.status === "released"}
       />
 

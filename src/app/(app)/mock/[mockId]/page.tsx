@@ -79,7 +79,13 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
             <li>No scores are shown during the mock. Your teacher releases the full result.</li>
           </ul>
           <DeviceNotice>
-            <BeginMockButton mockId={mockId} href={`/mock/${mockId}/listening`} label="Start the mock" />
+            <BeginMockButton
+              mockId={mockId}
+              href={`/mock/${mockId}/listening`}
+              label="Start the mock"
+              // profiles is read with select("*"); phone (0071) is not in the generated types yet.
+              phone={(profile as typeof profile & { phone?: string | null }).phone ?? null}
+            />
           </DeviceNotice>
         </Card>
       )}
@@ -115,7 +121,8 @@ export default async function MockOverviewPage({ params }: { params: Promise<{ m
       {attempt.status === "submitted" && (
         <Card className="text-sm text-muted">
           All sections are submitted. Your teacher is marking your writing — when your result is released
-          we email it to you with your results paper attached, and you get a notification here.
+          we email it to you with your results paper attached (and text it to you if you gave a phone number), and you get a
+          notification here.
         </Card>
       )}
     </div>

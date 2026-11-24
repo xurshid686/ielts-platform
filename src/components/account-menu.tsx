@@ -19,11 +19,15 @@ import {
   BellRing,
   BellOff,
   Trash2,
+  Smartphone,
 } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
 import { LEVELS, isContentLevel } from "@/lib/levels";
 import { setEmailReminders } from "@/app/actions/reminders";
 import { deleteMyAccount } from "@/app/actions/account";
+import { setPhone } from "@/app/actions/profile";
+import { formatUzPhone, localUzDigits } from "@/lib/sms/format";
+import { UzPhoneInput, uzLocalIsValid } from "@/components/uz-phone-input";
 import type { Profile } from "@/types/database";
 
 export function AccountMenu({ profile }: { profile: Profile }) {
@@ -41,6 +45,31 @@ export function AccountMenu({ profile }: { profile: Profile }) {
       // On success the action redirects, so this only returns on failure.
       const res = await deleteMyAccount(deleteText);
       if (res && !res.ok) setDeleteError(res.error);
+    });
+  }
+  // Optional phone for SMS mock results (0071). profiles is read with
+  // select("*"), but phone is not in the generated types yet.
+  const [savedPhone, setSavedPhone] = useState<string | null>(
+    (profile as Profile & { phone?: string | null }).phone ?? null,
+  );
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [phoneLocal, setPhoneLocal] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phonePending, startPhone] = useTransition();
+  function savePhone(local: string) {
+    if (!uzLocalIsValid(local)) {
+      setPhoneError("Enter all 9 digits after +998, or clear the box.");
+      return;
+    }
+    setPhoneError(null);
+    startPhone(async () => {
+      const res = await setPhone(local ? `998${local}` : "");
+      if (!res.ok) {
+        setPhoneError(res.error);
+        return;
+      }
+      setSavedPhone(res.phone);
+      setPhoneOpen(false);
     });
   }
   const ref = useRef<HTMLDivElement>(null);
@@ -209,6 +238,20 @@ export function AccountMenu({ profile }: { profile: Profile }) {
               </span>
             </button>
             <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setPhoneLocal(savedPhone ? localUzDigits(savedPhone) : "");
+                setPhoneError(null);
+                setPhoneOpen(true);
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-2"
+            >
+              <Smartphone className="h-4 w-4" />
+              <span className="flex-1">Phone for SMS results</span>
+              <span className="text-xs font-medium text-muted">{savedPhone ? "Set" : "Off"}</span>
+            </button>
+            <button
               onClick={() => {
                 setOpen(false);
                 setConfirm(true);
@@ -236,6 +279,64 @@ export function AccountMenu({ profile }: { profile: Profile }) {
 
       {/* Hidden real sign-out form (POST) */}
       <form ref={formRef} action="/auth/signout" method="post" className="hidden" />
+
+      {/* Phone for SMS mock results (0071) */}
+      {phoneOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-elevated">
+            <button
+              onClick={() => !phonePending && setPhoneOpen(false)}
+              className="absolute right-3 top-3 text-muted hover:text-foreground"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Smartphone className="h-6 w-6" />
+            </div>
+            <h3 className="mt-3 text-center font-semibold">Phone for SMS results</h3>
+            <p className="mt-2 text-sm text-muted">
+              Optional. When your mock result is released we text your bands and a link to your answers. Uzbek (+998)
+              numbers only.
+            </p>
+            {savedPhone && <p className="mt-2 text-sm">Now: <span className="font-medium tabular-nums">{formatUzPhone(savedPhone)}</span></p>}
+            <label htmlFor="menu-sms-phone" className="mt-4 block text-sm font-medium">
+              Phone number
+            </label>
+            <div className="mt-1.5">
+              <UzPhoneInput
+                id="menu-sms-phone"
+                value={phoneLocal}
+                onChange={(v) => {
+                  setPhoneLocal(v);
+                  if (phoneError && uzLocalIsValid(v)) setPhoneError(null);
+                }}
+                disabled={phonePending}
+                invalid={!!phoneError}
+              />
+            </div>
+            {phoneError && <p className="mt-2 text-sm text-danger">{phoneError}</p>}
+            <div className="mt-5 flex gap-2">
+              {savedPhone && (
+                <button
+                  onClick={() => savePhone("")}
+                  disabled={phonePending}
+                  className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-medium text-danger hover:bg-danger/10 disabled:opacity-60"
+                >
+                  Remove
+                </button>
+              )}
+              <button
+                onClick={() => savePhone(phoneLocal)}
+                disabled={phonePending}
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {phonePending ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm delete account */}
       {deleting && (

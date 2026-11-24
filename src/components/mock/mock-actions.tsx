@@ -7,6 +7,8 @@ import { Clock, Crown, Loader2, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { beginMock, joinMock, requestMock } from "@/app/actions/mock";
 import { MAX_REQUEST_MESSAGE, type MockRequestStatus } from "@/lib/mock-shared";
+import { localUzDigits } from "@/lib/sms/format";
+import { UzPhoneInput, uzLocalIsValid } from "@/components/uz-phone-input";
 
 /**
  * "Request this mock" — or the state of a request already sent.
@@ -174,26 +176,69 @@ function RequestFlow({
 }
 
 /** Starts the exam clock record, then opens the first section. */
-export function BeginMockButton({ mockId, href, label }: { mockId: string; href: string; label: string }) {
+export function BeginMockButton({
+  mockId,
+  href,
+  label,
+  phone,
+}: {
+  mockId: string;
+  href: string;
+  label: string;
+  /** Pass the stored number (or null) to show the optional SMS phone field (0071). */
+  phone?: string | null;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const askPhone = phone !== undefined;
+  const [local, setLocal] = useState(() => (phone ? localUzDigits(phone) : ""));
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  function start() {
+    setError(null);
+    // Optional, never required. Only a HALF-typed number stops the start, so a
+    // student who meant to give one isn't silently left without the SMS.
+    if (askPhone && !uzLocalIsValid(local)) {
+      setPhoneError("Enter all 9 digits after +998, or clear the box to continue without SMS.");
+      return;
+    }
+    setPhoneError(null);
+    startTransition(async () => {
+      const res = await beginMock(mockId, askPhone ? (local ? `998${local}` : "") : undefined);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      router.push(href);
+    });
+  }
 
   return (
-    <div className="flex flex-col items-start gap-1">
-      <Button
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            const res = await beginMock(mockId);
-            if (!res.ok) {
-              setError(res.error);
-              return;
-            }
-            router.push(href);
-          })
-        }
-      >
+    <div className="flex flex-col items-start gap-3">
+      {askPhone && (
+        <div className="w-full space-y-1.5">
+          <label htmlFor="mock-sms-phone" className="block text-sm font-medium">
+            Phone for your result by SMS <span className="font-normal text-muted">(optional)</span>
+          </label>
+          <UzPhoneInput
+            id="mock-sms-phone"
+            value={local}
+            onChange={(v) => {
+              setLocal(v);
+              if (phoneError && uzLocalIsValid(v)) setPhoneError(null);
+            }}
+            disabled={pending}
+            invalid={!!phoneError}
+          />
+          {phoneError ? (
+            <p className="text-sm text-danger">{phoneError}</p>
+          ) : (
+            <p className="text-xs text-muted">Uzbek (+998) numbers only. Leave it empty if you study from abroad.</p>
+          )}
+        </div>
+      )}
+      <Button disabled={pending} onClick={start}>
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
         {label}
       </Button>

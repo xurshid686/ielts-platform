@@ -61,6 +61,8 @@ import {
 import { MAX_REQUEST_MESSAGE, SECTION_ORDER, WRITING_MAX_VIOLATIONS, type MockSection } from "@/lib/mock-shared";
 import { notifyMockFinished, notifyMockJoined, notifyMockRequest } from "@/lib/telegram/notify";
 import { isPremiumActive } from "@/lib/premium";
+import { clearResultSmsStamp, smsMockResult, smsMockResults } from "@/lib/mock-sms";
+import { normalizeUzPhone } from "@/lib/sms/format";
 
 // Server actions for the Mock exam section (migration 0050).
 //
@@ -172,9 +174,29 @@ export async function joinMock(mockId: string): Promise<MockActionResult> {
   return { ok: true };
 }
 
-export async function beginMock(mockId: string): Promise<MockActionResult> {
-  const { user } = await sessionUser();
+/**
+ * `phone` is the OPTIONAL number for an SMS of the result (0071): undefined
+ * leaves the profile alone, "" clears it, anything else must be an Uzbek
+ * mobile. It is the student's own field, so it goes through their own client
+ * (profiles_update_self), like setTargetBand.
+ */
+export async function beginMock(mockId: string, phone?: string | null): Promise<MockActionResult> {
+  const { supabase, user } = await sessionUser();
   if (!user) return { ok: false, error: "Sign in first." };
+  if (phone !== undefined) {
+    const digits = (phone ?? "").replace(/\D/g, "");
+    const empty = digits === "" || digits === "998"; // a bare "+998" prefix counts as empty
+    const normalized = empty ? null : normalizeUzPhone(digits);
+    if (!empty && !normalized) {
+      return { ok: false, error: "That phone number doesn't look right. Enter 9 digits after +998, or leave it empty." };
+    }
+    const { error } = await supabase
+      .from("profiles")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phone (0071) is not in the generated types yet
+      .update({ phone: normalized } as any)
+      .eq("id", user.id);
+    if (error) console.error("[beginMock] phone save failed", error.message);
+  }
   const res = await startAttempt(user.id, mockId);
   if (res.ok) refreshStudent(mockId);
   return res;
@@ -592,6 +614,7 @@ export async function releaseMockAttempt(attemptId: string): Promise<MockAdminRe
       // After the response (0055): building the PDF and calling Resend must not
       // hold up the owner's click, and an email failure never undoes a release.
       after(() => emailMockResult(attemptId));
+      after(() => smsMockResult(attemptId));
     }
     return res;
   });
@@ -605,6 +628,7 @@ export async function bulkReleaseMockAttempts(attemptIds: string[]): Promise<{ o
     // for Resend's rate limit and skips anything already emailed.
     const released = [...new Set(attemptIds)].filter((id) => !outcome.skipped.some((s) => s.id === id));
     after(() => emailMockResults(released));
+    after(() => smsMockResults(released));
     return { ok: true as const, outcome };
   });
 }
@@ -632,12 +656,23 @@ export async function sendMockResultEmailAction(attemptId: string): Promise<Mock
   });
 }
 
+/** The owner's "Send SMS again" on an attempt (0071). */
+export async function sendMockResultSmsAction(attemptId: string): Promise<MockAdminResult> {
+  return guarded("send result sms", async () => {
+    const res = await smsMockResult(attemptId, true);
+    revalidatePath(`/admin/mocks/attempts/${attemptId}`);
+    if (res.sent) return { ok: true as const, note: "Result texted to the student." };
+    return { ok: false as const, error: res.skipped ?? res.error ?? "The SMS could not be sent." };
+  });
+}
+
 export async function unreleaseMockAttempt(attemptId: string): Promise<MockAdminResult> {
   return guarded("unrelease", async () => {
     const res = await unreleaseAttempt(attemptId);
     if (res.ok) {
       // A re-release should email again (0055).
       await clearResultEmailStamp(attemptId);
+      await clearResultSmsStamp(attemptId);
       refreshAdmin();
       revalidatePath(`/admin/mocks/attempts/${attemptId}`);
     }
