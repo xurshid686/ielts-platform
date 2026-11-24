@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { Crown, ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { PASSES_PER_WEEK } from "@/lib/premium";
+import { PASSES_PER_WEEK, TRIAL_DAYS } from "@/lib/premium";
 import { canOpenPremium, canOpenTrack } from "@/lib/tests/access";
-import { passState } from "@/lib/passes";
+import { passState, trialEligible } from "@/lib/passes";
 import { PassClaim } from "@/components/premium/pass-claim";
+import { TrialOffer } from "@/components/premium/trial-offer";
 import { TestRunner } from "@/components/test-runner";
 import { PremiumContact } from "@/components/premium-contact";
 import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
@@ -91,6 +92,9 @@ export async function TestDetail({
   if (locked) {
     // Weekly passes apply to the main library only (claim_premium_pass checks).
     const passes = (t.track ?? "regular") === "regular" ? await passState(profile.id) : null;
+    // The one-time trial is offered here too, where students actually meet the
+    // paywall — no finished test needed (owner, 2026-11-24).
+    const offerTrial = await trialEligible(profile, { requireResult: false });
     return (
       <div className="mx-auto max-w-md py-12 text-center">
         <Link
@@ -127,6 +131,13 @@ export async function TestDetail({
             is included with Premium, along with every other test in the library.
           </p>
         </div>
+        {offerTrial && (
+          <TrialOffer
+            days={TRIAL_DAYS}
+            className="mt-4"
+            heading={`Try every Premium test free for ${TRIAL_DAYS} days`}
+          />
+        )}
         {passes && (
           <PassClaim testId={t.id} left={passes.left} perWeek={PASSES_PER_WEEK} />
         )}

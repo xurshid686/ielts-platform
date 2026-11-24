@@ -48,7 +48,12 @@ export async function startTrialAction(): Promise<ActionResult> {
     .select("id, role, premium_until")
     .eq("id", userId)
     .maybeSingle();
-  if (!prof || !(await trialEligible(prof as { id: string; role: string; premium_until: string | null }))) {
+  // No result needed here: the lock screen offers the trial before a first test.
+  // One per account is still enforced (eligibility + premium_trials primary key).
+  if (
+    !prof ||
+    !(await trialEligible(prof as { id: string; role: string; premium_until: string | null }, { requireResult: false }))
+  ) {
     return { ok: false, error: "The free trial isn't available on this account." };
   }
   const res = await startTrial(userId);

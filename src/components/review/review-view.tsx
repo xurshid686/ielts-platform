@@ -1,3 +1,4 @@
+import type React from "react";
 import Link from "next/link";
 import { TrialOffer } from "@/components/premium/trial-offer";
 import { ArrowLeft, ArrowRight, Check, X, CircleSlash, FileQuestion, Crown } from "lucide-react";
@@ -26,6 +27,7 @@ export function ReviewView({
   nextTest,
   showUpgrade = false,
   trialDays = null,
+  telegramCard = null,
   lockedCount = 0,
   focus = null,
   lockedTest = null,
@@ -49,6 +51,8 @@ export function ReviewView({
   showUpgrade?: boolean;
   /** Offer the one-time free trial (days), or null. Own attempt only. */
   trialDays?: number | null;
+  /** "Get a daily test on Telegram" — the student's own attempt only. */
+  telegramCard?: React.ReactNode;
   lockedCount?: number;
   // The student's weakest question type in this skill. `nextTrainsIt` says the
   // "Keep going" paper was picked because it carries that type.
@@ -151,6 +155,8 @@ export function ReviewView({
           upgrade prompt on the page. Hidden when an admin is reviewing
           someone else's attempt. */}
       {!subjectName && trialDays != null && <TrialOffer days={trialDays} />}
+
+      {!subjectName && telegramCard}
 
       {!subjectName && (nextTest || showUpgrade) && (
         <div className="grid items-start gap-3 sm:grid-cols-2">

@@ -10,7 +10,16 @@ import { startTrialAction } from "@/app/actions/premium";
  * and listening test for TRIAL_DAYS days. Tests only — no mock entry, no AI
  * writing checks (owner, 2026-11-23).
  */
-export function TrialOffer({ days, className = "" }: { days: number; className?: string }) {
+export function TrialOffer({
+  days,
+  className = "",
+  heading,
+}: {
+  days: number;
+  className?: string;
+  /** Overrides the "You've unlocked…" line (the lock screen asks instead). */
+  heading?: string;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +39,8 @@ export function TrialOffer({ days, className = "" }: { days: number; className?:
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-premium-gradient text-white">
           <Crown className="h-5 w-5" />
         </div>
-        <div className="min-w-0">
-          <p className="font-semibold">You&apos;ve unlocked a {days}-day free Premium trial</p>
+        <div className="min-w-0 text-left">
+          <p className="font-semibold">{heading ?? `You've unlocked a ${days}-day free Premium trial`}</p>
           <p className="mt-1 text-sm text-muted">
             Every Premium reading and listening test, free for {days} days. No payment, nothing to cancel.
           </p>

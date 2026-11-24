@@ -8,6 +8,7 @@ import { asAnswerKey, asAnswers, isAnswerCorrect } from "@/lib/ielts/grade";
 import { computeTypeStats, weakestType, type ResultLite } from "@/lib/analytics";
 import { lockedForWeakType, recommendForWeakType } from "@/lib/recommend";
 import { ReviewView, type ReviewRow } from "@/components/review/review-view";
+import { TelegramDailyCard } from "@/components/premium/telegram-daily-card";
 import type { Result, Test } from "@/types/database";
 import { rows as asRows } from "@/types/database";
 
@@ -190,6 +191,7 @@ export default async function ReviewPage({
       nextTest={nextTest}
       showUpgrade={isOwnAttempt && !hasPremium}
       trialDays={offerTrial ? TRIAL_DAYS : null}
+      telegramCard={isOwnAttempt ? <TelegramDailyCard userId={viewer.id} /> : null}
       lockedCount={lockedCount}
       focus={focus}
       lockedTest={lockedTest}

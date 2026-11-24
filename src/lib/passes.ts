@@ -81,18 +81,22 @@ export async function hasActiveTrial(userId: string): Promise<boolean> {
 
 /**
  * May this account be OFFERED the trial? Never had one, never had Premium,
- * not an admin, and has finished at least one test.
+ * not an admin — and, by default, has finished at least one test (the review
+ * page and dashboard offer it after a result). The lock screen passes
+ * `requireResult: false`: a student who hits a Premium test before finishing
+ * anything is offered it there too (owner, 2026-11-24). Still one per account.
  */
-export async function trialEligible(profile: {
-  id: string;
-  role: string;
-  premium_until: string | null;
-}): Promise<boolean> {
+export async function trialEligible(
+  profile: { id: string; role: string; premium_until: string | null },
+  { requireResult = true }: { requireResult?: boolean } = {},
+): Promise<boolean> {
   if (profile.role === "admin" || profile.premium_until) return false;
   const client = db();
   const [{ data: trial }, { count }] = await Promise.all([
     client.from("premium_trials").select("user_id").eq("user_id", profile.id).maybeSingle(),
-    client.from("results").select("id", { count: "exact", head: true }).eq("user_id", profile.id),
+    requireResult
+      ? client.from("results").select("id", { count: "exact", head: true }).eq("user_id", profile.id)
+      : Promise.resolve({ count: 1 }),
   ]);
   return !trial && (count ?? 0) > 0;
 }
