@@ -240,3 +240,37 @@ export async function notifyTestReport(input: {
     console.error("[telegram] notifyTestReport failed", e);
   }
 }
+
+/** An online Premium payment landed, or was refunded (0073). Never throws. */
+export async function notifyPayment(input: {
+  name: string;
+  email: string | null;
+  provider: string;
+  amount: string;
+  months: number;
+  until: string | null;
+  refund: boolean;
+}): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    const period = input.months === 1 ? "1 month" : `${input.months} months`;
+    const via = input.provider === "payme" ? "Payme" : "Click";
+    await push(
+      input.refund
+        ? [
+            `↩️ <b>Refund</b> via ${via}: ${escapeHtml(input.amount)} (${period})`,
+            `${escapeHtml(input.name)}${input.email ? ` · ${escapeHtml(input.email)}` : ""}`,
+            "Premium time was taken back.",
+          ].join("\n")
+        : [
+            `💳 <b>${escapeHtml(input.name)}</b> paid ${escapeHtml(input.amount)} via ${via}`,
+            `Premium ${period}${input.until ? ` · now until ${input.until.slice(0, 10)}` : ""}`,
+            input.email ? escapeHtml(input.email) : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+    );
+  } catch (e) {
+    console.error("[telegram] notifyPayment failed", e);
+  }
+}

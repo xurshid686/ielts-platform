@@ -14,6 +14,9 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin, withLiveStreak } from "@/lib/auth";
 import { workloadCounts } from "@/lib/mock-admin";
+import { paymentsThisMonth } from "@/lib/payments/orders";
+import { enabledProviders } from "@/lib/payments/config";
+import { formatUzs } from "@/lib/site";
 import { Card } from "@/components/ui/card";
 import { cn, timeAgo } from "@/lib/utils";
 import type { Profile } from "@/types/database";
@@ -22,13 +25,15 @@ export default async function AdminPage() {
   const me = await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: students }, { count: testCount }, { count: resultCount }, mockWork] =
+  const [{ data: students }, { count: testCount }, { count: resultCount }, mockWork, payments] =
     await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("tests").select("id", { count: "exact", head: true }),
       supabase.from("results").select("id", { count: "exact", head: true }),
       workloadCounts(),
+      paymentsThisMonth(),
     ]);
+  const providers = enabledProviders();
 
   // Stored streaks go stale (see withLiveStreak), so count and show live ones.
   const people = ((students ?? []) as Profile[]).map(withLiveStreak);
@@ -47,6 +52,21 @@ export default async function AdminPage() {
         <Stat icon={<CheckCircle2 className="text-success" />} label="Results" value={resultCount ?? 0} />
         <Stat icon={<Flame className="text-warning" />} label="Active streaks" value={activeStreaks} />
       </div>
+
+      {/* Online payments (0073). Shown once any provider is switched on, or once money has arrived. */}
+      {(providers.length > 0 || payments.count > 0) && (
+        <Card className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Crown className="h-4 w-4 text-premium" />
+            <span className="font-semibold">Online payments this month</span>
+          </div>
+          <p className="text-sm">
+            <b className="tabular-nums">{payments.count}</b> paid ·{" "}
+            <b className="tabular-nums">{formatUzs(Math.round(payments.totalUzs))}</b>
+            <span className="text-muted"> · {providers.length ? `on: ${providers.join(", ")}` : "switched off"}</span>
+          </p>
+        </Card>
+      )}
 
       {/* First, and full width: it is the one card that carries WORK waiting for
           the owner, and each count opens the admin panel already filtered to it. */}

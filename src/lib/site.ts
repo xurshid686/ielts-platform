@@ -14,10 +14,22 @@ export const PREMIUM_TELEGRAM_URL = "https://t.me/ListeningReadingTests";
  * owner directly, and the owner grants the period on /admin/members, whose
  * period list must keep offering every `months` value below.
  */
-export const PREMIUM_PLANS: { months: number; label: string; price: string; note?: string }[] = [
-  { months: 1, label: "1 month", price: "$2" },
-  { months: 3, label: "3 months", price: "$5", note: "Save $1" },
+export const PREMIUM_PLANS: {
+  months: number;
+  label: string;
+  price: string;
+  /** What Payme/Click charge, in so'm (owner, 2026-11-24). The server's own number, never the browser's. */
+  priceUzs: number;
+  note?: string;
+}[] = [
+  { months: 1, label: "1 month", price: "$2", priceUzs: 25_000 },
+  { months: 3, label: "3 months", price: "$5", priceUzs: 60_000, note: "Save $1" },
 ];
+
+/** "25 000 so'm": a no-break space between thousands, the Uzbek way. */
+export function formatUzs(n: number): string {
+  return `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0")} so'm`;
+}
 
 /** One line for small spaces: "$2 for 1 month · $5 for 3 months". */
 export const PREMIUM_PRICE_LINE = PREMIUM_PLANS.map((p) => `${p.price} for ${p.label}`).join(" · ");

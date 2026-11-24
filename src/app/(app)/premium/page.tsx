@@ -14,10 +14,13 @@ import {
   PREMIUM_PLANS,
   PREMIUM_TELEGRAM_HANDLE,
   ULTIMA_PLANS,
+  formatUzs,
   premiumRequestUrl,
   ultimaRequestUrl,
 } from "@/lib/site";
 import { ultimaUntil } from "@/lib/ultima";
+import { enabledProviders } from "@/lib/payments/config";
+import { PayButtons } from "@/components/premium/pay-buttons";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -57,6 +60,10 @@ export default async function PremiumPage() {
   const listening = premiumTests.filter((t) => t.skill === "listening").length;
 
   const active = !!profile && isPremiumActive(profile);
+  // Online payment (0073): only providers whose keys are set on this host.
+  // With none, the page is exactly as before: the Telegram button alone.
+  const providers = enabledProviders();
+  const online = providers.length > 0;
   const isAdmin = profile?.role === "admin";
   // Ultima lives in its own table (0066), so it is read separately. The same end-date rule as Premium.
   const ultimaEnds = profile ? await ultimaUntil(profile.id) : null;
@@ -112,11 +119,31 @@ export default async function PremiumPage() {
               </div>
               <div className="flex flex-1 flex-col p-6">
                 <p className="text-sm font-medium text-muted">{plan.label}</p>
-                <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
+                {online ? (
+                  <>
+                    <p className="mt-1 text-4xl font-extrabold tabular-nums">{formatUzs(plan.priceUzs)}</p>
+                    <p className="mt-1 text-sm text-muted">about {plan.price}</p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
+                )}
                 <p className="mt-2 flex-1 text-sm text-muted">
                   One payment. It ends by itself after {plan.label}; nothing renews automatically.
                 </p>
-                {!isAdmin && (
+                {!isAdmin && online && (
+                  <PayButtons months={plan.months} providers={providers} signedIn={!!profile} best={best} />
+                )}
+                {!isAdmin && online && (
+                  <a
+                    href={premiumRequestUrl(profile?.email, plan.months)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 text-sm text-muted hover:text-foreground"
+                  >
+                    <Send className="h-3.5 w-3.5" /> Other ways to pay: message us on Telegram
+                  </a>
+                )}
+                {!isAdmin && !online && (
                   <a
                     href={premiumRequestUrl(profile?.email, plan.months)}
                     target="_blank"
