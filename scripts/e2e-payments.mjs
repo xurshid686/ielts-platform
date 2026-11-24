@@ -72,10 +72,10 @@ try {
   // Never actually leave for the providers' sites: capture where we were sent.
   await page.route(/checkout\.paycom\.uz|my\.click\.uz/, (r) => r.fulfill({ status: 200, body: "provider" }));
   // The new /premium (2026-11-24): period tab -> "Get Premium" -> chooser -> method -> Pay.
-  async function startPay(provider, cardIndex) {
+  async function startPay(provider, cardIndex, plan = "premium") {
     await page.goto(`${BASE}/premium`); await page.waitForLoadState("networkidle", { timeout: 60000 });
     await page.getByRole("tab", { name: cardIndex === 0 ? /^1 month/ : /^3 months/ }).click();
-    await page.locator('[data-buy="premium"]').click();
+    await page.locator(`[data-buy="${plan}"]`).click();
     await page.getByRole("dialog").waitFor();
     await page.locator(`[data-method="${provider}"]`).click();
     const [req] = await Promise.all([
@@ -99,7 +99,9 @@ try {
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
   await page.locator('[data-buy="ultima"]').click();
   await page.getByRole("dialog").waitFor();
-  check(await page.locator('[data-method="payme"]').count() === 0 && await page.locator('[data-method="telegram"]').count() === 1, "Ultima chooser offers Telegram only");
+  const ud = await page.getByRole("dialog").innerText();
+  check(await page.locator('[data-method="payme"]').count() === 1 && await page.locator('[data-method="click"]').count() === 1 && ud.includes("Ultima · 1 month") && ud.includes("50\u00a0000 so'm"),
+    "Ultima chooser offers Payme + Click + Telegram at 50 000 so'm");
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
   // ================= PAYME =================
@@ -198,8 +200,29 @@ try {
   c = await click("prepare", clickSigned({ ...clickBase(c2, "25000", trans2), action: "0" }));
   c = await click("complete", clickSigned({ ...clickBase(c2, "25000", trans2), error: "-5017", action: "1", merchant_prepare_id: String(c.merchant_prepare_id) }));
   check(c.error === -9 && (await order(c2)).status === "cancelled" && (await until()) === u3, "failed Click payment -> -9, order cancelled, no Premium");
+
+  // ================= ULTIMA (0074) via Click, 1 month =================
+  await admin.from("profiles").update({ premium_announce: false }).eq("id", uid);
+  const uUrl = new URL(await startPay("click", 0, "ultima"));
+  const uOrder = uUrl.searchParams.get("transaction_param");
+  check(uUrl.searchParams.get("amount") === "50000", "Ultima 1 month: Click link carries 50000 so'm");
+  check((await order(uOrder)).plan === "ultima", "order is an Ultima order");
+  const ut = String(Date.now() + 7);
+  const premBefore = await until();
+  c = await click("prepare", clickSigned({ ...clickBase(uOrder, "50000", ut), action: "0" }));
+  c = await click("complete", clickSigned({ ...clickBase(uOrder, "50000", ut), action: "1", merchant_prepare_id: String(c.merchant_prepare_id) }));
+  check(c.error === 0, `Ultima Complete -> 0 (${c.error})`);
+  const { data: um } = await admin.from("ultima_members").select("ultima_until").eq("user_id", uid).maybeSingle();
+  const ud2 = um ? (new Date(um.ultima_until) - Date.now()) / DAY : 0;
+  check(ud2 > 27 && ud2 < 32, `Ultima +1 month (${ud2.toFixed(1)} days)`);
+  const premAfter = await until();
+  check(premAfter - Math.max(premBefore ?? 0, Date.now()) > 27 * DAY, "Premium extended by the same month");
+  await page.goto(`${BASE}/premium/thanks?order=${uOrder}`); await page.waitForLoadState("load");
+  await page.getByText("Ultima is on").waitFor({ timeout: 20000 });
+  check(true, "/premium/thanks says 'Ultima is on'");
 } finally {
   await browser.close();
+  await admin.from("ultima_members").delete().eq("user_id", uid);
   await admin.from("payment_orders").delete().eq("user_id", uid);
   await admin.from("notifications").delete().eq("user_id", uid);
   await admin.auth.admin.deleteUser(uid);

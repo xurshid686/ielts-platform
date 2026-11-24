@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PREMIUM_PLANS, formatUzs } from "@/lib/site";
+import { PREMIUM_PLANS, ULTIMA_PLANS, formatUzs } from "@/lib/site";
 import type { Provider } from "./config";
 
 /**
@@ -16,6 +16,7 @@ export type OrderRow = {
   id: string;
   user_id: string | null;
   email_snapshot: string | null;
+  plan: PayPlan;
   months: number;
   amount_tiyin: number;
   provider: Provider;
@@ -29,6 +30,7 @@ export type OrderRow = {
   click_prepare_id: number;
   paid_at: string | null;
   premium_until_after: string | null;
+  ultima_until_after: string | null;
   refunded_at: string | null;
   created_at: string;
 };
@@ -47,25 +49,31 @@ function norm(r: Record<string, unknown> | null): OrderRow | null {
   };
 }
 
-/** The plan for a number of months, priced on the SERVER. */
-export function planFor(months: number) {
-  const plan = PREMIUM_PLANS.find((p) => p.months === months);
-  return plan ? { ...plan, amountTiyin: plan.priceUzs * 100 } : null;
+export type PayPlan = "premium" | "ultima";
+
+/** The plan for a number of months, priced on the SERVER (Premium or Ultima, 0074). */
+export function planFor(months: number, plan: PayPlan = "premium") {
+  const p = (plan === "ultima" ? ULTIMA_PLANS : PREMIUM_PLANS).find((x) => x.months === months);
+  return p ? { ...p, plan, amountTiyin: p.priceUzs * 100 } : null;
 }
+
+export const planName = (plan: PayPlan) => (plan === "ultima" ? "Ultima" : "Premium");
 
 export async function createOrder(input: {
   userId: string;
   email: string | null;
   months: number;
   provider: Provider;
+  plan?: PayPlan;
 }): Promise<OrderRow | null> {
-  const plan = planFor(input.months);
+  const plan = planFor(input.months, input.plan ?? "premium");
   if (!plan) return null;
   const { data, error } = await db()
     .from("payment_orders")
     .insert({
       user_id: input.userId,
       email_snapshot: input.email,
+      plan: plan.plan,
       months: plan.months,
       amount_tiyin: plan.amountTiyin,
       provider: input.provider,
@@ -187,8 +195,10 @@ export async function afterPaid(order: OrderRow): Promise<void> {
       await client.from("notifications").insert({
         user_id: order.user_id,
         type: "premium_paid",
-        title: "Payment received: Premium is on",
-        body: `Thank you! ${order.months === 1 ? "1 month" : `${order.months} months`} of Premium was added to your account.`,
+        title: `Payment received: ${planName(order.plan)} is on`,
+        body: `Thank you! ${order.months === 1 ? "1 month" : `${order.months} months`} of ${
+          order.plan === "ultima" ? "Ultima (with Premium)" : "Premium"
+        } was added to your account.`,
         data: { href: "/premium" },
       });
     }
@@ -196,9 +206,10 @@ export async function afterPaid(order: OrderRow): Promise<void> {
       name,
       email: order.email_snapshot,
       provider: order.provider,
+      plan: planName(order.plan),
       amount: formatUzs(order.amount_tiyin / 100),
       months: order.months,
-      until: order.premium_until_after,
+      until: order.plan === "ultima" ? order.ultima_until_after : order.premium_until_after,
       refund: false,
     });
   } catch (e) {
@@ -213,6 +224,7 @@ export async function afterRefund(order: OrderRow): Promise<void> {
       name: order.email_snapshot ?? "A student",
       email: order.email_snapshot,
       provider: order.provider,
+      plan: planName(order.plan),
       amount: formatUzs(order.amount_tiyin / 100),
       months: order.months,
       until: null,

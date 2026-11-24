@@ -2141,4 +2141,8 @@ a provider is live only when `PAYMENTS_ENABLED=1` AND its keys are set
 - E2E: `node scripts/e2e-payments.mjs [base] --keys=<file of E2E_* test keys>`
   plays both providers (36 checks). Before switching on for students, also run
   Payme's sandbox (test.paycom.uz) and Click's test flow with the REAL keys.
-- Ultima is still sold by hand (Telegram).
+- **Ultima is sold online too (0074):** orders carry `plan` ('premium' default |
+  'ultima'); paying an Ultima order extends `ultima_members.ultima_until` AND
+  `premium_until` by the same months (the owner's manual-grant rule); a refund
+  takes both back (check-0074.mjs). Prices: `ULTIMA_PLANS[].priceUzs`.
+- All prices are shown in so'm (`plan.price`); `plan.usd` is only a hint.

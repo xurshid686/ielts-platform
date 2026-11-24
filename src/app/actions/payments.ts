@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { clickConfig, paymeConfig, type Provider } from "@/lib/payments/config";
-import { createOrder, getOwnOrder, planFor } from "@/lib/payments/orders";
+import { createOrder, getOwnOrder, planFor, type PayPlan } from "@/lib/payments/orders";
 import { paymeCheckoutUrl } from "@/lib/payments/payme-shared";
 import { clickPayUrl } from "@/lib/payments/click-shared";
 
@@ -22,20 +22,24 @@ async function origin(): Promise<string> {
  * provider; the AMOUNT comes from the server's plan table and is stored on the
  * order, which is what the webhook checks the provider against.
  */
-export async function startCheckout(months: number, provider: Provider): Promise<CheckoutResult> {
+export async function startCheckout(
+  months: number,
+  provider: Provider,
+  plan: PayPlan = "premium",
+): Promise<CheckoutResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Please sign in first." };
 
-  const plan = planFor(months);
-  if (!plan) return { ok: false, error: "Choose 1 month or 3 months." };
+  if (plan !== "premium" && plan !== "ultima") return { ok: false, error: "Choose Premium or Ultima." };
+  if (!planFor(months, plan)) return { ok: false, error: "Choose 1 month or 3 months." };
   const payme = provider === "payme" ? paymeConfig() : null;
   const click = provider === "click" ? clickConfig() : null;
   if (!payme && !click) return { ok: false, error: "This payment method isn't available yet." };
 
-  const order = await createOrder({ userId: user.id, email: user.email ?? null, months, provider });
+  const order = await createOrder({ userId: user.id, email: user.email ?? null, months, provider, plan });
   if (!order) return { ok: false, error: "Could not start the payment. Please try again." };
 
   const returnUrl = `${await origin()}/premium/thanks?order=${order.id}`;
@@ -58,7 +62,11 @@ export async function startCheckout(months: number, provider: Provider): Promise
   return { ok: true, url };
 }
 
-export type OrderStatus = { status: "created" | "pending" | "paid" | "cancelled"; until: string | null } | null;
+export type OrderStatus = {
+  status: "created" | "pending" | "paid" | "cancelled";
+  plan: PayPlan;
+  until: string | null;
+} | null;
 
 /** The thank-you page polls this. Only the student's own order is visible. */
 export async function orderStatus(orderId: string): Promise<OrderStatus> {
@@ -68,5 +76,7 @@ export async function orderStatus(orderId: string): Promise<OrderStatus> {
   } = await supabase.auth.getUser();
   if (!user || !/^[0-9a-f-]{36}$/i.test(orderId)) return null;
   const o = await getOwnOrder(orderId, user.id);
-  return o ? { status: o.status, until: o.premium_until_after } : null;
+  return o
+    ? { status: o.status, plan: o.plan, until: o.plan === "ultima" ? o.ultima_until_after : o.premium_until_after }
+    : null;
 }

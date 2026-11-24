@@ -246,6 +246,7 @@ export async function notifyPayment(input: {
   name: string;
   email: string | null;
   provider: string;
+  plan?: string;
   amount: string;
   months: number;
   until: string | null;
@@ -258,13 +259,13 @@ export async function notifyPayment(input: {
     await push(
       input.refund
         ? [
-            `↩️ <b>Refund</b> via ${via}: ${escapeHtml(input.amount)} (${period})`,
+            `↩️ <b>Refund</b> via ${via}: ${escapeHtml(input.amount)} (${escapeHtml(input.plan ?? "Premium")}, ${period})`,
             `${escapeHtml(input.name)}${input.email ? ` · ${escapeHtml(input.email)}` : ""}`,
             "Premium time was taken back.",
           ].join("\n")
         : [
             `💳 <b>${escapeHtml(input.name)}</b> paid ${escapeHtml(input.amount)} via ${via}`,
-            `Premium ${period}${input.until ? ` · now until ${input.until.slice(0, 10)}` : ""}`,
+            `${escapeHtml(input.plan ?? "Premium")} ${period}${input.until ? ` · now until ${input.until.slice(0, 10)}` : ""}`,
             input.email ? escapeHtml(input.email) : "",
           ]
             .filter(Boolean)

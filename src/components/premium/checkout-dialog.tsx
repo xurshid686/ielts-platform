@@ -19,7 +19,7 @@ type Method = PayProvider | "telegram";
  * (owner, 2026-11-24, modelled on ieltsx.com/pricing). Payme/Click go through
  * startCheckout (the server prices the order); a provider that is not switched
  * on is shown as "Coming soon" and cannot be picked. Telegram always works.
- * Ultima is still sold by hand, so it offers Telegram only.
+ * Ultima is paid the same way (0074: the order carries the plan).
  */
 export function CheckoutDialog({
   plan,
@@ -36,7 +36,7 @@ export function CheckoutDialog({
 }) {
   const premium = PREMIUM_PLANS.find((p) => p.months === months) ?? PREMIUM_PLANS[0];
   const ultima = ULTIMA_PLANS.find((p) => p.months === months) ?? ULTIMA_PLANS[0];
-  const online: PayProvider[] = plan === "premium" ? providers : [];
+  const online: PayProvider[] = providers;
   const [method, setMethod] = useState<Method>(online[0] ?? "telegram");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,21 +54,19 @@ export function CheckoutDialog({
       return;
     }
     start(async () => {
-      const res = await startCheckout(premium.months, method);
+      const res = await startCheckout(plan === "premium" ? premium.months : ultima.months, method, plan);
       if (!res.ok) return setError(res.error);
       window.location.assign(res.url); // the provider's own checkout page
     });
   }
 
   const rows: { id: Method; title: React.ReactNode; note: string; enabled: boolean }[] = [
-    ...(plan === "premium"
-      ? (["payme", "click"] as const).map((p) => ({
-          id: p as Method,
-          title: <PaymentLogo provider={p} height={16} />,
-          note: online.includes(p) ? "Uzcard, Humo or Visa. Premium switches on instantly." : "Coming soon",
-          enabled: online.includes(p),
-        }))
-      : []),
+    ...(["payme", "click"] as const).map((p) => ({
+      id: p as Method,
+      title: <PaymentLogo provider={p} height={16} />,
+      note: online.includes(p) ? `Uzcard, Humo or Visa. ${label} switches on instantly.` : "Coming soon",
+      enabled: online.includes(p),
+    })),
     {
       id: "telegram",
       title: (

@@ -44,10 +44,12 @@ export function PaymentStatus({ orderId, initial }: { orderId: string; initial: 
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-premium-gradient text-white">
           <Crown className="h-7 w-7" />
         </div>
-        <h1 className="mt-4 text-2xl font-bold">Payment received. Premium is on!</h1>
+        <h1 className="mt-4 text-2xl font-bold">
+          Payment received. {state.plan === "ultima" ? "Ultima" : "Premium"} is on!
+        </h1>
         {state.until && (
           <p className="mt-2 text-muted">
-            Your Premium runs until <b>{state.until.slice(0, 10)}</b>.
+            Your {state.plan === "ultima" ? "Ultima (and Premium)" : "Premium"} runs until <b>{state.until.slice(0, 10)}</b>.
           </p>
         )}
         <Link
@@ -65,7 +67,7 @@ export function PaymentStatus({ orderId, initial }: { orderId: string; initial: 
       <div className={card}>
         <XCircle className="mx-auto h-10 w-10 text-danger" />
         <h1 className="mt-3 text-xl font-bold">The payment didn&apos;t go through</h1>
-        <p className="mt-2 text-sm text-muted">No Premium was added and nothing should have been charged.</p>
+        <p className="mt-2 text-sm text-muted">Nothing was added to your account and nothing should have been charged.</p>
         <Link href="/premium" className="mt-5 inline-block text-sm font-semibold text-primary hover:underline">
           Try again
         </Link>

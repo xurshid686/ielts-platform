@@ -95,7 +95,7 @@ export async function POST(req: Request) {
           receipt_type: 0,
           items: [
             {
-              title: `MockOnline Premium, ${r.order.months === 1 ? "1 month" : `${r.order.months} months`}`,
+              title: `MockOnline ${r.order.plan === "ultima" ? "Ultima" : "Premium"}, ${r.order.months === 1 ? "1 month" : `${r.order.months} months`}`,
               price: r.order.amount_tiyin,
               count: 1,
               code: cfg.ikpu,
