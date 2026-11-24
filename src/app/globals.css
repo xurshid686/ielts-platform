@@ -285,7 +285,7 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-flex;
   flex-shrink: 0;
   border-radius: 9999px;
-  padding: 2px;
+  padding: 3px;
   background: conic-gradient(from var(--premium-angle, 0deg), #f7d774, #c8891e, #fff1b8, #b07a1e, #f7d774);
   box-shadow: 0 0 10px color-mix(in srgb, #e6b866 55%, transparent);
 }
@@ -295,6 +295,9 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-flex;
   border-radius: 9999px;
   box-shadow: 0 0 0 2px var(--surface);
+}
+.premium-ring-inner.no-gap {
+  box-shadow: none;
 }
 .premium-crown {
   position: absolute;

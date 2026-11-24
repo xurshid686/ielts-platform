@@ -81,7 +81,7 @@ export default async function PublicProfilePage({
         <div className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated sm:p-8">
           <div className="ring-hairline absolute inset-0 rounded-2xl" />
           <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
-            <PremiumRing on={shiny} crown="lg" inner="bg-primary">
+            <PremiumRing on={shiny} crown="lg" inner="bg-primary no-gap">
               {p.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- external Google avatar
                 <img
