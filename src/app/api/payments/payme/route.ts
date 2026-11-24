@@ -79,7 +79,9 @@ export async function POST(req: Request) {
     const orderId = (p.account as { order_id?: unknown } | undefined)?.order_id;
     if (!isUuid(orderId)) return { error: PaymeErrors.orderNotFound() };
     const order = await getOrder(orderId);
-    if (!order || order.provider !== "payme") return { error: PaymeErrors.orderNotFound() };
+    // user_id is NULL once the buyer deleted their account: nobody would receive
+    // what is paid for, so refuse the payment instead of taking the money.
+    if (!order || order.provider !== "payme" || !order.user_id) return { error: PaymeErrors.orderNotFound() };
     if (Number(p.amount) !== order.amount_tiyin) return { error: PaymeErrors.amount() };
     return { order };
   }
@@ -113,6 +115,10 @@ export async function POST(req: Request) {
       if (!txId) return json(rpcError(id, PaymeErrors.txNotFound()));
       const existing = await getOrderByTx("payme", txId);
       if (existing) {
+        // A retry must describe the same order and amount as the original call.
+        const retryOrder = (p.account as { order_id?: unknown } | undefined)?.order_id;
+        if (retryOrder !== existing.id) return json(rpcError(id, PaymeErrors.orderNotFound()));
+        if (Number(p.amount) !== existing.amount_tiyin) return json(rpcError(id, PaymeErrors.amount()));
         if (existing.payme_state !== PaymeState.CREATED) return json(rpcError(id, PaymeErrors.cannotPerform()));
         if (paymeTimedOut(existing.create_time, now)) {
           await cancelOrder(existing.id, PAYME_REASON_TIMEOUT, now);

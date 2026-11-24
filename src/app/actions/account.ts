@@ -61,7 +61,10 @@ export async function deleteMyAccount(confirmation: string): Promise<DeleteAccou
   }
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
-  if (error) return { ok: false, error: `Could not delete the account: ${error.message}` };
+  if (error) {
+    console.error("deleteMyAccount: deleteUser failed", error);
+    return { ok: false, error: "Could not delete the account. Please try again or contact us." };
+  }
 
   // The user no longer exists server-side; this just clears the cookies.
   await supabase.auth.signOut({ scope: "local" }).catch(() => {});

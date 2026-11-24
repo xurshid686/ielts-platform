@@ -42,7 +42,10 @@ export async function setTargetBand(band: number | null): Promise<SetTargetResul
     .from("profiles")
     .update({ target_band: value })
     .eq("id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("setTargetBand failed", error);
+    return { ok: false, error: "Could not save your target. Please try again." };
+  }
 
   revalidatePath("/dashboard");
   return { ok: true };
@@ -60,6 +63,14 @@ export async function setTimezone(tz: string): Promise<{ ok: boolean }> {
 
   // Basic IANA shape ("Area/Location") or "UTC" — reject anything else.
   if (tz !== "UTC" && !/^[A-Za-z][A-Za-z_+-]*\/[A-Za-z0-9_+\-/]+$/.test(tz)) {
+    return { ok: false };
+  }
+  // The shape alone accepted "Fake/Zone", and one unknown zone makes the
+  // reminder crons' `now() at time zone p.timezone` throw for EVERY student.
+  // Migration 0075 enforces the same thing in the database.
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+  } catch {
     return { ok: false };
   }
 
@@ -91,7 +102,10 @@ export async function setPhone(input: string): Promise<SetPhoneResult> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- phone (0071) is not in the generated types yet
     .update({ phone } as any)
     .eq("id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("setPhone failed", error);
+    return { ok: false, error: "Could not save your phone number. Please try again." };
+  }
   return { ok: true, phone };
 }
 

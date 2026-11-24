@@ -31,7 +31,7 @@ try {
   // a student with NO premium
   const u = (await c.query("select id from profiles where role <> 'admin' and premium_until is null limit 1")).rows[0].id;
   const ord = (await c.query(
-    "insert into payment_orders (user_id, months, amount_tiyin, provider) values ($1, 3, 6000000, 'payme') returning id", [u],
+    "insert into payment_orders (user_id, months, amount_tiyin, provider, status) values ($1, 3, 6000000, 'payme', 'pending') returning id", [u],
   )).rows[0].id;
   await c.query("select fulfil_payment_order($1, 123)", [ord]);
   const p1 = (await c.query("select premium_until, premium_announce from profiles where id = $1", [u])).rows[0];

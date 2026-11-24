@@ -1,3 +1,4 @@
+import { attachmentDisposition } from "@/lib/content-disposition";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAttemptDetail, UUID } from "@/lib/mock";
@@ -91,7 +92,7 @@ export async function GET(req: Request) {
         format === "docx"
           ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           : "application/pdf",
-      "Content-Disposition": `attachment; filename="${reportFilename(name, format)}"`,
+      "Content-Disposition": attachmentDisposition(reportFilename(name, format)),
       "Cache-Control": "no-store",
     },
   });

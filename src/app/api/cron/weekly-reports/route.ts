@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { secretsMatch } from "@/lib/telegram/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendReminders, type ReminderCandidate } from "@/lib/reminder-email";
 
@@ -12,7 +13,7 @@ export const maxDuration = 300;
 function authorized(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return secretsMatch(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
 }
 
 // Sunday, one hour BEFORE the daily reminder (vercel.json), on purpose: a

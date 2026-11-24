@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { secretsMatch } from "@/lib/telegram/auth";
 import {
   buildDaily,
   dailyRecipients,
@@ -16,7 +17,7 @@ export const maxDuration = 300;
 function authorized(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return secretsMatch(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
 }
 
 // Daily at 05:00 UTC (10:00 Tashkent), vercel.json. One test per linked

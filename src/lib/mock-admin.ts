@@ -2,6 +2,7 @@ import "server-only";
 
 import { rows, type Json, type TablesUpdate } from "@/types/database";
 import { asAnswerKey } from "@/lib/ielts/grade";
+import { likeLiteral } from "@/lib/utils";
 import { profileMockPaper, type MockPaperProfile, type SelfTestResult } from "@/lib/ielts/mock-profile";
 import { createTestFromHtml } from "@/lib/tests/create";
 import { downloadTestHtml } from "@/lib/tests/access";
@@ -1159,7 +1160,7 @@ export async function rejectRequest(requestId: string, adminId: string | null): 
 }
 
 export async function grantByEmail(email: string, mockId: string, adminId: string | null): Promise<LibResult & { note?: string }> {
-  const { data, error } = await db().from("profiles").select("id").ilike("email", email.trim()).maybeSingle();
+  const { data, error } = await db().from("profiles").select("id").ilike("email", likeLiteral(email.trim())).maybeSingle();
   if (error) return { ok: false, error: error.message };
   const target = data as { id: string } | null;
   if (!target) return { ok: false, error: "No user found with that email." };

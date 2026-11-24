@@ -212,7 +212,8 @@ async function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; 
             testJsonLd(seoTest),
             breadcrumbJsonLd(seoTest),
             ...(faqs.length ? [faqJsonLd(faqs)] : []),
-          ]),
+            // "<" escaped so a title containing </script> cannot end the tag.
+          ]).replace(/</g, "\\u003c"),
         }}
       />
       <Link

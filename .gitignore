@@ -47,3 +47,8 @@ supabase/.temp/
 
 # daily channel-post task output
 docs/growth/channel-post-task.log
+
+# Local progress logs of the Telegram send/schedule scripts (security audit 2026-11-25)
+/send-*.json
+/send-*.log
+/docs/growth/*.log

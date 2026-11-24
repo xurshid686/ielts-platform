@@ -21,7 +21,7 @@ try {
   const dflt = (await c.query("insert into payment_orders (user_id, months, amount_tiyin, provider) values ($1,1,2500000,'click') returning plan", [u])).rows[0].plan;
   dflt === "premium" ? ok("old-style insert defaults to plan=premium") : fail(`default plan ${dflt}`);
 
-  const ord = (await c.query("insert into payment_orders (user_id, plan, months, amount_tiyin, provider) values ($1,'ultima',3,12000000,'payme') returning id", [u])).rows[0].id;
+  const ord = (await c.query("insert into payment_orders (user_id, plan, months, amount_tiyin, provider, status) values ($1,'ultima',3,12000000,'payme','pending') returning id", [u])).rows[0].id;
   await c.query("select fulfil_payment_order($1, 1)", [ord]);
   const m1 = (await c.query("select ultima_until from ultima_members where user_id=$1", [u])).rows[0]?.ultima_until;
   const p1 = (await c.query("select premium_until from profiles where id=$1", [u])).rows[0].premium_until;

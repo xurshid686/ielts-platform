@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { secretsMatch } from "@/lib/telegram/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { finalizeExpiredAttempts } from "@/lib/mock-admin";
 import { STREAK_EMAIL_MIN } from "@/lib/email/reminder-plan";
@@ -17,7 +18,7 @@ export const maxDuration = 300;
 function authorized(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return secretsMatch(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
 }
 
 // Runs once a day (vercel.json). Three things, in this order:

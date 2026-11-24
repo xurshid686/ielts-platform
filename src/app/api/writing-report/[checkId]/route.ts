@@ -1,3 +1,4 @@
+import { attachmentDisposition } from "@/lib/content-disposition";
 import { createClient } from "@/lib/supabase/server";
 import { getMyReport } from "@/lib/writing-ai";
 import { renderStudentReport } from "@/lib/writing-ai-email";
@@ -30,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ checkId
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${out.filename}"`,
+      "Content-Disposition": attachmentDisposition(out.filename),
       "Cache-Control": "private, no-store",
     },
   });

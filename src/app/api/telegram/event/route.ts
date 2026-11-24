@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { secretsMatch } from "@/lib/telegram/auth";
 
 import { notifyNewStudent } from "@/lib/telegram/notify";
 
@@ -23,7 +24,7 @@ export const maxDuration = 60;
 function authorized(req: Request): boolean {
   const secret = process.env.TELEGRAM_EVENT_SECRET;
   if (!secret) return false; // unconfigured fails closed
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  return secretsMatch(req.headers.get("authorization") ?? "", `Bearer ${secret}`);
 }
 
 type Payload = {

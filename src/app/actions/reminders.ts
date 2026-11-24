@@ -25,7 +25,10 @@ export async function setEmailReminders(on: boolean): Promise<{ ok: boolean; err
   if (!user) return { ok: false, error: "You are not signed in." };
 
   const { error } = await supabase.from("profiles").update({ email_reminders: !!on }).eq("id", user.id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("setReminders failed", error);
+    return { ok: false, error: "Could not save the setting. Please try again." };
+  }
   return { ok: true };
 }
 

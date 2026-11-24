@@ -27,7 +27,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
   if (p.action !== (complete ? "1" : "0")) return Response.json(clickReply(p, ClickError.ACTION));
 
   const order = isUuid(p.merchant_trans_id) ? await getOrder(p.merchant_trans_id) : null;
-  if (!order || order.provider !== "click") return Response.json(clickReply(p, ClickError.ORDER_NOT_FOUND));
+  // user_id is NULL once the buyer deleted their account: refuse rather than take money for nothing.
+  if (!order || order.provider !== "click" || !order.user_id) return Response.json(clickReply(p, ClickError.ORDER_NOT_FOUND));
   if (clickAmountTiyin(p.amount) !== order.amount_tiyin) return Response.json(clickReply(p, ClickError.AMOUNT));
 
   if (!complete) {

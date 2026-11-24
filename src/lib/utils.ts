@@ -9,11 +9,33 @@ export function cn(...inputs: ClassValue[]) {
  * Sanitize a user-supplied post-auth redirect target. Only same-origin
  * relative paths are allowed; anything else (absolute URLs, protocol-relative
  * `//host`, backslash tricks) falls back to the default to prevent open redirects.
+ *
+ * Control characters are refused outright: the URL parser strips tabs and
+ * newlines, so `/<TAB>/evil.com` would otherwise pass the `//` test and then
+ * navigate to `//evil.com` (security audit 2026-11-25). The final check parses
+ * the path against a dummy origin and requires it to stay there.
  */
 export function safeNext(next: string | null | undefined, fallback = "/dashboard"): string {
   if (!next || !next.startsWith("/")) return fallback;
-  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  if (/[\u0000-\u001f\u007f\\]/.test(next)) return fallback;
+  if (next.startsWith("//")) return fallback;
+  try {
+    const base = "http://safe-next.invalid";
+    const url = new URL(next, base);
+    if (url.origin !== base) return fallback;
+  } catch {
+    return fallback;
+  }
   return next;
+}
+
+/**
+ * A LIKE/ILIKE pattern that matches `value` literally (case-insensitively with
+ * ilike). `_` and `%` are wildcards, so `.ilike("email", "john_doe@x.com")`
+ * also matched johnxdoe@x.com, a different account (security audit 2026-11-25).
+ */
+export function likeLiteral(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => "\\" + c);
 }
 
 export function avg(nums: number[]): number | null {

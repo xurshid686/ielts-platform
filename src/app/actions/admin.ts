@@ -10,6 +10,7 @@ import { sendAdminPromotionEmail } from "@/lib/email/send";
 import { fileStore } from "@/lib/storage";
 import { allUltima, setUltimaMonths } from "@/lib/ultima";
 import { clearAvatar } from "@/lib/avatar";
+import { likeLiteral } from "@/lib/utils";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -213,7 +214,7 @@ export async function setUltima(email: string, months: number): Promise<SetUltim
   const { data: target } = await createAdminClient()
     .from("profiles")
     .select("id, email")
-    .ilike("email", email.trim())
+    .ilike("email", likeLiteral(email.trim()))
     .maybeSingle();
   if (!target) return { ok: false, error: `No account with the email ${email.trim()}.` };
 

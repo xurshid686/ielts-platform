@@ -39,6 +39,12 @@ describe("clientIp", () => {
     expect(clientIp(h)).toBe("203.0.113.7");
   });
 
+  it("prefers the platform's own header over a client-supplied forwarded-for", () => {
+    const spoof = { "x-forwarded-for": "1.2.3.4, 203.0.113.7" };
+    expect(clientIp(new Headers({ ...spoof, "do-connecting-ip": "203.0.113.7" }))).toBe("203.0.113.7");
+    expect(clientIp(new Headers({ ...spoof, "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
+  });
+
   it("falls back to x-real-ip, then to a shared bucket", () => {
     expect(clientIp(new Headers({ "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
     expect(clientIp(new Headers())).toBe("unknown");

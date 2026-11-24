@@ -25,10 +25,12 @@ import { extractSeoContent, EMPTY_SEO_CONTENT, type TestSeoContent } from "./tes
 /**
  * Which tiers publish their passage, answers and explanations to the open web.
  *
- * Every test in the library is `free` today, so this changes nothing now — it
- * exists so that adding the first premium test does not silently publish the
- * paid product. Narrowing this to `["free"]` is the one-line way to stop
- * publishing premium material if that ever ships.
+ * PREMIUM IS PUBLISHED TOO, DELIBERATELY. Since mid-November most of the
+ * library is premium, so a signed-out visitor can read a premium paper's
+ * passage, key and explanations here. The 2026-11-25 security audit flagged
+ * that a free user can therefore read premium answers by signing out; the
+ * owner chose to keep publishing for search traffic. Do not "fix" this
+ * without asking. Narrowing this to `["free"]` is the one-line way to stop.
  *
  * Publishing this content is a deliberate trade the owner made: the passage,
  * key and explanations are what students actually search for ("<name> ielts

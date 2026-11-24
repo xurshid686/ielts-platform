@@ -41,9 +41,15 @@ export async function submitSpeakingMock(
   // Collect the three recorded parts.
   const files: { part: number; file: File }[] = [];
   for (const part of PARTS) {
-    const f = formData.get(`part${part}`) as File | null;
-    if (!f || f.size === 0)
+    const f = formData.get(`part${part}`);
+    if (!(f instanceof File) || f.size === 0)
       return { ok: false, error: `Part ${part} recording is missing.` };
+    // The recorder always produces RIFF/WAVE (lib/audio/wav.ts). Anything else
+    // is not ours: refuse it before it reaches storage or Gemini. The total is
+    // already capped by the 8 MB server-action body limit (next.config.ts).
+    const head = Buffer.from(await f.slice(0, 12).arrayBuffer()).toString("latin1");
+    if (!head.startsWith("RIFF") || head.slice(8, 12) !== "WAVE")
+      return { ok: false, error: `Part ${part} recording is not a WAV file.` };
     files.push({ part, file: f });
   }
 
@@ -55,7 +61,10 @@ export async function submitSpeakingMock(
     const path = `${user.id}/${sessionId}/part${part}.wav`;
     const { error: upErr } = await fileStore("speaking", supabase)
       .upload(path, file, { contentType: "audio/wav", upsert: false });
-    if (upErr) return { ok: false, error: `Upload failed: ${upErr.message}` };
+    if (upErr) {
+      console.error("submitSpeakingMock: upload failed", upErr);
+      return { ok: false, error: "Upload failed. Please try again." };
+    }
     audioPaths.push(path);
 
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");

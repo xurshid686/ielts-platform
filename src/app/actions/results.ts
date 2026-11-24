@@ -253,7 +253,10 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
     .insert({ ...baseRow, answers: storedAnswers, duration_seconds: duration })
     .select("id")
     .single();
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("saveResult: insert failed", error);
+    return { ok: false, error: "Could not save your result. Please try again." };
+  }
   const resultId = (inserted as { id?: string } | null)?.id ?? null;
 
   // --- Rating: only the FIRST attempt of a server-graded reading test moves

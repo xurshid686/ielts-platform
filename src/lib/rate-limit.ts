@@ -69,12 +69,19 @@ export function createRateLimiter(opts: {
 }
 
 /**
- * The caller's address as the hosting proxy reports it. The first entry of
- * `x-forwarded-for` is the original client on both DigitalOcean App Platform
- * and Vercel. Falls back to one shared bucket rather than skipping the limit.
+ * The caller's address as the hosting proxy reports it.
+ *
+ * The FIRST `x-forwarded-for` entry is whatever the client put there whenever
+ * a proxy appends rather than replaces, so it is the last resort, not the
+ * first choice (security audit 2026-11-25: rotating a fake XFF dodged the
+ * guest-grade and /a/<code> limits). Headers the platform itself sets win:
+ *  - `do-connecting-ip` — DigitalOcean App Platform (mockonline.uz);
+ *  - `x-real-ip` — Vercel.
+ * Falls back to one shared bucket rather than skipping the limit.
  */
 export function clientIp(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || headers.get("x-real-ip")?.trim() || "unknown";
+  const platform = headers.get("do-connecting-ip")?.trim() || headers.get("x-real-ip")?.trim();
+  if (platform) return platform;
+  const first = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  return first || "unknown";
 }

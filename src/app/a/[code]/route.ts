@@ -1,3 +1,4 @@
+import { attachmentDisposition } from "@/lib/content-disposition";
 import { attemptForReportCode } from "@/lib/mock-sms";
 import { buildAttemptReport } from "@/lib/mock-report";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
@@ -60,7 +61,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     status: 200,
     headers: {
       "Content-Type": built.contentType,
-      "Content-Disposition": `attachment; filename="${built.filename.replace(/"/g, "")}"`,
+      "Content-Disposition": attachmentDisposition(built.filename),
       "Cache-Control": "no-store",
       "X-Robots-Tag": "noindex",
     },

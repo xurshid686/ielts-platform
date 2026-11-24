@@ -23,7 +23,7 @@ export async function POST() {
 
   // Daily usage cap (cost control). Admins unlimited; premium higher.
   const { data: allowed } = await supabase.rpc("use_ai_quota", { p_kind: "live" });
-  if (allowed === false) {
+  if (allowed !== true) {
     return Response.json(
       { error: "You've reached today's live-conversation limit. Try again tomorrow or go Premium." },
       { status: 429 },
