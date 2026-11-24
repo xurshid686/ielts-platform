@@ -6,6 +6,7 @@ import { Globe, CalendarDays, CalendarRange } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TierChip } from "@/components/rating/rank-badge";
 import { cn } from "@/lib/utils";
+import { PremiumRing } from "@/components/premium-ring";
 import type { LeaderboardGlobalRow, LeaderboardPeriodRow } from "@/types/database";
 
 type Tab = "global" | "weekly" | "monthly";
@@ -62,8 +63,11 @@ export function Leaderboard({
   meGlobal,
   meWeekly,
   meMonthly,
+  premiumIds = [],
 }: {
   meId: string;
+  /** Accounts with active PAID Premium among the rows shown: gold ring + name. */
+  premiumIds?: string[];
   global: LeaderboardGlobalRow[];
   weekly: LeaderboardPeriodRow[];
   monthly: LeaderboardPeriodRow[];
@@ -72,6 +76,7 @@ export function Leaderboard({
   meMonthly: LeaderboardPeriodRow | null;
 }) {
   const [tab, setTab] = useState<Tab>("global");
+  const shiny = new Set(premiumIds);
 
   const data: Record<Tab, { rows: Row[]; me: Row | null }> = {
     global: { rows: global.map(fromGlobal), me: meGlobal ? fromGlobal(meGlobal) : null },
@@ -117,7 +122,7 @@ export function Leaderboard({
       <p className="text-sm text-muted">{blurb}</p>
 
       {/* Podium for the top 3 */}
-      {podium.length > 0 && <Podium rows={podium} meId={meId} metricLabel={rows[0].metricLabel} />}
+      {podium.length > 0 && <Podium rows={podium} meId={meId} metricLabel={rows[0].metricLabel} shiny={shiny} />}
 
       {/* Table */}
       <Card className="overflow-hidden p-0">
@@ -133,7 +138,7 @@ export function Leaderboard({
           <ul className="divide-y divide-border">
             {listed.map((r) => (
               <li key={r.id}>
-                <RowItem row={r} me={r.id === meId} />
+                <RowItem row={r} me={r.id === meId} shiny={shiny.has(r.id)} />
               </li>
             ))}
           </ul>
@@ -144,7 +149,7 @@ export function Leaderboard({
       {me && !meInList && (
         <div className="sticky bottom-3 z-10">
           <Card className="border-primary/40 bg-surface/95 p-0 shadow-elevated backdrop-blur">
-            <RowItem row={me} me />
+            <RowItem row={me} me shiny={shiny.has(me.id)} />
           </Card>
         </div>
       )}
@@ -157,7 +162,7 @@ export function Leaderboard({
   );
 }
 
-function RowItem({ row, me }: { row: Row; me: boolean }) {
+function RowItem({ row, me, shiny }: { row: Row; me: boolean; shiny: boolean }) {
   return (
     <div
       className={cn(
@@ -166,10 +171,12 @@ function RowItem({ row, me }: { row: Row; me: boolean }) {
       )}
     >
       <RankCell rank={row.rank} />
-      <Avatar name={row.name} url={row.avatar_url} />
+      <PremiumRing on={shiny}>
+        <Avatar name={row.name} url={row.avatar_url} />
+      </PremiumRing>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 truncate text-sm font-medium">
-          <Link href={`/u/${row.id}`} className="truncate hover:underline">
+          <Link href={`/u/${row.id}`} className={cn("truncate hover:underline", shiny && "premium-name")}>
             {row.name || "Anonymous"}
           </Link>
           {me && (
@@ -269,7 +276,17 @@ function Avatar({
  * their name, tier and score. It used to show the tier badge in place of the
  * person, on top of tall empty blocks.
  */
-function Podium({ rows, meId, metricLabel }: { rows: Row[]; meId: string; metricLabel: string }) {
+function Podium({
+  rows,
+  meId,
+  metricLabel,
+  shiny,
+}: {
+  rows: Row[];
+  meId: string;
+  metricLabel: string;
+  shiny: Set<string>;
+}) {
   // Visual order: 2nd, 1st, 3rd, with first place raised.
   const order = [rows[1], rows[0], rows[2]];
   return (
@@ -287,7 +304,9 @@ function Podium({ rows, meId, metricLabel }: { rows: Row[]; meId: string; metric
           >
             <div className="relative">
               <Link href={`/u/${r.id}`} aria-label={r.name || "Anonymous"}>
-                <Avatar name={r.name} url={r.avatar_url} size={first ? "xl" : "lg"} />
+                <PremiumRing on={shiny.has(r.id)} crown={first ? "lg" : "md"}>
+                  <Avatar name={r.name} url={r.avatar_url} size={first ? "xl" : "lg"} />
+                </PremiumRing>
               </Link>
               <span className="absolute -bottom-1 -right-1 rounded-full ring-2 ring-surface">
                 <PlaceDisc rank={r.rank} large={first} />
@@ -298,6 +317,7 @@ function Podium({ rows, meId, metricLabel }: { rows: Row[]; meId: string; metric
               className={cn(
                 "mt-3 max-w-full truncate text-sm font-semibold hover:underline",
                 r.id === meId && "text-primary",
+                shiny.has(r.id) && "premium-name",
               )}
             >
               {r.name || "Anonymous"}

@@ -10,6 +10,9 @@ import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-tre
 import { ShareButton } from "@/components/share-button";
 import { tierForRating, ratingProgress, estimatedBand } from "@/lib/rating";
 import type { PublicProfile } from "@/types/database";
+import { PremiumRing } from "@/components/premium-ring";
+import { premiumMemberIds } from "@/lib/premium-members";
+import { Crown } from "lucide-react";
 
 async function fetchProfile(id: string): Promise<PublicProfile | null> {
   const supabase = await createClient();
@@ -47,6 +50,7 @@ export default async function PublicProfilePage({
   const { id } = await params;
   const p = await fetchProfile(id);
   if (!p) notFound();
+  const shiny = (await premiumMemberIds([id])).has(id);
 
   const tier = tierForRating(p.rating);
   const progress = ratingProgress(p.rating);
@@ -77,22 +81,29 @@ export default async function PublicProfilePage({
         <div className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated sm:p-8">
           <div className="ring-hairline absolute inset-0 rounded-2xl" />
           <div className="relative flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
-            {p.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element -- external Google avatar
-              <img
-                src={p.avatar_url}
-                alt=""
-                className="h-20 w-20 rounded-full object-cover ring-4 ring-white/30"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 text-3xl font-bold">
-                {(p.name || "?").charAt(0).toUpperCase()}
-              </span>
-            )}
+            <PremiumRing on={shiny} crown="lg">
+              {p.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- external Google avatar
+                <img
+                  src={p.avatar_url}
+                  alt=""
+                  className={`h-20 w-20 rounded-full object-cover ${shiny ? "" : "ring-4 ring-white/30"}`}
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 text-3xl font-bold">
+                  {(p.name || "?").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </PremiumRing>
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-bold">{p.name || "Anonymous student"}</h1>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                {shiny && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-premium-gradient px-3 py-1 text-sm font-semibold text-white shadow-sm ring-1 ring-white/40">
+                    <Crown className="h-3.5 w-3.5" /> Premium
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
                   {tier.label}
                 </span>

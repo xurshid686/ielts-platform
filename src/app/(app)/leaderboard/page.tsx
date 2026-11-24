@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { Leaderboard } from "@/components/leaderboard/leaderboard";
+import { premiumMemberIds } from "@/lib/premium-members";
 import { AchievementStrip } from "@/components/leaderboard/achievement-strip";
 import type {
   Achievement,
@@ -28,6 +29,10 @@ export default async function LeaderboardPage() {
     supabase.from("user_achievements").select("achievement_id, earned_at").eq("user_id", profile.id),
   ]);
 
+  // Paid members shine (gold ring + name) wherever they appear on the board.
+  const shownIds = [global, weekly, monthly].flatMap((q) => (q.data ?? []).map((r) => r.id as string));
+  const premiumIds = [...(await premiumMemberIds([...shownIds, profile.id]))];
+
   const earned = new Map<string, string>(
     ((mine.data ?? []) as Pick<UserAchievement, "achievement_id" | "earned_at">[]).map((r) => [
       r.achievement_id,
@@ -45,6 +50,7 @@ export default async function LeaderboardPage() {
         meGlobal={(meGlobal.data as LeaderboardGlobalRow | null) ?? null}
         meWeekly={(meWeekly.data as LeaderboardPeriodRow | null) ?? null}
         meMonthly={(meMonthly.data as LeaderboardPeriodRow | null) ?? null}
+        premiumIds={premiumIds}
       />
       {achs.data && achs.data.length > 0 && (
         <AchievementStrip achievements={achs.data as Achievement[]} earned={earned} />

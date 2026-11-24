@@ -22,6 +22,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
+import { PremiumRing } from "@/components/premium-ring";
 import { LEVELS, isContentLevel } from "@/lib/levels";
 import { setEmailReminders } from "@/app/actions/reminders";
 import { deleteMyAccount } from "@/app/actions/account";
@@ -117,18 +118,20 @@ export function AccountMenu({ profile }: { profile: Profile }) {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        {profile.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
-        ) : (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            {initial}
-          </span>
-        )}
+        <PremiumRing on={premium} crown="sm">
+          {profile.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+              {initial}
+            </span>
+          )}
+        </PremiumRing>
         {/* Hidden while the desktop nav bar is on screen but narrow (lg–2xl): a long
             name pushed the bar into the header icons at 1280px. It is still in
             the dropdown. Below lg there is no bar, so it has the room. */}
-        <span className="hidden max-w-[10rem] truncate text-sm font-medium sm:block lg:hidden 2xl:block">{profile.name}</span>
+        <span className={`hidden max-w-[10rem] truncate text-sm font-medium sm:block lg:hidden 2xl:block ${premium ? "premium-name" : ""}`}>{profile.name}</span>
         <ChevronDown className={`h-4 w-4 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
@@ -136,16 +139,18 @@ export function AccountMenu({ profile }: { profile: Profile }) {
         <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-surface shadow-elevated">
           {/* Account info */}
           <div className="flex items-center gap-3 border-b border-border p-4">
-            {profile.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 font-semibold text-primary">
-                {initial}
-              </span>
-            )}
+            <PremiumRing on={premium} crown="md">
+              {profile.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 font-semibold text-primary">
+                  {initial}
+                </span>
+              )}
+            </PremiumRing>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{profile.name || "Student"}</p>
+              <p className={`truncate text-sm font-semibold ${premium ? "premium-name" : ""}`}>{profile.name || "Student"}</p>
               <p className="truncate text-xs text-muted">{profile.email}</p>
             </div>
           </div>

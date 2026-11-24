@@ -276,6 +276,53 @@ h1, h2, h3, h4, h5, h6 {
   color: transparent;
 }
 
+/* Paid members' "shiny" account (owner, 2026-11-24): a gold ring around the
+   avatar, a crown, and a gold name. ACTIVE paid Premium only (premium_until),
+   never a trial. The ring and shimmer move only under no-preference motion
+   (see the media query at the end of this file). */
+.premium-ring {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  padding: 2px;
+  background: conic-gradient(from var(--premium-angle, 0deg), #f7d774, #c8891e, #fff1b8, #b07a1e, #f7d774);
+  box-shadow: 0 0 10px color-mix(in srgb, #e6b866 55%, transparent);
+}
+.premium-ring > :first-child {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.premium-crown {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-image: var(--gradient-premium);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.premium-name {
+  background-image: linear-gradient(100deg, #a8731c 0%, #d9a640 35%, #f7d774 50%, #d9a640 65%, #a8731c 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+.dark .premium-name {
+  background-image: linear-gradient(100deg, #e6b866 0%, #f7d774 40%, #fff1b8 50%, #f7d774 60%, #e6b866 100%);
+  background-size: 200% 100%;
+}
+@property --premium-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 /* Sticky-header chrome: an honest, solid warm surface with a hairline base.
    (Was a frosted-glass blur — a classic "AI template" tell.) */
 .glass {
@@ -329,6 +376,26 @@ h1, h2, h3, h4, h5, h6 {
 .dark ::-webkit-scrollbar-thumb:hover { background: #4a3c30; }
 
 @media (prefers-reduced-motion: no-preference) {
+  @keyframes premium-spin {
+    to {
+      --premium-angle: 360deg;
+    }
+  }
+  @keyframes premium-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  .premium-ring {
+    animation: premium-spin 6s linear infinite;
+  }
+  .premium-name {
+    animation: premium-shimmer 5s linear infinite;
+  }
+
   @keyframes fade-in-up {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
