@@ -2071,7 +2071,10 @@ the director log (Claude memory `director-log.md`); KPIs: `node scripts/growth-k
   Premium-expiring email, the renewal banner, instant mock entry and the paid AI
   writing checks, none of which a trial gets (owner's choice). Offered on the
   review page and dashboard once the student has >= 1 result and never had
-  Premium or a trial (`trialEligible`).
+  Premium or a trial (`trialEligible`), AND on the Premium lock screen with NO
+  result needed (`trialEligible(p, { requireResult: false })`, owner 2026-11-24;
+  `startTrialAction` uses the same relaxed check). The daily-test Telegram card
+  also shows on the student's own review page. E2E: `scripts/e2e-lock-trial.mjs`.
 - **Student daily test** (0070) runs on **@MockOnlineMaterials_bot**, the SAME
   bot as the Ultima PDFs (owner, 2026-11-23): one token
   (`TELEGRAM_TEACHER_BOT_TOKEN`), one webhook (`/api/telegram-teacher`), which
@@ -2084,5 +2087,58 @@ the director log (Claude memory `director-log.md`); KPIs: `node scripts/growth-k
   `teacher_bot_links` on purpose (daily opt-in lives on it).
 - `lib/passes.ts` and `lib/student-bot.ts` use an untyped `db()` client (the
   lib/ultima.ts stopgap) until `npm run types` is run with a token.
-- Channel posts are drafted in `docs/growth/` and are NEVER sent without the
-  owner's approval of that batch.
+- Channel posts are drafted in `docs/growth/channel-posts-<first date>.md` and queued as
+  NATIVE Telegram scheduled posts in @ReadinMarathons (10:00 Tashkent) from the
+  owner's Telethon session: `python -I scripts/channel-schedule.py <file>` (idempotent,
+  `--dry-run`). No per-batch approval any more (owner, 2026-11-24): the owner reviews in
+  the channel's "Scheduled messages" list. No inline button (user accounts can't); the
+  link is in the caption. Shots: `node scripts/channel-shots.mjs <file>`. Check weekday
+  names against a real calendar. The Windows task + channel-post.mjs --send is retired (disabled).
+
+# Edit profile, problem reports (owner, 2026-11-24)
+
+- **Edit profile** (account menu): first name + surname stored as the one
+  `profiles.name` (`cleanPersonName`, lib/profile-name.ts, pure). Photos are
+  cropped/resized IN THE BROWSER to 256 px WebP (JPEG on Safari);
+  `uploadAvatar` sniffs the bytes (WebP/JPEG only, <= 300 KB) and writes R2
+  `avatars/<id>.img`; `avatar_url = /api/avatar/<id>?v=<stamp>` (public route,
+  streams bytes, immutable cache; proxy skips it). Owner/admin "Remove photo"
+  on /admin/members (`removeUserAvatar`). Vercel PRODUCTION has no
+  STORAGE_BACKEND, so uploads only work on DO + the dev preview.
+- **Report a problem** (0072): bug button in the practice TestRunner's top bar
+  (outside the CDI iframe; the mock runner has none). `test_reports` has no
+  grants; lib/test-reports.ts is the door. Limits 5/day (Tashkent) + 1 per test
+  per 10 min. /admin/reports: Fixed = +50 XP via `gift_xp` + in-app thank-you,
+  ONCE (conditional close + `rewarded` flag, reset if the XP grant fails).
+
+# Online payment: Payme + Click (0073, owner 2026-11-24)
+
+Premium can be bought online. **Switched off until real merchant keys exist**:
+a provider is live only when `PAYMENTS_ENABLED=1` AND its keys are set
+(`lib/payments/config.ts`). With none, /premium is exactly the old Telegram flow.
+
+- **Never trust the browser's amount.** `startCheckout(months, provider)` takes
+  only the period; the price comes from `PREMIUM_PLANS[].priceUzs` (site.ts) and
+  is stored on the `payment_orders` row. Webhooks compare the provider's amount
+  with the ORDER's.
+- **Only the webhooks pay.** /premium/thanks only shows and polls the order.
+- **Pay once:** `fulfil_payment_order` locks the row and returns a paid order
+  unchanged, so provider retries cannot extend Premium twice. It extends from
+  greatest(now, premium_until) like `set_premium_as`, and sets premium_announce.
+  `refund_payment_order` (Payme cancel after perform) takes the months back.
+  Both are service_role only; the table has no grants (check-0073.mjs).
+- **One transaction per order:** `attachTx` is conditional on an unclaimed
+  `created` order. An order is bound to one provider at checkout.
+- Payme: `/api/payments/payme` (JSON-RPC, Basic `Paycom:<PAYME_KEY>`, always
+  HTTP 200, 12 h timeout, fiscal `detail` when `PAYME_IKPU` + `PAYME_PACKAGE_CODE`
+  are set). Click: `/api/payments/click/prepare|complete` (md5 sign, error < 0 on
+  Complete cancels the order). Proxy skips `api/payments`.
+- Env (DO SECRET for live): `PAYMENTS_ENABLED`, `PAYME_MERCHANT_ID`, `PAYME_KEY`,
+  `PAYME_IKPU`, `PAYME_PACKAGE_CODE`, `PAYME_CHECKOUT_URL` (test.paycom.uz for the
+  sandbox), `CLICK_SERVICE_ID`, `CLICK_MERCHANT_ID`, `CLICK_SECRET_KEY`,
+  `CLICK_MERCHANT_USER_ID`. **The Vercel Preview (dev) has MADE-UP test keys**
+  so the flow can be exercised; they pay nothing real.
+- E2E: `node scripts/e2e-payments.mjs [base] --keys=<file of E2E_* test keys>`
+  plays both providers (36 checks). Before switching on for students, also run
+  Payme's sandbox (test.paycom.uz) and Click's test flow with the REAL keys.
+- Ultima is still sold by hand (Telegram).
