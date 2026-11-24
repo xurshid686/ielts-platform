@@ -44,6 +44,14 @@ export const metadata = {
  * speaking examiner is not reliable enough to charge for), although premium
  * accounts do still get higher AI limits in `use_ai_quota` (migration 0010).
  */
+/** "Save 15 000 so'm" when priced in so'm (3 x 1 month vs the 3-month plan), else the $ note. */
+function saveNote(plan: (typeof PREMIUM_PLANS)[number], online: boolean): string | undefined {
+  if (!online) return plan.note;
+  const monthly = PREMIUM_PLANS.find((p) => p.months === 1);
+  const saved = monthly ? monthly.priceUzs * plan.months - plan.priceUzs : 0;
+  return saved > 0 ? `Save ${formatUzs(saved)}` : undefined;
+}
+
 export default async function PremiumPage() {
   const profile = await getProfile();
   const supabase = await createClient();
@@ -115,7 +123,7 @@ export default async function PremiumPage() {
                   best ? "bg-premium-gradient text-white" : "bg-surface-2 text-muted"
                 }`}
               >
-                {best ? `Best value${plan.note ? ` · ${plan.note}` : ""}` : "Try it"}
+                {best ? `Best value${saveNote(plan, online) ? ` · ${saveNote(plan, online)}` : ""}` : "Try it"}
               </div>
               <div className="flex flex-1 flex-col p-6">
                 <p className="text-sm font-medium text-muted">{plan.label}</p>
