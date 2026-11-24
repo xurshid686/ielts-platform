@@ -71,18 +71,36 @@ try {
 
   // Never actually leave for the providers' sites: capture where we were sent.
   await page.route(/checkout\.paycom\.uz|my\.click\.uz/, (r) => r.fulfill({ status: 200, body: "provider" }));
+  // The new /premium (2026-11-24): period tab -> "Get Premium" -> chooser -> method -> Pay.
   async function startPay(provider, cardIndex) {
     await page.goto(`${BASE}/premium`); await page.waitForLoadState("networkidle", { timeout: 60000 });
-    const btn = page.locator(`[data-pay="${provider}"]`).nth(cardIndex);
-    const [req] = await Promise.all([page.waitForRequest(/checkout\.paycom\.uz|my\.click\.uz/, { timeout: 30000 }), btn.click()]);
+    await page.getByRole("tab", { name: cardIndex === 0 ? /^1 month/ : /^3 months/ }).click();
+    await page.locator('[data-buy="premium"]').click();
+    await page.getByRole("dialog").waitFor();
+    await page.locator(`[data-method="${provider}"]`).click();
+    const [req] = await Promise.all([
+      page.waitForRequest(/checkout\.paycom\.uz|my\.click\.uz/, { timeout: 30000 }),
+      page.getByRole("dialog").getByRole("button", { name: /^Pay / }).click(),
+    ]);
     return req.url();
   }
 
   await page.goto(`${BASE}/premium`); await page.waitForLoadState("networkidle", { timeout: 60000 });
-  const txt = await page.evaluate(() => document.body.innerText);
-  check(await page.locator('[data-pay="payme"]').count() === 2 && await page.locator('[data-pay="click"]').count() === 2, "/premium shows Pay with Payme + Click on both plans");
-  check(txt.includes("25 000 so'm") && txt.includes("60 000 so'm"), "prices shown in so'm (25 000 / 60 000)");
-  check(txt.includes("Other ways to pay"), "Telegram kept as 'Other ways to pay'");
+  let txt = await page.evaluate(() => document.body.innerText);
+  check(txt.includes("60\u00a0000 so'm"), "3 months is the default: 60 000 so'm");
+  await page.getByRole("tab", { name: /^1 month/ }).click();
+  txt = await page.evaluate(() => document.body.innerText);
+  check(txt.includes("25\u00a0000 so'm"), "1 month tab: 25 000 so'm");
+  await page.locator('[data-buy="premium"]').click();
+  await page.getByRole("dialog").waitFor();
+  const enabled = await page.evaluate(() => ["payme", "click", "telegram"].map((m) => !document.querySelector(`[data-method="${m}"]`)?.disabled));
+  check(enabled.every(Boolean), `chooser: Payme, Click and Telegram all selectable (${enabled})`);
+  check((await page.getByRole("dialog").innerText()).includes("Premium · 1 month"), "chooser names the plan and period");
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+  await page.locator('[data-buy="ultima"]').click();
+  await page.getByRole("dialog").waitFor();
+  check(await page.locator('[data-method="payme"]').count() === 0 && await page.locator('[data-method="telegram"]').count() === 1, "Ultima chooser offers Telegram only");
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
   // ================= PAYME =================
   const pUrl = await startPay("payme", 0);

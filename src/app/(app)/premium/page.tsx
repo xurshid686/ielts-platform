@@ -1,33 +1,17 @@
-import Link from "next/link";
-import {
-  ArrowRight,
-  BookOpen,
-  Check,
-  ClipboardCheck,
-  Crown,
-  FileDown,
-  Send,
-} from "lucide-react";
+import { Check, ChevronDown, Crown, CreditCard, FileDown, Send } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
-import {
-  PREMIUM_PLANS,
-  PREMIUM_TELEGRAM_HANDLE,
-  ULTIMA_PLANS,
-  formatUzs,
-  premiumRequestUrl,
-  ultimaRequestUrl,
-} from "@/lib/site";
+import { PREMIUM_PLANS, PREMIUM_TELEGRAM_HANDLE, PREMIUM_TELEGRAM_URL, ULTIMA_PLANS, formatUzs } from "@/lib/site";
 import { ultimaUntil } from "@/lib/ultima";
 import { enabledProviders } from "@/lib/payments/config";
-import { PayButtons } from "@/components/premium/pay-buttons";
-import { ComingSoonPayments } from "@/components/premium/payment-logos";
+import { PaymentLogo } from "@/components/premium/payment-logos";
+import { PricingCards } from "@/components/premium/pricing-cards";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
   title: "Premium",
   description: `IELTS practice Premium: every premium test and instant mock exam entry. ${PREMIUM_PLANS.map(
-    (p) => `${p.price} for ${p.label}`,
+    (p) => `${formatUzs(p.priceUzs)} for ${p.label}`,
   ).join(", ")}. Ultima for teachers adds a PDF of every reading test with answers: ${ULTIMA_PLANS.map(
     (p) => `${p.price} for ${p.label}`,
   ).join(", ")}.`,
@@ -35,308 +19,203 @@ export const metadata = {
 };
 
 /**
- * What Premium is, what it costs and how to get it. Public: the layout falls
- * through to the logged-out shell, so a visitor can read the price before
- * being asked for an account.
+ * What Premium is, what it costs and how to get it (redesigned 2026-11-24 after
+ * ieltsx.com/pricing: period switch, Free / Premium / Ultima cards, ways to pay,
+ * comparison, FAQ). Public: a visitor reads the prices before being asked for an
+ * account. Pressing a paid plan opens the payment chooser; a guest signs in
+ * first and returns with ?buy=<plan>&months=<n>, which reopens it.
  *
- * Every figure on this page is either a constant the owner set (the plans in
- * lib/site.ts) or read from the database at render time (the premium test
- * counts). Speaking is deliberately NOT sold here (owner, 2026-11-10: the AI
- * speaking examiner is not reliable enough to charge for), although premium
- * accounts do still get higher AI limits in `use_ai_quota` (migration 0010).
+ * Prices are the owner's constants (lib/site.ts); counts are read at render time.
+ * Real prices only: no countdowns or "was" prices (owner). Speaking is NOT sold
+ * here (owner, 2026-11-10).
  */
-/** "Save 15 000 so'm" when priced in so'm (3 x 1 month vs the 3-month plan), else the $ note. */
-function saveNote(plan: (typeof PREMIUM_PLANS)[number], online: boolean): string | undefined {
-  if (!online) return plan.note;
-  const monthly = PREMIUM_PLANS.find((p) => p.months === 1);
-  const saved = monthly ? monthly.priceUzs * plan.months - plan.priceUzs : 0;
-  return saved > 0 ? `Save ${formatUzs(saved)}` : undefined;
-}
-
-export default async function PremiumPage() {
+export default async function PremiumPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ buy?: string; months?: string }>;
+}) {
   const profile = await getProfile();
   const supabase = await createClient();
+  const sp = await searchParams;
 
-  // Named columns only: `tests` has column-level grants (0034), and the anon
-  // role can read `skill`, `tier` and `track`.
-  const { data } = await supabase
-    .from("tests")
-    .select("skill")
-    .eq("tier", "premium")
-    .eq("track", "regular");
-  const premiumTests = (data ?? []) as { skill: string }[];
-  const reading = premiumTests.filter((t) => t.skill === "reading").length;
-  const listening = premiumTests.filter((t) => t.skill === "listening").length;
+  // Named columns only: `tests` has column-level grants (0034).
+  const { data } = await supabase.from("tests").select("skill").eq("tier", "premium").eq("track", "regular");
+  const premiumTests = (data ?? []).length;
 
   const active = !!profile && isPremiumActive(profile);
-  // Online payment (0073): only providers whose keys are set on this host.
-  // With none, the page is exactly as before: the Telegram button alone.
-  const providers = enabledProviders();
-  const online = providers.length > 0;
-  // Providers not switched on yet get a "coming soon" logo (owner, 2026-11-24).
-  const soon = (["payme", "click"] as const).filter((p) => !providers.includes(p));
   const isAdmin = profile?.role === "admin";
-  // Ultima lives in its own table (0066), so it is read separately. The same end-date rule as Premium.
   const ultimaEnds = profile ? await ultimaUntil(profile.id) : null;
   const ultimaActive = isPremiumActive({ premium_until: ultimaEnds });
+  // Online payment (0073): only providers whose keys are set on this host.
+  const providers = enabledProviders();
+  const online = providers.length > 0;
 
-  const libraryLine =
-    premiumTests.length > 0
-      ? `${premiumTests.length} premium tests (${[
-          reading ? `${reading} reading` : null,
-          listening ? `${listening} listening` : null,
-        ]
-          .filter(Boolean)
-          .join(", ")}), on top of every free one`
-      : "Every premium test, on top of every free one";
+  const buyPlan: "premium" | "ultima" | null = sp.buy === "premium" || sp.buy === "ultima" ? sp.buy : null;
+  const buyMonths = Number(sp.months);
+  const initialBuy = buyPlan
+    ? { plan: buyPlan, months: PREMIUM_PLANS.some((p) => p.months === buyMonths) ? buyMonths : 1 }
+    : null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10 py-4">
+    <div className="mx-auto max-w-5xl space-y-12 py-4">
       <header className="text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-premium-gradient text-white">
-          <Crown className="h-7 w-7" />
-        </div>
-        <h1 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-          Premium
-        </h1>
+        <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl">Premium</h1>
         <p className="mx-auto mt-3 max-w-xl text-muted">
-          The whole test library, and a place in every mock exam without waiting for approval.
+          Every test in the library, a mock exam place without waiting, and AI checks for your writing.
         </p>
-        {active && profile?.premium_until && (
-          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-premium/30 bg-premium/5 px-4 py-1.5 text-sm font-medium">
-            <Crown className="h-4 w-4 text-premium" />
-            You have Premium until {new Date(profile.premium_until).toISOString().slice(0, 10)}
-          </p>
-        )}
-      </header>
-
-      {/* Plans: each card carries its own button, so price and action share one screen */}
-      <section aria-label="Prices" className="grid items-stretch gap-4 sm:grid-cols-2">
-        {PREMIUM_PLANS.map((plan, i) => {
-          const best = i === PREMIUM_PLANS.length - 1 && PREMIUM_PLANS.length > 1;
-          return (
-            <div
-              key={plan.months}
-              className={`flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-soft ${
-                best ? "border-premium/60 shadow-elevated" : "border-border"
-              }`}
-            >
-              <div
-                className={`px-6 py-2 text-xs font-bold uppercase tracking-wide ${
-                  best ? "bg-premium-gradient text-white" : "bg-surface-2 text-muted"
-                }`}
-              >
-                {best ? `Best value${saveNote(plan, online) ? ` · ${saveNote(plan, online)}` : ""}` : "Try it"}
-              </div>
-              <div className="flex flex-1 flex-col p-6">
-                <p className="text-sm font-medium text-muted">{plan.label}</p>
-                {online ? (
-                  <>
-                    <p className="mt-1 text-4xl font-extrabold tabular-nums">{formatUzs(plan.priceUzs)}</p>
-                    <p className="mt-1 text-sm text-muted">about {plan.price}</p>
-                  </>
-                ) : (
-                  <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
-                )}
-                <p className="mt-2 flex-1 text-sm text-muted">
-                  One payment. It ends by itself after {plan.label}; nothing renews automatically.
-                </p>
-                {!isAdmin && online && (
-                  <PayButtons months={plan.months} providers={providers} signedIn={!!profile} best={best} />
-                )}
-                {!isAdmin && online && (
-                  <a
-                    href={premiumRequestUrl(profile?.email, plan.months)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex items-center justify-center gap-1.5 text-sm text-muted hover:text-foreground"
-                  >
-                    <Send className="h-3.5 w-3.5" /> Other ways to pay: message us on Telegram
-                  </a>
-                )}
-                {!isAdmin && !online && (
-                  <a
-                    href={premiumRequestUrl(profile?.email, plan.months)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold ${
-                      best
-                        ? "bg-premium-gradient text-white shadow-sm hover:opacity-95"
-                        : "border border-premium/40 text-premium hover:bg-premium/10"
-                    }`}
-                  >
-                    <Send className="h-4 w-4" />
-                    {active ? "Add" : "Get"} {plan.label} on Telegram
-                  </a>
-                )}
-                <ComingSoonPayments providers={[...soon]} />
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* Ultima: the teachers' plan. Same flow as Premium (request on Telegram, owner grants it). */}
-      <section id="ultima" aria-label="Ultima for teachers" className="scroll-mt-24 space-y-4">
-        <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <FileDown className="h-6 w-6" />
-          </div>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight">For teachers: Ultima</h2>
-          <p className="mx-auto mt-2 max-w-xl text-muted">
-            Everything in Premium, plus a PDF of every reading test with its answers, sent straight
-            to your Telegram, and 20 AI writing checks a month (Premium has 10). Print the PDFs for
-            class, or share them with students.
-          </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {active && profile?.premium_until && (
+            <p className="inline-flex items-center gap-2 rounded-full border border-premium/30 bg-premium/5 px-4 py-1.5 text-sm font-medium">
+              <Crown className="h-4 w-4 text-premium" />
+              You have Premium until {new Date(profile.premium_until).toISOString().slice(0, 10)}
+            </p>
+          )}
           {ultimaActive && ultimaEnds && (
-            <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium">
+            <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium">
               <FileDown className="h-4 w-4 text-primary" />
               You have Ultima until {new Date(ultimaEnds).toISOString().slice(0, 10)}
             </p>
           )}
         </div>
-        <div className="grid items-stretch gap-4 sm:grid-cols-2">
-          {ULTIMA_PLANS.map((plan, i) => {
-            const best = i === ULTIMA_PLANS.length - 1 && ULTIMA_PLANS.length > 1;
-            return (
-              <div
-                key={plan.months}
-                className={`flex flex-col overflow-hidden rounded-2xl border bg-surface shadow-soft ${
-                  best ? "border-primary/60 shadow-elevated" : "border-border"
-                }`}
-              >
-                <div
-                  className={`px-6 py-2 text-xs font-bold uppercase tracking-wide ${
-                    best ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted"
-                  }`}
-                >
-                  {best ? `Best value${plan.note ? ` · ${plan.note}` : ""}` : "Try it"}
-                </div>
-                <div className="flex flex-1 flex-col p-6">
-                  <p className="text-sm font-medium text-muted">Ultima · {plan.label}</p>
-                  <p className="mt-1 text-5xl font-extrabold tabular-nums">{plan.price}</p>
-                  <p className="mt-2 flex-1 text-sm text-muted">
-                    Includes Premium for the same period. One payment; nothing renews automatically.
-                  </p>
-                  {!isAdmin && (
-                    <a
-                      href={ultimaRequestUrl(profile?.email, plan.months)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold ${
-                        best
-                          ? "bg-primary text-primary-foreground shadow-sm hover:opacity-95"
-                          : "border border-primary/40 text-primary hover:bg-primary/10"
-                      }`}
-                    >
-                      <Send className="h-4 w-4" />
-                      {ultimaActive ? "Add" : "Get"} Ultima {plan.label} on Telegram
-                    </a>
+      </header>
+
+      <div className="space-y-6">
+        <PricingCards
+          signedIn={!!profile}
+          email={profile?.email ?? null}
+          isAdmin={isAdmin}
+          premiumActive={active}
+          ultimaActive={ultimaActive}
+          premiumTests={premiumTests}
+          providers={providers}
+          initialBuy={initialBuy}
+        />
+      </div>
+
+      {/* Ways to pay */}
+      <section aria-labelledby="ways-to-pay" className="rounded-3xl border border-border bg-surface-2/60 p-6 sm:p-8">
+        <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted">Accepted payments</p>
+        <h2 id="ways-to-pay" className="mt-1 text-center text-2xl font-bold">
+          Ways to pay
+        </h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-premium/10 text-premium">
+                <CreditCard className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
+                  Pay online
+                  {!online && (
+                    <span className="rounded-full bg-premium/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-premium">
+                      Coming soon
+                    </span>
                   )}
-                </div>
+                </p>
+                <p className="mt-0.5 text-sm text-muted">
+                  {online
+                    ? "Uzcard, Humo or Visa through Payme or Click. Premium switches on the moment you pay."
+                    : "Uzcard, Humo or Visa through Payme or Click, with Premium switched on instantly. Opening very soon."}
+                </p>
               </div>
-            );
-          })}
+            </div>
+            <div className={`mt-4 flex flex-wrap gap-2 ${online ? "" : "opacity-75"}`}>
+              <PaymentLogo provider="payme" height={18} />
+              <PaymentLogo provider="click" height={18} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#229ED9]/10 text-[#229ED9]">
+                <Send className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-semibold">Pay through Telegram</p>
+                <p className="mt-0.5 text-sm text-muted">
+                  Message our admin{" "}
+                  <a href={PREMIUM_TELEGRAM_URL} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
+                    {PREMIUM_TELEGRAM_HANDLE}
+                  </a>
+                  . We send the payment details and switch your plan on as soon as you pay.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
+        <p className="mt-5 text-center text-xs text-muted">
+          Every plan is one payment for a fixed period. Nothing renews or charges you again.
+        </p>
       </section>
 
-      {isAdmin ? (
-        <p className="text-center text-sm text-muted">
-          You are an admin, so every test is already open to you. This is the page students see.
-        </p>
-      ) : (
-        <section aria-label="How it works">
-          <ol className="grid gap-3 sm:grid-cols-3">
-            {[
-              `Tap a button above. It opens a chat with our admin, ${PREMIUM_TELEGRAM_HANDLE}, with your message ready to send.`,
-              "We send you the payment details.",
-              "After you pay, we switch your plan (Premium or Ultima) on for your account and it shows here.",
-            ].map((step, i) => (
-              <li
-                key={step}
-                className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4 text-sm"
-              >
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-premium/10 text-xs font-bold text-premium tabular-nums">
-                  {i + 1}
-                </span>
-                <span className="text-muted">{step}</span>
-              </li>
-            ))}
-          </ol>
-          {!profile && (
-            <p className="mt-4 text-center text-sm text-muted">
-              Premium is attached to an account, so you need one before we can switch it on.{" "}
-              <Link
-                href="/register?next=%2Fpremium"
-                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
-              >
-                Create a free account first <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* What is included */}
-      <section>
-        <h2 className="text-lg font-semibold">What you get</h2>
-        <ul className="mt-4 space-y-3">
-          <Included icon={<BookOpen className="h-5 w-5" />} title="The premium tests">
-            {libraryLine}. Same exam screen, instant band score and full answer review.
-          </Included>
-          <Included icon={<ClipboardCheck className="h-5 w-5" />} title="Mock exams without waiting">
-            Join any open mock exam straight away. Free accounts send a request and wait for it
-            to be approved.
-          </Included>
-        </ul>
-
-        <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface shadow-soft">
-          <table className="w-full text-sm">
+      {/* Compare plans */}
+      <section aria-labelledby="compare">
+        <h2 id="compare" className="text-center text-2xl font-bold">
+          Compare plans
+        </h2>
+        <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-surface shadow-soft">
+          <table className="w-full min-w-[34rem] text-sm">
             <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-4 py-3 font-medium text-muted"> </th>
-                <th className="px-4 py-3 font-medium">Free</th>
-                <th className="px-4 py-3 font-medium text-premium">
-                  Premium
-                </th>
-                <th className="px-4 py-3 font-medium text-primary">Ultima</th>
+              <tr className="border-b border-border bg-surface-2/60 text-left">
+                <th className="px-4 py-3 font-medium text-muted">Features</th>
+                <th className="px-4 py-3 text-center font-semibold">Free</th>
+                <th className="bg-premium/5 px-4 py-3 text-center font-semibold text-premium">Premium</th>
+                <th className="px-4 py-3 text-center font-semibold text-primary">Ultima</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               <Row label="Free reading and listening tests" free={<Yes />} premium={<Yes />} />
-              <Row label="Band score, review, rating, streak" free={<Yes />} premium={<Yes />} />
+              <Row label="Band score, answer review, rating, streak" free={<Yes />} premium={<Yes />} />
               <Row label="Writing practice" free={<Yes />} premium={<Yes />} />
-              <Row label="Premium tests" free="No" premium={<Yes />} />
+              <Row label="Premium tests" free="3 a week" premium={premiumTests > 0 ? `All ${premiumTests}` : "All"} />
               <Row label="Mock exam place" free="On request" premium="Instant" />
-              <Row label="PDF of every reading test (print or share)" free="No" premium="No" ultima={<Yes />} />
-              <Row label="AI writing checks each month" free="No" premium="10" ultima="20" />
+              <Row label="AI writing checks each month" free="—" premium="10" ultima="20" />
+              <Row label="PDF of every reading test with answers" free="—" premium="—" ultima={<Yes />} />
+              <Row label="Gold Premium badge" free="—" premium={<Yes />} />
             </tbody>
           </table>
         </div>
       </section>
-    </div>
-  );
-}
 
-function Included({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <li className="flex items-start gap-3 rounded-2xl border border-border bg-surface p-4 shadow-soft">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-premium/10 text-premium">
-        {icon}
-      </span>
-      <div>
-        <p className="font-semibold">{title}</p>
-        <p className="mt-0.5 text-sm text-muted">{children}</p>
-      </div>
-    </li>
+      {/* FAQ */}
+      <section aria-labelledby="faq" className="mx-auto max-w-3xl">
+        <h2 id="faq" className="text-center text-2xl font-bold">
+          Frequently asked questions
+        </h2>
+        <div className="mt-6 space-y-2">
+          <Faq q="Is this a subscription?">
+            No. You pay once for 1 or 3 months. When the period ends, Premium simply stops; nothing renews and
+            nobody charges your card again.
+          </Faq>
+          <Faq q="How do I pay?">
+            Press &ldquo;Get Premium&rdquo;, choose the period and how to pay.{" "}
+            {online
+              ? "With Payme or Click, Premium switches on the moment the payment goes through."
+              : "Paying online with Payme or Click opens very soon. Until then, message our admin on Telegram and we switch Premium on as soon as you pay."}
+          </Faq>
+          <Faq q="I already have Premium. What happens if I buy more?">
+            The new period is added on top of the time you have left, so you never lose days.
+          </Faq>
+          <Faq q="Can I try before buying?">
+            Yes. Every account has free tests, 3 Premium tests free every week, and a one-time 3-day free trial
+            of every Premium test after you finish your first test.
+          </Faq>
+          <Faq q="Is this the real IELTS exam?">
+            No. It is a practice platform with the same computer-delivered exam screen, so test day feels
+            familiar. It is not affiliated with IDP, the British Council or Cambridge, and the band you get here
+            is an estimate.
+          </Faq>
+          <Faq q="What happens when my Premium ends?">
+            Your account, results, streak and rating stay. You keep the free tests and your 3 free Premium tests
+            a week; only the full library closes until you renew.
+          </Faq>
+          <Faq q="What is Ultima?">
+            Ultima is for teachers. It includes Premium for the same period, plus a PDF of every reading test with
+            its answers sent to your Telegram, ready to print for class, and 20 AI writing checks a month.
+          </Faq>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -357,9 +236,9 @@ function Row({
       <th scope="row" className="px-4 py-3 text-left font-normal">
         {label}
       </th>
-      <td className="px-4 py-3 text-muted">{free}</td>
-      <td className="px-4 py-3 font-medium">{premium}</td>
-      <td className="px-4 py-3 font-medium">{ultima ?? premium}</td>
+      <td className="px-4 py-3 text-center text-muted">{free}</td>
+      <td className="bg-premium/5 px-4 py-3 text-center font-medium">{premium}</td>
+      <td className="px-4 py-3 text-center font-medium">{ultima ?? premium}</td>
     </tr>
   );
 }
@@ -367,8 +246,20 @@ function Row({
 function Yes() {
   return (
     <>
-      <Check className="h-4 w-4 text-success" aria-hidden />
+      <Check className="mx-auto h-4 w-4 text-success" aria-hidden />
       <span className="sr-only">Yes</span>
     </>
+  );
+}
+
+function Faq({ q, children }: { q: string; children: React.ReactNode }) {
+  return (
+    <details className="group rounded-xl border border-border bg-surface px-5 py-4 shadow-soft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+        {q}
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
+      </summary>
+      <p className="mt-3 text-sm text-muted">{children}</p>
+    </details>
   );
 }

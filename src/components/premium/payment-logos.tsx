@@ -20,24 +20,3 @@ export function PaymentLogo({ provider, height = 18 }: { provider: PayProvider; 
     </span>
   );
 }
-
-/**
- * "Soon: pay with Payme / Click" under a plan's Telegram button, for providers
- * not switched on yet (owner, 2026-11-24). Not a button: nothing to click.
- */
-export function ComingSoonPayments({ providers }: { providers: PayProvider[] }) {
-  if (providers.length === 0) return null;
-  return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-2" aria-label="Online payment coming soon">
-      <span className="text-xs text-muted">Soon: pay with</span>
-      {providers.map((p) => (
-        <span key={p} aria-disabled="true" className="opacity-75" title={`${LOGO[p].alt}: coming soon`}>
-          <PaymentLogo provider={p} height={14} />
-        </span>
-      ))}
-      <span className="rounded-full bg-premium/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-premium">
-        Coming soon
-      </span>
-    </div>
-  );
-}
