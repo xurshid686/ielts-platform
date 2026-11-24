@@ -94,6 +94,7 @@ export function navItemsFor(
         { href: "/admin/discipline", label: "Discipline" },
         { href: "/admin/writing-practice", label: "Writing practice" },
         { href: "/admin/tests", label: "Tests" },
+        { href: "/admin/reports", label: "Problem reports" },
         { href: "/admin/members", label: "Members & premium" },
         ...(profile.is_owner ? [{ href: "/admin/team", label: "Admins" }] : []),
       ],

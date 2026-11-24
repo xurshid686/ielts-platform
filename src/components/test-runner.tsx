@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Flame, Loader2, Maximize, Minimize, FileText, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, ListChecks } from "lucide-react";
+import { CheckCircle2, Flame, Loader2, Maximize, Minimize, FileText, Trophy, X, ArrowLeft, TrendingUp, TrendingDown, ListChecks, Bug } from "lucide-react";
 import { saveResult, type RatingOutcome } from "@/app/actions/results";
 import { Button } from "@/components/ui/button";
 import { tierForRating } from "@/lib/rating";
 import { RankBadge } from "@/components/rating/rank-badge";
+import { TestReportDialog } from "@/components/test-report-dialog";
 
 type Props = {
   testId: string;
@@ -121,6 +122,9 @@ export function TestRunner({
   const [error, setError] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
   const [isFs, setIsFs] = useState(false);
+  // "Report a problem" (0072). Rendered inside the container so it stays
+  // visible when the player is fullscreen.
+  const [reporting, setReporting] = useState(false);
 
   const srcUrl = `/api/test-html/${testId}`;
   const expectedOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -323,6 +327,15 @@ export function TestRunner({
             </a>
           )}
           <button
+            onClick={() => setReporting(true)}
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm text-muted hover:bg-surface-2 hover:text-foreground"
+            title="Report a problem in this test"
+            aria-label="Report a problem"
+          >
+            <Bug className="h-4 w-4" />
+            <span className="hidden md:inline">Report a problem</span>
+          </button>
+          <button
             onClick={toggleFullscreen}
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-surface-2"
           >
@@ -360,6 +373,10 @@ export function TestRunner({
 
       {showCelebration && saved && (
         <Celebration saved={saved} skill={skill} onClose={doExit} />
+      )}
+
+      {reporting && (
+        <TestReportDialog testId={testId} skill={skill} guest={guest} onClose={() => setReporting(false)} />
       )}
 
       {guestScore && (

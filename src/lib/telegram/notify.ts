@@ -208,3 +208,35 @@ export async function notifyTrialStarted(userId: string): Promise<void> {
     // Never let a notification fail the student's action.
   }
 }
+
+/**
+ * A student reported a problem in a test (0072). Called in `after()` from
+ * reportTestProblem, so a Telegram outage cannot fail the report.
+ */
+export async function notifyTestReport(input: {
+  studentName: string;
+  testTitle: string;
+  skill: string;
+  category: string;
+  question: string | null;
+  message: string;
+  testUrl: string;
+  adminUrl: string;
+}): Promise<void> {
+  if (!notificationsConfigured()) return;
+  try {
+    await push(
+      [
+        `🐞 <b>Problem report</b>: ${escapeHtml(input.category)}`,
+        `${escapeHtml(input.testTitle)} (${escapeHtml(input.skill)})${input.question ? ` · Q${escapeHtml(input.question)}` : ""}`,
+        "",
+        escapeHtml(input.message),
+        "",
+        `from <b>${escapeHtml(input.studentName)}</b>`,
+        `<a href="${escapeHtml(input.testUrl)}">Open the test</a> · <a href="${escapeHtml(input.adminUrl)}">All reports</a>`,
+      ].join("\n"),
+    );
+  } catch (e) {
+    console.error("[telegram] notifyTestReport failed", e);
+  }
+}
