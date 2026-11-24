@@ -12,7 +12,7 @@ export default async function AdminMembersPage() {
 
   // `level` (0021) and `hidden_from_leaderboard` (0020) are long applied.
   const COLUMNS =
-    "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date";
+    "id, email, name, avatar_url, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date";
 
   // The newest 500 accounts, PLUS everyone who has ever held Premium. Without
   // the second query a lapsed member who registered long ago falls outside the

@@ -126,5 +126,5 @@ export const config = {
   // for a browser. The path is not in PROTECTED, so this is wasted work
   // rather than a redirect - but on a path Telegram hits constantly it is
   // worth skipping. The route authenticates itself (secret header + owner id).
-  matcher: ["/((?!api/telegram|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/((?!api/telegram|api/avatar|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

@@ -12,7 +12,9 @@ import type {
 
 export const metadata = { title: "Leaderboard" };
 
-const TOP = 100;
+// Top 10 only (owner, 2026-11-24). A student below it still sees their own
+// row pinned under the list (leaderboard.tsx, `me && !meInList`).
+const TOP = 10;
 
 export default async function LeaderboardPage() {
   const profile = await requireProfile();

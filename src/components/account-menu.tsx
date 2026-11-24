@@ -20,9 +20,11 @@ import {
   BellOff,
   Trash2,
   Smartphone,
+  UserPen,
 } from "lucide-react";
 import { isPremiumActive } from "@/lib/premium";
 import { PremiumRing } from "@/components/premium-ring";
+import { EditProfileDialog } from "@/components/profile/edit-profile-dialog";
 import { LEVELS, isContentLevel } from "@/lib/levels";
 import { setEmailReminders } from "@/app/actions/reminders";
 import { deleteMyAccount } from "@/app/actions/account";
@@ -34,6 +36,7 @@ import type { Profile } from "@/types/database";
 export function AccountMenu({ profile }: { profile: Profile }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
   // Delete account: a second dialog that needs the word DELETE typed.
   const [deleting, setDeleting] = useState(false);
   const [deleteText, setDeleteText] = useState("");
@@ -200,6 +203,16 @@ export function AccountMenu({ profile }: { profile: Profile }) {
             <MenuItem href="/writing/reports" icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Writing reports
             </MenuItem>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setEditing(true);
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-2"
+            >
+              <UserPen className="h-4 w-4" /> Edit profile
+            </button>
             <MenuItem href={`/u/${profile.id}`} icon={<UserCircle className="h-4 w-4" />} onClick={() => setOpen(false)}>
               Public profile
             </MenuItem>
@@ -284,6 +297,16 @@ export function AccountMenu({ profile }: { profile: Profile }) {
 
       {/* Hidden real sign-out form (POST) */}
       <form ref={formRef} action="/auth/signout" method="post" className="hidden" />
+
+      {/* Edit profile: name + photo (owner, 2026-11-24) */}
+      {editing && (
+        <EditProfileDialog
+          name={profile.name}
+          avatarUrl={profile.avatar_url}
+          premium={premium}
+          onClose={() => setEditing(false)}
+        />
+      )}
 
       {/* Phone for SMS mock results (0071) */}
       {phoneOpen && (

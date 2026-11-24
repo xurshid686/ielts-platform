@@ -12,6 +12,7 @@ import {
   Eye,
   GraduationCap,
   FileDown,
+  ImageOff,
 } from "lucide-react";
 import {
   searchUsers,
@@ -20,6 +21,7 @@ import {
   giftXp,
   setLeaderboardHidden,
   setUserLevel,
+  removeUserAvatar,
   type MemberRow,
 } from "@/app/actions/admin";
 import { adminSendWeeklyReport } from "@/app/actions/reports";
@@ -68,6 +70,7 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [hideBusyId, setHideBusyId] = useState<string | null>(null);
   const [levelBusyId, setLevelBusyId] = useState<string | null>(null);
+  const [photoBusyId, setPhotoBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function runSearch(e?: React.FormEvent) {
@@ -134,6 +137,20 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
     }
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, xp: res.xp } : x)));
     setMsg({ ok: true, text: `Gifted ${amount} XP to ${res.email} (now ${res.xp} XP).` });
+  }
+
+  // Owner, 2026-11-24: take down a profile photo (they fall back to initials).
+  async function removePhoto(u: MemberRow) {
+    setPhotoBusyId(u.id);
+    setMsg(null);
+    const res = await removeUserAvatar(u.id);
+    setPhotoBusyId(null);
+    if (!res.ok) {
+      setMsg({ ok: false, text: res.error });
+      return;
+    }
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, avatar_url: null } : x)));
+    setMsg({ ok: true, text: `Removed the profile photo of ${u.name || u.email}.` });
   }
 
   async function toggleHidden(u: MemberRow) {
@@ -478,6 +495,24 @@ export function AdminMembers({ initialUsers }: { initialUsers: MemberRow[] }) {
                       )}
                       {u.hidden_from_leaderboard ? "Show in rating" : "Hide from rating"}
                     </button>
+
+                    {u.avatar_url && (
+                      <button
+                        onClick={() => removePhoto(u)}
+                        disabled={photoBusyId === u.id}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                        title="Remove this student's profile photo"
+                      >
+                        {photoBusyId === u.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={u.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                        )}
+                        <ImageOff className="h-3.5 w-3.5" />
+                        Remove photo
+                      </button>
+                    )}
 
                   </div>
                 </li>

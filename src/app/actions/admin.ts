@@ -9,6 +9,7 @@ import { attachTestToDay } from "@/lib/discipline";
 import { sendAdminPromotionEmail } from "@/lib/email/send";
 import { fileStore } from "@/lib/storage";
 import { allUltima, setUltimaMonths } from "@/lib/ultima";
+import { clearAvatar } from "@/lib/avatar";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -157,6 +158,7 @@ export type MemberRow = {
   id: string;
   email: string | null;
   name: string | null;
+  avatar_url: string | null;
   role: string;
   level: string;
   premium_until: string | null;
@@ -186,7 +188,7 @@ export async function searchUsers(
   let req = supabase
     .from("profiles")
     .select(
-      "id, email, name, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date",
+      "id, email, name, avatar_url, role, level, premium_until, xp, hidden_from_leaderboard, last_activity_date",
     )
     .order("created_at", { ascending: false })
     .limit(500);
@@ -288,6 +290,18 @@ export async function giftXp(email: string, amount: number): Promise<GiftXpResul
 export type SetHiddenResult =
   | { ok: true; email: string; name: string | null; hidden: boolean }
   | { ok: false; error: string };
+
+// Take down a student's profile photo (an inappropriate upload, or a Google
+// photo). They fall back to initials and may upload again. Owner, 2026-11-24.
+export async function removeUserAvatar(userId: string): Promise<ActionResult> {
+  const gate = await assertAdmin();
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const res = await clearAvatar(userId);
+  if (!res.ok) return { ok: false, error: res.error };
+  revalidatePath("/admin/members");
+  revalidatePath("/leaderboard");
+  return { ok: true };
+}
 
 // Temporarily hide (or re-show) a user on the public leaderboard. Reversible;
 // no data is deleted. Enforced admin-only in the DB by set_leaderboard_hidden.

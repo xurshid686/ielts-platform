@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeUzPhone } from "@/lib/sms/format";
+import { cleanPersonName, sniffPhotoType } from "@/lib/profile-name";
+import { AVATAR_MAX_BYTES, avatarPath, avatarStore, avatarUrl, clearAvatar } from "@/lib/avatar";
 
 // Clears the one-time premium congratulations flag once the user has seen it.
 // Updating one's own profile is allowed by RLS (profiles_update_self).
@@ -91,4 +93,67 @@ export async function setPhone(input: string): Promise<SetPhoneResult> {
     .eq("id", user.id);
   if (error) return { ok: false, error: error.message };
   return { ok: true, phone };
+}
+
+export type ProfileEditResult =
+  | { ok: true; name?: string; avatarUrl?: string | null }
+  | { ok: false; error: string };
+
+// Edit profile (owner, 2026-11-24): first name + surname, stored as the one
+// `profiles.name` ("First Surname") every view, snapshot and email already
+// reads. Re-validated here; the dialog's check is only for quick feedback.
+export async function updateName(first: string, last: string): Promise<ProfileEditResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+
+  const res = cleanPersonName(first, last);
+  if (!res.ok) return res;
+  const { error } = await supabase.from("profiles").update({ name: res.name }).eq("id", user.id);
+  if (error) return { ok: false, error: "Could not save your name. Please try again." };
+  revalidatePath("/", "layout");
+  return { ok: true, name: res.name };
+}
+
+// The browser crops and resizes to a 256x256 WebP (JPEG on Safari) before
+// sending, so anything that is not a small WebP/JPEG is refused, not re-encoded.
+export async function uploadAvatar(form: FormData): Promise<ProfileEditResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+
+  const file = form.get("photo");
+  if (!(file instanceof Blob)) return { ok: false, error: "Choose a photo first." };
+  if (file.size > AVATAR_MAX_BYTES) return { ok: false, error: "That photo is too large. Try another one." };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const type = sniffPhotoType(bytes);
+  if (!type) return { ok: false, error: "That file isn't a photo we can use. Try a JPG or PNG." };
+
+  const { error: upErr } = await avatarStore().upload(avatarPath(user.id), bytes, {
+    contentType: type,
+    upsert: true,
+  });
+  if (upErr) return { ok: false, error: "Upload failed. Please try again." };
+
+  const url = avatarUrl(user.id);
+  const { error } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+  if (error) return { ok: false, error: "Could not save your photo. Please try again." };
+  revalidatePath("/", "layout");
+  return { ok: true, avatarUrl: url };
+}
+
+export async function removeMyAvatar(): Promise<ProfileEditResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "You are not signed in." };
+  const res = await clearAvatar(user.id);
+  if (!res.ok) return { ok: false, error: "Could not remove your photo. Please try again." };
+  revalidatePath("/", "layout");
+  return { ok: true, avatarUrl: null };
 }
