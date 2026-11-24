@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { PaymentLogo } from "@/components/premium/payment-logos";
 import { startCheckout } from "@/app/actions/payments";
 
 /**
@@ -59,8 +60,8 @@ export function PayButtons({
             best ? "bg-premium-gradient text-white shadow-sm hover:opacity-95" : "border border-premium/40 text-premium hover:bg-premium/10"
           }`}
         >
-          {pending && which === p ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-          Pay with {p === "payme" ? "Payme" : "Click"}
+          {pending && which === p && <Loader2 className="h-4 w-4 animate-spin" />}
+          Pay with <PaymentLogo provider={p} height={16} />
         </button>
       ))}
       {error && (

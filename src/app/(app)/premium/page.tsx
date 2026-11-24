@@ -21,6 +21,7 @@ import {
 import { ultimaUntil } from "@/lib/ultima";
 import { enabledProviders } from "@/lib/payments/config";
 import { PayButtons } from "@/components/premium/pay-buttons";
+import { ComingSoonPayments } from "@/components/premium/payment-logos";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = {
@@ -72,6 +73,8 @@ export default async function PremiumPage() {
   // With none, the page is exactly as before: the Telegram button alone.
   const providers = enabledProviders();
   const online = providers.length > 0;
+  // Providers not switched on yet get a "coming soon" logo (owner, 2026-11-24).
+  const soon = (["payme", "click"] as const).filter((p) => !providers.includes(p));
   const isAdmin = profile?.role === "admin";
   // Ultima lives in its own table (0066), so it is read separately. The same end-date rule as Premium.
   const ultimaEnds = profile ? await ultimaUntil(profile.id) : null;
@@ -166,6 +169,7 @@ export default async function PremiumPage() {
                     {active ? "Add" : "Get"} {plan.label} on Telegram
                   </a>
                 )}
+                <ComingSoonPayments providers={[...soon]} />
               </div>
             </div>
           );
