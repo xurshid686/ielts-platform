@@ -182,8 +182,9 @@ export function PricingCards({
 function Card({ highlight = false, children }: { highlight?: boolean; children: React.ReactNode }) {
   return (
     <div
+      // On phones the cards stack: Premium goes first so it is on the first screen.
       className={`flex flex-col rounded-2xl border bg-surface p-6 shadow-soft ${
-        highlight ? "border-premium/60 shadow-elevated ring-1 ring-premium/30" : "border-border"
+        highlight ? "order-first border-premium/60 shadow-elevated ring-1 ring-premium/30 lg:order-none" : "border-border"
       }`}
     >
       {children}
