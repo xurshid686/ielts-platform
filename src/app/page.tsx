@@ -94,19 +94,24 @@ export default async function Home() {
   return (
     <div className="relative min-h-screen overflow-x-clip">
       <header className="sticky top-0 z-30 glass">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <span className="flex items-center gap-2.5 text-lg font-semibold">
+        {/* On a phone the wordmark, the theme toggle and both buttons did not
+            fit: "Sign in" and "Get started" broke onto two lines and the
+            button ran off the right edge. Below `sm` this now matches the
+            shared site header: no "Sign in" (the register page links to it)
+            and no arrow. */}
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-4 sm:px-6">
+          <span className="flex min-w-0 items-center gap-2.5 text-lg font-semibold">
             <Logo size={38} priority />
             {SITE_NAME}
           </span>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Button asChild variant="ghost">
+            <Button asChild variant="ghost" className="hidden whitespace-nowrap sm:inline-flex">
               <Link href="/login">Sign in</Link>
             </Button>
-            <Button asChild>
+            <Button asChild className="whitespace-nowrap">
               <Link href="/register">
-                Get started <ArrowRight className="h-4 w-4" />
+                Get started <ArrowRight className="hidden h-4 w-4 sm:block" />
               </Link>
             </Button>
           </div>
@@ -403,7 +408,7 @@ export default async function Home() {
 
         {/* ---- Rank ladder ---- */}
         <section className="pb-20 sm:pb-24">
-          <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-8 shadow-soft sm:p-12">
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-surface p-6 shadow-soft sm:p-12">
             <div className="relative grid gap-10 lg:grid-cols-[1fr_1.1fr] lg:items-center">
               <div>
                 <p className={EYEBROW}>Competitive ranking</p>
@@ -423,7 +428,10 @@ export default async function Home() {
                 </Button>
               </div>
 
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+              {/* Two columns from 360px were too narrow for "Grandmaster" and
+                  "Platinum" beside a badge: every name truncated. One column
+                  on the smallest phones, two from 400px. */}
+              <ul className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:grid-cols-4 lg:grid-cols-2">
                 {rankLadder.map((tier) => (
                   <li
                     key={tier.name}
@@ -465,7 +473,7 @@ export default async function Home() {
 
         {/* ---- CTA band ---- */}
         <section className="pb-20 sm:pb-24">
-          <div className="relative overflow-hidden rounded-3xl bg-brand-gradient p-8 text-center text-white shadow-elevated sm:p-14">
+          <div className="relative overflow-hidden rounded-3xl bg-brand-gradient px-5 py-8 text-center text-white shadow-elevated sm:p-14">
             <div className="ring-hairline absolute inset-0 rounded-3xl" />
             <div className="relative">
               <Zap className="mx-auto h-8 w-8 text-white/90" />
@@ -479,7 +487,7 @@ export default async function Home() {
               <Button
                 asChild
                 size="lg"
-                className="mt-8 bg-white text-primary shadow-none hover:bg-white/90"
+                className="mt-8 bg-white text-[#b5502a] shadow-none hover:bg-white/90"
               >
                 <Link href="/register">
                   Create your free account <ArrowRight className="h-4 w-4" />

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Trophy, Target, CheckCircle2, CalendarDays, Sparkles } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { SITE_NAME } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { RankBadge } from "@/components/rating/rank-badge";
@@ -66,11 +67,11 @@ export default async function PublicProfilePage({
       <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:px-8">
         <Link href="/" className="flex items-center gap-2 font-semibold">
           <Logo size={34} />
-          IELTS
+          {SITE_NAME}
         </Link>
         <Link
           href="/register"
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
         >
           Start practising
         </Link>
@@ -172,7 +173,7 @@ export default async function PublicProfilePage({
           <ShareButton label="Share profile" />
           <Link
             href="/leaderboard"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
           >
             <Trophy className="h-4 w-4" /> View leaderboard
           </Link>

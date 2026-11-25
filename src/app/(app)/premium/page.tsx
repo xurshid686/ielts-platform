@@ -154,13 +154,15 @@ export default async function PremiumPage({
           Compare plans
         </h2>
         <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-surface shadow-soft">
-          <table className="w-full min-w-[34rem] text-sm">
+          {/* No min-width: on a phone it hid the three plan columns off the right
+              edge, so the table read as a list of features with nothing to compare. */}
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-2/60 text-left">
-                <th className="px-4 py-3 font-medium text-muted">Features</th>
-                <th className="px-4 py-3 text-center font-semibold">Free</th>
-                <th className="bg-premium/5 px-4 py-3 text-center font-semibold text-premium">Premium</th>
-                <th className="px-4 py-3 text-center font-semibold text-primary">Ultima</th>
+                <th className="px-3 py-3 font-medium text-muted sm:px-4">Features</th>
+                <th className="px-1.5 py-3 text-center font-semibold sm:px-4">Free</th>
+                <th className="bg-premium/5 px-1.5 py-3 text-center font-semibold text-premium sm:px-4">Premium</th>
+                <th className="px-1.5 py-3 text-center font-semibold text-primary sm:px-4">Ultima</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -233,12 +235,12 @@ function Row({
 }) {
   return (
     <tr>
-      <th scope="row" className="px-4 py-3 text-left font-normal">
+      <th scope="row" className="px-3 py-3 text-left font-normal sm:px-4">
         {label}
       </th>
-      <td className="px-4 py-3 text-center text-muted">{free}</td>
-      <td className="bg-premium/5 px-4 py-3 text-center font-medium">{premium}</td>
-      <td className="px-4 py-3 text-center font-medium">{ultima ?? premium}</td>
+      <td className="px-1.5 py-3 text-center text-muted sm:px-4">{free}</td>
+      <td className="bg-premium/5 px-1.5 py-3 text-center font-medium sm:px-4">{premium}</td>
+      <td className="px-1.5 py-3 text-center font-medium sm:px-4">{ultima ?? premium}</td>
     </tr>
   );
 }

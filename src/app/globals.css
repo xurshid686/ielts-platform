@@ -418,3 +418,13 @@ h1, h2, h3, h4, h5, h6 {
     animation-delay: var(--rise-delay, 0ms);
   }
 }
+
+/* Light-mode TEXT inks for the two fill colours that are too pale to read as
+   small text. --warning (#cf8a2c) was 2.5:1 and --accent (#6b7d57) 3.7:1 on
+   their own tinted chips, against the 4.5:1 AA minimum (UI audit, 2026-11-25).
+   Fills, borders and icons keep the brighter colours; only `text-warning` and
+   `text-accent` darken, and dark mode is untouched. */
+@layer utilities {
+  :root:not(.dark) .text-warning { color: #8a5a12; }  /* 4.9:1 or better */
+  :root:not(.dark) .text-accent  { color: #56683f; }  /* 5.0:1 or better */
+}

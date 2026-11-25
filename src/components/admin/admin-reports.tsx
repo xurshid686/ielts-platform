@@ -70,7 +70,7 @@ export function AdminReports({
             key={t.id}
             href={`/admin/reports?status=${t.id}`}
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-              status === t.id ? "bg-primary text-white shadow-soft" : "bg-surface-2 text-muted hover:text-foreground"
+              status === t.id ? "bg-primary text-primary-foreground shadow-soft" : "bg-surface-2 text-muted hover:text-foreground"
             }`}
           >
             {t.label}

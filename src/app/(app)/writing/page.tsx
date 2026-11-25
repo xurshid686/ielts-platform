@@ -91,7 +91,7 @@ export default async function WritingPracticePage({
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <PenLine className="h-6 w-6" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[14rem] flex-1">
           <h1 className="text-2xl font-bold">Writing practice</h1>
           <p className="text-sm text-muted">
             {MENU[kind].blurb} Write, hand in, and download your work as a PDF.

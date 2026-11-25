@@ -54,7 +54,7 @@ export default async function UnsubscribePage({ params }: { params: Promise<{ to
             <form action={setRemindersFromLink.bind(null, token, false)} className="mt-5">
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+                className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Stop reminder emails
               </button>

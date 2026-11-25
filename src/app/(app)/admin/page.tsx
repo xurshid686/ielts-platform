@@ -188,13 +188,15 @@ export default async function AdminPage() {
         <Card className="p-0">
           <ul className="divide-y divide-border">
             {people.map((p) => (
-              <li key={p.id} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+              <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                {/* min-w-0 + truncate: a long email used to squeeze the stats
+                    column into "0 / XP / joined / 12h / ago" on a phone. */}
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
                     {(p.name || p.email || "U").charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
                       {p.name}
                       {p.is_owner ? (
                         <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent">
@@ -208,11 +210,11 @@ export default async function AdminPage() {
                         )
                       )}
                     </p>
-                    <p className="text-xs text-muted">{p.email}</p>
+                    <p className="truncate text-xs text-muted">{p.email}</p>
                   </div>
                 </div>
-                <div className="text-right text-sm">
-                  <p className="font-medium">
+                <div className="shrink-0 whitespace-nowrap text-right text-sm">
+                  <p className="font-medium tabular-nums">
                     {p.streak}🔥 · {p.xp} XP
                   </p>
                   <p className="text-xs text-muted">joined {timeAgo(p.created_at)}</p>

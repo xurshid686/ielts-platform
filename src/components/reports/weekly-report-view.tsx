@@ -102,7 +102,7 @@ export function WeeklyReportView({ report }: { report: WeeklyReport }) {
       <div className="flex flex-wrap gap-3">
         <Link
           href="/reading"
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-soft hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90"
         >
           <BookOpen className="h-4 w-4" /> Practise reading
         </Link>

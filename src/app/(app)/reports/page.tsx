@@ -49,7 +49,7 @@ export default async function ReportsPage() {
           </p>
           <Link
             href="/reading"
-            className="mt-1 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            className="mt-1 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
           >
             Start practising <ArrowRight className="h-4 w-4" />
           </Link>

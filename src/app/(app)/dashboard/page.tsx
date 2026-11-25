@@ -370,7 +370,7 @@ export default async function DashboardPage() {
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Link
                 href={nextTest ? `/reading/${nextTest.id}` : "/reading"}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-primary hover:bg-white/90"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-[#b5502a] hover:bg-white/90"
               >
                 <Target className="h-4 w-4" /> Start this test <ArrowRight className="h-4 w-4" />
               </Link>
