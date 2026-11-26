@@ -23,6 +23,8 @@ export type SeoTest = {
   /** URL segment (migration 0044). Nullable — a row without one falls back to `id`. */
   slug?: string | null;
   title: string;
+  /** Optional line under the title (0076), e.g. a listening test's part topics. */
+  subtitle?: string | null;
   skill: "reading" | "listening";
   kind?: "single" | "full" | null;
   tier?: string | null;
@@ -77,7 +79,10 @@ export function testDescription(t: SeoTest, passageNames: string[] = []): string
 
   // "answers" and "passage" go in the FIRST clause, not the last: the tail is
   // what gets cut, and those are the words students actually search for.
-  const head = `${t.title} — IELTS ${noun} with answers and explanations.`;
+  // A numbered listening test ("Test 15") is found by its topics, so they lead the description.
+  const head = t.subtitle
+    ? `${t.title}: ${t.subtitle} — IELTS ${noun} with answers and explanations.`
+    : `${t.title} — IELTS ${noun} with answers and explanations.`;
 
   const bits: string[] = [testFormat(t)];
   if (t.total && t.total > 0) bits.push(`${t.total} questions`);

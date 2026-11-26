@@ -109,3 +109,22 @@ describe("testJsonLd", () => {
     expect(ld.url).toContain("mockonline.uz");
   });
 });
+
+describe("testDescription with a subtitle (0076)", () => {
+  it("leads with the numbered title and its part topics", () => {
+    const t: SeoTest = {
+      id: "x", title: "Test 15", skill: "listening", kind: "full", total: 40,
+      subtitle: "Enquiry about joining Youth Council · Amersham Theatre · Rocky Bay Field Trip · The Taylor Concert Hall",
+      question_types: ["Note completion"],
+    };
+    const d = testDescription(t);
+    expect(d.startsWith("Test 15: Enquiry about joining Youth Council")).toBe(true);
+    expect(d).toContain("IELTS Listening test with answers");
+    expect(d.length).toBeLessThanOrEqual(160);
+  });
+
+  it("is unchanged when there is no subtitle", () => {
+    const t: SeoTest = { id: "y", title: "TEST 3", skill: "listening", kind: "full", total: 40 };
+    expect(testDescription(t).startsWith("TEST 3 — IELTS Listening test")).toBe(true);
+  });
+});

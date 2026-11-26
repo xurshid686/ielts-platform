@@ -38,7 +38,7 @@ export async function TestDetail({
   const { data: test } = await supabase
     .from("tests")
     .select(
-      "id, slug, title, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
+      "id, slug, title, subtitle, skill, kind, tier, question_types, times_done, difficulty, level, track, passage, total, created_by, created_at",
     )
     .eq(refColumn(ref), ref)
     .eq("skill", skill)
@@ -111,6 +111,7 @@ export async function TestDetail({
             Premium test
           </p>
           <h1 className="mt-1 text-balance text-xl font-bold">{t.title}</h1>
+          {t.subtitle && <p className="mt-1 text-sm text-muted">{t.subtitle}</p>}
           {(t.question_types?.length ?? 0) > 0 && (
             <p className="mt-2 text-sm text-muted">
               {t.total ? `${t.total} questions · ` : ""}
@@ -245,6 +246,7 @@ async function GuestTestGate({ skill, test }: { skill: "reading" | "listening"; 
         </div>
 
         <h1 className="mt-3 text-2xl font-bold leading-snug">{test.title}</h1>
+        {test.subtitle && <p className="mt-1 text-sm text-muted">{test.subtitle}</p>}
 
         {test.question_types?.length ? (
           <p className="mt-2 text-sm text-muted">{test.question_types.join(" · ")}</p>

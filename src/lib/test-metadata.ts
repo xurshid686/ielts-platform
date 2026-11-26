@@ -18,7 +18,7 @@ export async function loadSeoTest(
 ): Promise<SeoTest | null> {
   const { data } = await createAdminClient()
     .from("tests")
-    .select("id, slug, title, skill, kind, tier, passage, total, question_types, track")
+    .select("id, slug, title, subtitle, skill, kind, tier, passage, total, question_types, track")
     .eq(refColumn(ref), ref)
     .eq("skill", skill)
     .single();

@@ -1726,6 +1726,7 @@ export type Database = {
           question_types: string[]
           skill: string
           slug: string | null
+          subtitle: string | null
           tier: string
           times_done: number
           title: string
@@ -1750,6 +1751,7 @@ export type Database = {
           question_types?: string[]
           skill: string
           slug?: string | null
+          subtitle?: string | null
           tier?: string
           times_done?: number
           title: string
@@ -1774,6 +1776,7 @@ export type Database = {
           question_types?: string[]
           skill?: string
           slug?: string | null
+          subtitle?: string | null
           tier?: string
           times_done?: number
           title?: string

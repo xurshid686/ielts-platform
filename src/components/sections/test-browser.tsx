@@ -39,6 +39,8 @@ export type BrowserItem = {
   /** URL segment (migration 0044); falls back to `id` when absent. */
   slug: string | null;
   title: string;
+  /** Optional smaller line under the title (migration 0076), e.g. a listening test's part topics. */
+  subtitle?: string | null;
   kind: "single" | "full";
   tier: "free" | "premium";
   passage: number | null;
@@ -160,7 +162,7 @@ export function TestBrowser({
     const matched = items.filter((i) => {
       if (!activeTab.match(i)) return false;
       if (qType !== "all" && !i.questionTypes.includes(qType)) return false;
-      if (q && !i.title.toLowerCase().includes(q)) return false;
+      if (q && !i.title.toLowerCase().includes(q) && !(i.subtitle ?? "").toLowerCase().includes(q)) return false;
       if (access === "free" && i.tier === "premium") return false;
       if (access === "premium" && i.tier !== "premium") return false;
       return true;
@@ -462,6 +464,10 @@ export function TestBrowser({
                   </div>
 
                   <h3 className="mt-2 font-semibold leading-snug sm:mt-3">{t.title}</h3>
+
+                  {t.subtitle && (
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{t.subtitle}</p>
+                  )}
 
                   {t.questionTypes.length > 0 && (
                     <p className="mt-1 line-clamp-1 text-xs text-muted">
