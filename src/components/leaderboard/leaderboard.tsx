@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Globe, CalendarDays, CalendarRange, Users } from "lucide-react";
+import { Globe, CalendarDays, CalendarRange, Users, BookOpen, Headphones, PenLine } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TierChip } from "@/components/rating/rank-badge";
 import { cn } from "@/lib/utils";
 import { PremiumRing } from "@/components/premium-ring";
 import type { LeaderboardGlobalRow, LeaderboardPeriodRow } from "@/types/database";
 
-type Tab = "global" | "weekly" | "monthly" | "groups";
+type Tab = "overall" | "global" | "listening" | "writing" | "weekly" | "monthly" | "groups";
+
+/** A skill-ladder row (0079): same shape as leaderboard_global; Overall adds `skills`. */
+export type SkillBoardRow = LeaderboardGlobalRow & { skills?: number };
 
 /** A Friends group on the Groups tab (0078). */
 export type GroupRow = { group_id: string; name: string; members: number; score: number; rank: number };
@@ -39,6 +42,22 @@ function fromGlobal(r: LeaderboardGlobalRow): Row {
   };
 }
 
+function fromSkill(r: SkillBoardRow, unit: "tests" | "essays"): Row {
+  return {
+    id: r.id,
+    name: r.name,
+    avatar_url: r.avatar_url,
+    rating: r.rating,
+    rank: Number(r.rank),
+    metric: r.rating,
+    metricLabel: "rating",
+    sub:
+      r.skills != null
+        ? `${r.skills} of 3 skills rated`
+        : `${r.tests_completed} ${unit === "essays" ? "essay" : "test"}${Number(r.tests_completed) === 1 ? "" : "s"}`,
+  };
+}
+
 function fromPeriod(r: LeaderboardPeriodRow): Row {
   return {
     id: r.id,
@@ -53,7 +72,10 @@ function fromPeriod(r: LeaderboardPeriodRow): Row {
 }
 
 const TABS: { key: Tab; label: string; icon: typeof Globe; blurb: string }[] = [
-  { key: "global", label: "Global", icon: Globe, blurb: "All-time rating ranking." },
+  { key: "overall", label: "Overall", icon: Globe, blurb: "The average of each student's rated skills: Reading, Listening and Writing." },
+  { key: "global", label: "Reading", icon: BookOpen, blurb: "Reading rating: first attempts at reading tests." },
+  { key: "listening", label: "Listening", icon: Headphones, blurb: "Listening rating: first attempts at listening tests." },
+  { key: "writing", label: "Writing", icon: PenLine, blurb: "Writing rating: your last 5 checked tasks (Task 2 counts twice), from 3 essays." },
   { key: "weekly", label: "Weekly", icon: CalendarDays, blurb: "Points earned this week — resets Monday." },
   { key: "monthly", label: "Monthly", icon: CalendarRange, blurb: "Points earned this month — resets on the 1st." },
   { key: "groups", label: "Groups", icon: Users, blurb: "Friends groups: points per member this week (resets Monday), or the members' average rating." },
@@ -68,10 +90,13 @@ export function Leaderboard({
   meWeekly,
   meMonthly,
   premiumIds = [],
+  skillBoards,
   groups = { weekly: [], rating: [] },
   myGroupId = null,
 }: {
   groups?: { weekly: GroupRow[]; rating: GroupRow[] };
+  /** 0079 ladders; missing before the migration, then the Reading board is the default. */
+  skillBoards?: Record<"overall" | "listening" | "writing", { rows: SkillBoardRow[]; me: SkillBoardRow | null }>;
   myGroupId?: string | null;
   meId: string;
   /** Accounts with active PAID Premium among the rows shown: gold ring + name. */
@@ -83,7 +108,7 @@ export function Leaderboard({
   meWeekly: LeaderboardPeriodRow | null;
   meMonthly: LeaderboardPeriodRow | null;
 }) {
-  const [tab, setTab] = useState<Tab>("global");
+  const [tab, setTab] = useState<Tab>(skillBoards ? "overall" : "global");
   const shiny = new Set(premiumIds);
 
   const data: Record<Tab, { rows: Row[]; me: Row | null }> = {
@@ -91,7 +116,20 @@ export function Leaderboard({
     weekly: { rows: weekly.map(fromPeriod), me: meWeekly ? fromPeriod(meWeekly) : null },
     monthly: { rows: monthly.map(fromPeriod), me: meMonthly ? fromPeriod(meMonthly) : null },
     groups: { rows: [], me: null },
+    overall: {
+      rows: (skillBoards?.overall.rows ?? []).map((r) => fromSkill(r, "tests")),
+      me: skillBoards?.overall.me ? fromSkill(skillBoards.overall.me, "tests") : null,
+    },
+    listening: {
+      rows: (skillBoards?.listening.rows ?? []).map((r) => fromSkill(r, "tests")),
+      me: skillBoards?.listening.me ? fromSkill(skillBoards.listening.me, "tests") : null,
+    },
+    writing: {
+      rows: (skillBoards?.writing.rows ?? []).map((r) => fromSkill(r, "essays")),
+      me: skillBoards?.writing.me ? fromSkill(skillBoards.writing.me, "essays") : null,
+    },
   };
+  const tabs = skillBoards ? TABS : TABS.filter((t) => !["overall", "listening", "writing"].includes(t.key));
 
   const { rows, me } = data[tab];
   const blurb = TABS.find((t) => t.key === tab)!.blurb;
@@ -106,12 +144,12 @@ export function Leaderboard({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
-        <p className="text-muted">Compete on reading. Climb the tiers from Bronze to Legend.</p>
+        <p className="text-muted">Compete in Reading, Listening and Writing. Climb the tiers from Bronze to Legend.</p>
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -141,11 +179,11 @@ export function Leaderboard({
       <Card className="overflow-hidden p-0">
         {rows.length === 0 ? (
           <div className="p-10 text-center text-muted">
-            No one&apos;s on this board yet. Complete a reading test to be the first!
+            No one&apos;s on this board yet. Be the first!
           </div>
         ) : listed.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted">
-            Only three people are on this board so far. Finish a reading test to join them.
+            Only three people are on this board so far. Join them!
           </div>
         ) : (
           <ul className="divide-y divide-border">
@@ -168,7 +206,11 @@ export function Leaderboard({
       )}
       {me == null && (
         <p className="text-center text-sm text-muted">
-          You&apos;re not ranked yet — finish a reading test to join the board.
+          {tab === "writing"
+            ? "You're not on this board yet: it starts after 3 checked essays."
+            : tab === "listening"
+              ? "You're not ranked yet: finish a listening test to join the board."
+              : "You're not ranked yet: finish a test to join the board."}
         </p>
       )}
         </>

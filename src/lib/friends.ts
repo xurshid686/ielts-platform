@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { liveStreak } from "@/lib/day";
+import { overallRating, type SkillStanding } from "@/lib/rating";
 import { likeLiteral } from "@/lib/utils";
 
 export { cleanCode, cleanGroupName, weekStartIso } from "@/lib/friends-shared";
@@ -30,6 +31,9 @@ export type GroupMember = {
   is_owner: boolean;
   rating: number;
   rated_count: number;
+  /** 0079: Overall + each skill (Reading / Listening / Writing). */
+  overall: number | null;
+  skills: SkillStanding[];
   streak: number;
   xp: number;
   /** Rated points since Monday 00:00 UTC (the weekly leaderboard's week). */
@@ -105,7 +109,9 @@ export async function loadGroup(groupId: string): Promise<FriendsGroup | null> {
   const [{ data: profs }, { data: results }] = await Promise.all([
     client
       .from("profiles")
-      .select("id, name, avatar_url, rating, rated_count, streak, last_activity_date, timezone, xp")
+      .select(
+        "id, name, avatar_url, rating, rated_count, listening_rating, listening_rated_count, writing_rating, writing_rated_count, streak, last_activity_date, timezone, xp",
+      )
       .in("id", [...ids, ...invIds]),
     ids.length
       ? client.from("results").select("user_id, rated, points, submitted_at").in("user_id", ids).gte("submitted_at", since)
@@ -143,6 +149,17 @@ export async function loadGroup(groupId: string): Promise<FriendsGroup | null> {
       is_owner: id === String(g.owner_id),
       rating: Number(p?.rating ?? 1000),
       rated_count: Number(p?.rated_count ?? 0),
+      ...(() => {
+        const o = overallRating({
+          rating: Number(p?.rating ?? 1000),
+          rated_count: Number(p?.rated_count ?? 0),
+          listening_rating: Number(p?.listening_rating ?? 1000),
+          listening_rated_count: Number(p?.listening_rated_count ?? 0),
+          writing_rating: Number(p?.writing_rating ?? 1000),
+          writing_rated_count: Number(p?.writing_rated_count ?? 0),
+        });
+        return { overall: o.overall, skills: o.skills };
+      })(),
       streak: liveStreak(Number(p?.streak ?? 0), p?.last_activity_date as string, p?.timezone as string),
       xp: Number(p?.xp ?? 0),
       points_week: s?.pts ?? 0,

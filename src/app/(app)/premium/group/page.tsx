@@ -4,7 +4,7 @@ import { ArrowRight, Crown, Flame, Mail, Target, Trophy, Users, Zap } from "luci
 import { requireProfile } from "@/lib/auth";
 import { groupFeed, groupOf, myInvites, privacyOf, type FeedItem } from "@/lib/friends";
 import { FRIENDS_SEATS } from "@/lib/site";
-import { tierForRating } from "@/lib/rating";
+import { SKILL_LABEL, tierForRating } from "@/lib/rating";
 import { RankBadge } from "@/components/rating/rank-badge";
 import { InviteLink } from "@/components/premium/invite-link";
 import {
@@ -192,7 +192,7 @@ export default async function GroupPage({ searchParams }: { searchParams: Promis
             </header>
             <ol>
               {ranked.map((m, i) => {
-                const tier = tierForRating(m.rating);
+                const tier = tierForRating(m.overall ?? m.rating);
                 const me = m.id === profile.id;
                 return (
                   <li key={m.id} className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3 last:border-0">
@@ -205,10 +205,17 @@ export default async function GroupPage({ searchParams }: { searchParams: Promis
                         {m.is_owner && <span className="ml-1.5 text-xs font-normal text-premium">buyer</span>}
                       </Link>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1" title="Overall: the average of rated skills">
                           <RankBadge tier={tier} size="sm" className="!h-5 !w-5" />
-                          {m.rated_count > 0 ? `${tier.label} · ${m.rating}` : "Not rated yet"}
+                          {m.overall != null ? `${tier.label} · ${m.overall}` : "Not rated yet"}
                         </span>
+                        {m.skills
+                          .filter((sk) => sk.counts)
+                          .map((sk) => (
+                            <span key={sk.skill} className="tabular-nums">
+                              {SKILL_LABEL[sk.skill]} {sk.rating}
+                            </span>
+                          ))}
                         <span className="inline-flex items-center gap-1">
                           <Flame className="h-3.5 w-3.5 text-primary" /> {m.streak}-day streak
                         </span>

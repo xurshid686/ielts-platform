@@ -41,6 +41,8 @@ import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/t
 import { rows } from "@/types/database";
 import { groupOf, myInvites } from "@/lib/friends";
 import { InviteBanner } from "@/components/premium/invite-banner";
+import { skillRatingsOf } from "@/lib/skill-ratings";
+import { SkillRatingsCard } from "@/components/rating/skill-ratings-card";
 import { MyGroupCard } from "@/components/premium/my-group-card";
 
 type Activity = {
@@ -291,7 +293,11 @@ export default async function DashboardPage() {
     ? await Promise.all([hasActiveTrial(profile.id), trialEligible(profile)])
     : [false, false];
   const canAccessPremium = member || trialOn;
-  const [friendsGroup, friendsInvites] = await Promise.all([groupOf(profile.id), myInvites(profile.id)]);
+  const [friendsGroup, friendsInvites, skillRatings] = await Promise.all([
+    groupOf(profile.id),
+    myInvites(profile.id),
+    skillRatingsOf(profile.id),
+  ]);
   const userRating = profile.rating ?? 1000;
   const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
     attempted: attemptedReadingIds,
@@ -503,6 +509,9 @@ export default async function DashboardPage() {
         ratedCount={profile.rated_count ?? 0}
         globalRank={globalRank}
       />
+
+      {/* Overall + Listening + Writing (0079) */}
+      {skillRatings && <SkillRatingsCard data={skillRatings} />}
 
       <WritingReportsCard reports={writingReports} />
 

@@ -271,6 +271,16 @@ export type PublicProfile = {
   last_activity_date?: string | null;
   timezone?: string | null;
   weekly_points?: number;
+  /** 0079: skill ratings and Overall (absent before the migration). */
+  listening_rating?: number;
+  listening_peak?: number;
+  listening_rated_count?: number;
+  writing_rating?: number;
+  writing_peak?: number;
+  writing_rated_count?: number;
+  overall_rating?: number | null;
+  skills_rated?: number;
+  overall_rank?: number | null;
   history: { r: number; at: string }[];
   achievements: {
     id: string;

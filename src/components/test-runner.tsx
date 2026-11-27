@@ -525,7 +525,8 @@ function Celebration({
           <div className="mt-3 flex items-center justify-between rounded-xl bg-primary/5 px-4 py-3 text-sm">
             <span className="flex items-center gap-2 font-medium">
               <RankBadge rating={saved.rating.rating} size="sm" />
-              {tierForRating(saved.rating.rating).label} · {saved.rating.rating}
+              {skill === "listening" ? "Listening" : "Reading"} · {tierForRating(saved.rating.rating).label} ·{" "}
+              {saved.rating.rating}
             </span>
             <span
               className={`inline-flex items-center gap-1 font-semibold tabular-nums ${

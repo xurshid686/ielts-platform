@@ -212,3 +212,37 @@ export function estimatedBand(rating: number): number {
   const band = 5 + ((rating - 1000) / 1700) * 4;
   return Math.max(3, Math.min(9, Math.round(band * 2) / 2));
 }
+
+// ------------------------------------------------------------------ skill ratings (0079)
+
+export type Skill = "reading" | "listening" | "writing";
+export const SKILL_LABEL: Record<Skill, string> = { reading: "Reading", listening: "Listening", writing: "Writing" };
+
+/** Writing counts towards Overall and the leaderboard from this many checked essays (0079). */
+export const WRITING_MIN_ESSAYS = 3;
+
+/** Mirror of writing_band_to_rating (0079): band 5.0 = 1000, 9.0 = 2700 (estimatedBand inverted). */
+export function writingRatingFromBand(band: number): number {
+  return Math.max(0, Math.min(3000, Math.round(1000 + (band - 5) * 425)));
+}
+
+export type SkillStanding = { skill: Skill; rating: number; count: number; counts: boolean };
+
+/** Which skills count, and Overall = their average (mirror of overall_rating in 0079). */
+export function overallRating(s: {
+  rating: number;
+  rated_count: number;
+  listening_rating: number;
+  listening_rated_count: number;
+  writing_rating: number;
+  writing_rated_count: number;
+}): { overall: number | null; skills: SkillStanding[]; rated: number } {
+  const skills: SkillStanding[] = [
+    { skill: "reading", rating: s.rating, count: s.rated_count, counts: s.rated_count > 0 },
+    { skill: "listening", rating: s.listening_rating, count: s.listening_rated_count, counts: s.listening_rated_count > 0 },
+    { skill: "writing", rating: s.writing_rating, count: s.writing_rated_count, counts: s.writing_rated_count >= WRITING_MIN_ESSAYS },
+  ];
+  const on = skills.filter((x) => x.counts);
+  const overall = on.length ? Math.round(on.reduce((t, x) => t + x.rating, 0) / on.length) : null;
+  return { overall, skills, rated: on.length };
+}

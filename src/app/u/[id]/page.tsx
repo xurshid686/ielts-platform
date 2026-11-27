@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { Trophy, Target, CheckCircle2, CalendarDays, Sparkles, Flame, Zap, Users } from "lucide-react";
 import { liveStreak } from "@/lib/day";
 import { groupOf } from "@/lib/friends";
+import { overallRating } from "@/lib/rating";
+import { SkillRatingsCard } from "@/components/rating/skill-ratings-card";
 import { Logo } from "@/components/logo";
 import { SITE_NAME } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
@@ -141,6 +143,29 @@ export default async function PublicProfilePage({
         </div>
 
         {/* Stats */}
+        {/* Skills (0079): only once the migration added the fields. */}
+        {p.listening_rating != null && (
+          <SkillRatingsCard
+            compact
+            data={{
+              ...overallRating({
+                rating: p.rating,
+                rated_count: p.rated_count,
+                listening_rating: p.listening_rating ?? 1000,
+                listening_rated_count: p.listening_rated_count ?? 0,
+                writing_rating: p.writing_rating ?? 1000,
+                writing_rated_count: p.writing_rated_count ?? 0,
+              }),
+              peaks: {
+                reading: p.peak_rating,
+                listening: p.listening_peak ?? 1000,
+                writing: p.writing_peak ?? 1000,
+              },
+              overallRank: p.overall_rank ?? null,
+            }}
+          />
+        )}
+
         {sharedGroup && (
           <Link
             href="/premium/group"
