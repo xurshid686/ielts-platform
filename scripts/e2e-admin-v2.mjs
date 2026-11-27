@@ -1,4 +1,4 @@
-// E2E (2026-11-27) for admin panel v2: shell, overview analytics (0076),
+// E2E (2026-11-27) for admin panel v2 (+ v2.1 site header kept on /admin): shell, overview analytics (0076),
 // Members paging, Student 360 actions, Tests inline edit + filters.
 // A throwaway admin, a throwaway student and a throwaway test row are created
 // with the service role and DELETED in `finally`. Screenshots go to argv[3].
@@ -56,7 +56,8 @@ try {
   // ---------------------------------------------------------- shell + overview
   await page.goto(`${BASE}/admin`); await page.waitForLoadState("networkidle");
   check(await page.locator('aside nav[aria-label="Admin"]').isVisible(), "sidebar renders");
-  check((await page.locator("header a[href='/leaderboard']").count()) === 0, "student header is not on /admin");
+  check((await page.locator("header a[href='/leaderboard']").count()) > 0, "site header stays on /admin (v2.1)");
+  check(await page.locator('header a[href="/admin"][aria-current="page"], header button:has-text("Admin")').count() > 0, "header shows the Admin entry");
   let t = await text(page);
   check(t.includes("Waiting on you"), "work-waiting panel present");
   const m = t.match(/([\d,]+) accounts in all/);
@@ -83,6 +84,7 @@ try {
 
   // top-bar search lands on Members filtered to the student
   await page.goto(`${BASE}/admin`); await page.waitForLoadState("networkidle");
+  check(await page.locator('aside input[aria-label="Find a student"]').isVisible(), "student search sits in the sidebar");
   await page.fill('input[aria-label="Find a student"]', student.email);
   await page.press('input[aria-label="Find a student"]', "Enter");
   await page.waitForURL(/members\?q=/); await page.waitForLoadState("networkidle");

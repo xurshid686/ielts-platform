@@ -13,19 +13,23 @@ import {
   Flag,
   ShieldCheck,
   ArrowLeft,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BadgeCounts } from "@/lib/admin/stats";
+import { AdminSearch } from "./admin-topbar";
 
 type Item = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  /** Count of work waiting on the owner. */
   badge?: number;
-  /** Tone of the badge: "work" = waiting on the owner. */
   exact?: boolean;
 };
 
+// v2.1: sits UNDER the site header (h-16) in the site's warm tokens, with the
+// header's own active-link style, so admin reads as part of the same site.
 export function AdminSidebar({ isOwner, badges }: { isOwner: boolean; badges: BadgeCounts }) {
   const pathname = usePathname() ?? "";
 
@@ -68,101 +72,96 @@ export function AdminSidebar({ isOwner, badges }: { isOwner: boolean; badges: Ba
 
   return (
     <>
-    {/* Laptop-first (owner's choice); below lg the sidebar folds into a
-        scrolling strip so the panel still works on a phone. */}
-    <nav
-      aria-label="Admin"
-      className="sticky top-0 z-30 flex gap-1 overflow-x-auto border-b px-3 py-2 lg:hidden"
-      style={{ background: "var(--side-bg)", color: "var(--side-fg)", borderColor: "var(--side-border)" }}
-    >
-      {flat.map((it) => (
-        <Link
-          key={it.href}
-          href={it.href}
-          aria-current={isActive(it) ? "page" : undefined}
-          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium"
-          style={{ background: isActive(it) ? "var(--side-active)" : undefined, color: isActive(it) ? "#fff" : undefined }}
-        >
-          {it.label}
-          {it.badge ? <span className="ml-1 text-primary">{it.badge}</span> : null}
-        </Link>
-      ))}
-    </nav>
-    <aside
-      className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r lg:flex"
-      style={{ background: "var(--side-bg)", color: "var(--side-fg)", borderColor: "var(--side-border)" }}
-    >
-      <div className="flex h-14 items-center gap-2 px-5">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-          M
-        </span>
-        <span className="text-sm font-semibold tracking-tight text-white">MockOnline</span>
-        <span
-          className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-          style={{ background: "var(--side-active)", color: "var(--side-muted)" }}
-        >
-          Admin
-        </span>
-      </div>
-
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Admin">
-        {groups.map((g, i) => (
-          <div key={g.title ?? i}>
-            {g.title && (
-              <p
-                className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--side-muted)" }}
-              >
-                {g.title}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {g.items.map((it) => {
-                const active = isActive(it);
-                const Icon = it.icon;
-                return (
-                  <li key={it.href}>
-                    <Link
-                      href={it.href}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors",
-                        active ? "text-white" : "hover:text-white",
-                      )}
-                      style={{ background: active ? "var(--side-active)" : undefined }}
-                    >
-                      <span
-                        className={cn("h-4 w-0.5 rounded-full", active ? "bg-primary" : "bg-transparent")}
-                        aria-hidden
-                      />
-                      <Icon className="h-4 w-4 shrink-0 opacity-80" />
-                      <span className="truncate">{it.label}</span>
-                      {it.badge ? (
-                        <span
-                          className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold leading-5 text-primary-foreground tabular-nums"
-                          aria-label={`${it.badge} waiting`}
-                        >
-                          {it.badge > 99 ? "99+" : it.badge}
-                        </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+      {/* Laptop-first (owner's choice); below lg the sidebar folds into a
+          scrolling strip under the site header so the panel works on a phone. */}
+      <nav
+        aria-label="Admin"
+        className="glass sticky top-16 z-30 flex gap-1 overflow-x-auto border-b border-border/60 px-3 py-2 lg:hidden"
+      >
+        {flat.map((it) => {
+          const active = isActive(it);
+          return (
+            <Link
+              key={it.href}
+              href={it.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium",
+                active ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface-2 hover:text-foreground",
+              )}
+            >
+              {it.label}
+              {it.badge ? <span className="ml-1 font-semibold text-primary">{it.badge}</span> : null}
+            </Link>
+          );
+        })}
       </nav>
 
-      <div className="border-t px-3 py-3" style={{ borderColor: "var(--side-border)" }}>
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to site
-        </Link>
-      </div>
-    </aside>
+      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col border-r border-border/60 bg-surface/60 lg:flex">
+        <div className="space-y-3 px-3 pb-2 pt-4">
+          <div className="flex items-center justify-between px-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">Admin panel</p>
+            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              {isOwner ? "Owner" : "Admin"}
+            </span>
+          </div>
+          <AdminSearch />
+        </div>
+
+        <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-3" aria-label="Admin">
+          {groups.map((g, i) => (
+            <div key={g.title ?? i}>
+              {g.title && (
+                <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted">{g.title}</p>
+              )}
+              <ul className="space-y-0.5">
+                {g.items.map((it) => {
+                  const active = isActive(it);
+                  const Icon = it.icon;
+                  return (
+                    <li key={it.href}>
+                      <Link
+                        href={it.href}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                          active ? "bg-primary/10 text-primary" : "text-muted hover:bg-surface-2 hover:text-foreground",
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{it.label}</span>
+                        {it.badge ? (
+                          <span
+                            className="ml-auto min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] font-semibold leading-5 text-primary-foreground tabular-nums"
+                            aria-label={`${it.badge} waiting`}
+                          >
+                            {it.badge > 99 ? "99+" : it.badge}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        <div className="space-y-0.5 border-t border-border/60 px-3 py-3 text-[13px]">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to my dashboard
+          </Link>
+          <Link
+            href="/"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-muted hover:bg-surface-2 hover:text-foreground"
+          >
+            <Home className="h-4 w-4" /> Public home page
+          </Link>
+        </div>
+      </aside>
     </>
   );
 }
