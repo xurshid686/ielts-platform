@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Globe, CalendarDays, CalendarRange } from "lucide-react";
+import { Globe, CalendarDays, CalendarRange, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TierChip } from "@/components/rating/rank-badge";
 import { cn } from "@/lib/utils";
 import { PremiumRing } from "@/components/premium-ring";
 import type { LeaderboardGlobalRow, LeaderboardPeriodRow } from "@/types/database";
 
-type Tab = "global" | "weekly" | "monthly";
+type Tab = "global" | "weekly" | "monthly" | "groups";
+
+/** A Friends group on the Groups tab (0078). */
+export type GroupRow = { group_id: string; name: string; members: number; score: number; rank: number };
 
 // A normalised row the table can render regardless of board.
 type Row = {
@@ -53,6 +56,7 @@ const TABS: { key: Tab; label: string; icon: typeof Globe; blurb: string }[] = [
   { key: "global", label: "Global", icon: Globe, blurb: "All-time rating ranking." },
   { key: "weekly", label: "Weekly", icon: CalendarDays, blurb: "Points earned this week — resets Monday." },
   { key: "monthly", label: "Monthly", icon: CalendarRange, blurb: "Points earned this month — resets on the 1st." },
+  { key: "groups", label: "Groups", icon: Users, blurb: "Friends groups: points per member this week (resets Monday), or the members' average rating." },
 ];
 
 export function Leaderboard({
@@ -64,7 +68,11 @@ export function Leaderboard({
   meWeekly,
   meMonthly,
   premiumIds = [],
+  groups = { weekly: [], rating: [] },
+  myGroupId = null,
 }: {
+  groups?: { weekly: GroupRow[]; rating: GroupRow[] };
+  myGroupId?: string | null;
   meId: string;
   /** Accounts with active PAID Premium among the rows shown: gold ring + name. */
   premiumIds?: string[];
@@ -82,6 +90,7 @@ export function Leaderboard({
     global: { rows: global.map(fromGlobal), me: meGlobal ? fromGlobal(meGlobal) : null },
     weekly: { rows: weekly.map(fromPeriod), me: meWeekly ? fromPeriod(meWeekly) : null },
     monthly: { rows: monthly.map(fromPeriod), me: meMonthly ? fromPeriod(meMonthly) : null },
+    groups: { rows: [], me: null },
   };
 
   const { rows, me } = data[tab];
@@ -121,6 +130,10 @@ export function Leaderboard({
 
       <p className="text-sm text-muted">{blurb}</p>
 
+      {tab === "groups" ? (
+        <GroupBoard groups={groups} myGroupId={myGroupId} />
+      ) : (
+        <>
       {/* Podium for the top 3 */}
       {podium.length > 0 && <Podium rows={podium} meId={meId} metricLabel={rows[0].metricLabel} shiny={shiny} />}
 
@@ -157,6 +170,60 @@ export function Leaderboard({
         <p className="text-center text-sm text-muted">
           You&apos;re not ranked yet — finish a reading test to join the board.
         </p>
+      )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const TOP_GROUPS = 10;
+
+function GroupBoard({ groups, myGroupId }: { groups: { weekly: GroupRow[]; rating: GroupRow[] }; myGroupId: string | null }) {
+  const [kind, setKind] = useState<"weekly" | "rating">("weekly");
+  const all = groups[kind];
+  const rows = all.slice(0, TOP_GROUPS);
+  const mine = myGroupId ? all.find((g) => g.group_id === myGroupId) ?? null : null;
+  const unit = kind === "weekly" ? "pts / member" : "avg rating";
+  return (
+    <div className="space-y-4" data-board="groups">
+      <div role="group" aria-label="Group ranking" className="inline-flex rounded-xl border border-border bg-surface-2 p-1">
+        {(["weekly", "rating"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            aria-pressed={kind === k}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-sm font-semibold",
+              kind === k ? "bg-surface text-foreground shadow-soft" : "text-muted hover:text-foreground",
+            )}
+          >
+            {k === "weekly" ? "This week" : "Average rating"}
+          </button>
+        ))}
+      </div>
+      <Card className="overflow-hidden p-0">
+        {rows.length === 0 ? (
+          <div className="p-10 text-center text-muted">
+            No groups yet. Groups with two or more members appear here.{" "}
+            <Link href="/premium" className="font-semibold text-primary hover:underline">
+              Start a Friends group
+            </Link>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map((g) => (
+              <li key={g.group_id}>
+                <GroupItem g={g} me={g.group_id === myGroupId} unit={unit} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      {mine && !rows.some((g) => g.group_id === mine.group_id) && (
+        <Card className="border-primary/40 p-0 shadow-elevated">
+          <GroupItem g={mine} me unit={unit} />
+        </Card>
       )}
     </div>
   );
@@ -333,5 +400,27 @@ function Podium({
         );
       })}
     </ol>
+  );
+}
+
+function GroupItem({ g, me, unit }: { g: GroupRow; me: boolean; unit: string }) {
+  return (
+    <div className={cn("flex items-center gap-3 px-4 py-3", me && "bg-primary/5")}>
+      <RankCell rank={g.rank} />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-premium/15 text-premium">
+        <Users className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">
+          {g.name}
+          {me && <span className="ml-1.5 text-xs font-normal text-primary">your group</span>}
+        </p>
+        <p className="text-xs text-muted">{g.members} members</p>
+      </div>
+      <div className="text-right">
+        <p className="font-bold tabular-nums">{g.score}</p>
+        <p className="text-xs text-muted">{unit}</p>
+      </div>
+    </div>
   );
 }

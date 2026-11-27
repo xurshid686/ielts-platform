@@ -14,6 +14,7 @@ import { reportStatusCounts } from "@/lib/test-reports";
 import { formatUzs } from "@/lib/site";
 import { timeAgo, cn } from "@/lib/utils";
 import { backlogAges, loadDashboardStats, loadRecentActivity, type ActivityItem } from "@/lib/admin/stats";
+import { friendsStats } from "@/lib/admin/groups";
 import { RANGES, asRange, pct, pctDelta } from "@/lib/admin/stats-shared";
 import { Badge, Empty, PageHeader, Panel, Segmented, StatTile } from "@/components/admin/ui/primitives";
 import { TimeChart } from "@/components/admin/ui/time-chart";
@@ -30,11 +31,12 @@ export default async function AdminPage({
   await requireAdmin();
   const days = asRange((await searchParams).days);
 
-  const [stats, work, feed, reports] = await Promise.all([
+  const [stats, work, feed, reports, friends] = await Promise.all([
     loadDashboardStats(days),
     workloadCounts(),
     loadRecentActivity(30),
     reportStatusCounts(),
+    friendsStats(days),
   ]);
   const ages = backlogAges(stats);
   const providers = enabledProviders();
@@ -158,6 +160,26 @@ export default async function AdminPage({
           hint="3 premium tests a week per student"
         />
       </div>
+
+      {/* Friends plan (0077/0078) */}
+      <Link
+        href="/admin/groups"
+        className="flex flex-wrap items-center gap-x-8 gap-y-2 rounded-2xl border border-border bg-surface px-4 py-3 shadow-soft transition-colors hover:border-primary/40"
+      >
+        <span className="text-xs font-medium text-muted">Friends plan</span>
+        <span className="text-[13px]">
+          <b className="text-base tabular-nums">{friends.active}</b> active groups
+          <span className="text-muted"> of {friends.groups}</span>
+        </span>
+        <span className="text-[13px]">
+          <b className="text-base tabular-nums">{friends.members}</b> members in them
+        </span>
+        <span className="text-[13px]">
+          <b className="text-base tabular-nums">{formatUzs(Math.round(friends.revenueUzs))}</b> paid online · last {days} days
+          <span className="text-muted"> ({friends.paidOrders} orders)</span>
+        </span>
+        <span className="ml-auto text-xs font-medium text-primary">Manage groups →</span>
+      </Link>
 
       <div className="grid gap-3 xl:grid-cols-2">
         <Panel title="New students per day">

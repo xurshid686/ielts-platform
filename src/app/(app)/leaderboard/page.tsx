@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { Leaderboard } from "@/components/leaderboard/leaderboard";
 import { premiumMemberIds } from "@/lib/premium-members";
 import { AchievementStrip } from "@/components/leaderboard/achievement-strip";
+import { groupLeaderboard, groupOf } from "@/lib/friends";
 import type {
   Achievement,
   LeaderboardGlobalRow,
@@ -20,6 +21,11 @@ export default async function LeaderboardPage() {
   const profile = await requireProfile();
   const supabase = await createClient();
 
+  const [groupsWeekly, groupsRating, myGroup] = await Promise.all([
+    groupLeaderboard("weekly"),
+    groupLeaderboard("rating"),
+    groupOf(profile.id),
+  ]);
   const [global, weekly, monthly, meGlobal, meWeekly, meMonthly, achs, mine] = await Promise.all([
     supabase.from("leaderboard_global").select("*").order("rank").limit(TOP),
     supabase.from("leaderboard_weekly").select("*").order("rank").limit(TOP),
@@ -53,6 +59,8 @@ export default async function LeaderboardPage() {
         meWeekly={(meWeekly.data as LeaderboardPeriodRow | null) ?? null}
         meMonthly={(meMonthly.data as LeaderboardPeriodRow | null) ?? null}
         premiumIds={premiumIds}
+        groups={{ weekly: groupsWeekly, rating: groupsRating }}
+        myGroupId={myGroup?.id ?? null}
       />
       {achs.data && achs.data.length > 0 && (
         <AchievementStrip achievements={achs.data as Achievement[]} earned={earned} />

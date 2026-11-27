@@ -39,7 +39,8 @@ import { TelegramDailyCard } from "@/components/premium/telegram-daily-card";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 import { rows } from "@/types/database";
-import { groupOf } from "@/lib/friends";
+import { groupOf, myInvites } from "@/lib/friends";
+import { InviteBanner } from "@/components/premium/invite-banner";
 import { MyGroupCard } from "@/components/premium/my-group-card";
 
 type Activity = {
@@ -290,7 +291,7 @@ export default async function DashboardPage() {
     ? await Promise.all([hasActiveTrial(profile.id), trialEligible(profile)])
     : [false, false];
   const canAccessPremium = member || trialOn;
-  const friendsGroup = await groupOf(profile.id);
+  const [friendsGroup, friendsInvites] = await Promise.all([groupOf(profile.id), myInvites(profile.id)]);
   const userRating = profile.rating ?? 1000;
   const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
     attempted: attemptedReadingIds,
@@ -387,6 +388,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        {!friendsGroup && <InviteBanner invites={friendsInvites} />}
         {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
         <TelegramDailyCard userId={profile.id} />
 
@@ -431,7 +433,8 @@ export default async function DashboardPage() {
 
       {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
 
-      {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
+      {!friendsGroup && <InviteBanner invites={friendsInvites} />}
+        {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
 
       <TelegramDailyCard userId={profile.id} />
 

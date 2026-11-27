@@ -167,7 +167,14 @@ export default async function Student360Page({
             />
           </Panel>
           <Panel
-            title="Friends group"
+            title={group ? `Friends group · ${group.name}` : "Friends group"}
+            action={
+              group ? (
+                <Link href="/admin/groups" className="text-xs font-medium text-primary hover:underline">
+                  Rename / hide →
+                </Link>
+              ) : undefined
+            }
             description={
               group
                 ? `${group.members.length} of ${group.seats} seats · ${group.active ? "until" : "ended"} ${group.expires_at.slice(0, 10)}${

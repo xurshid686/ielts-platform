@@ -147,3 +147,30 @@ export function buildPremiumExpiringEmail(
     ),
   };
 }
+
+/**
+ * A Friends group invitation (0078, owner 2026-11-27). Transactional: sent once,
+ * when the buyer invites this student, so it has no unsubscribe link.
+ */
+export function buildFriendsInviteEmail(
+  brand: Brand,
+  input: { name?: string | null; inviter: string; groupName: string; acceptUrl: string; expiresOn: string },
+): Built {
+  const host = brand.url.replace(/^https?:\/\//, "");
+  return {
+    subject: `${input.inviter} invited you to their Friends group`,
+    html: shell(
+      brand,
+      `
+      <p style="margin:0 0 12px">${hello(input.name)}</p>
+      <p style="margin:0 0 16px">
+        <strong>${esc(input.inviter)}</strong> invited you to join <strong>${esc(input.groupName)}</strong>
+        on ${esc(brand.name)}. Join and get every Premium IELTS test, practise together and
+        climb the group leaderboard.
+      </p>
+      ${button(input.acceptUrl, "See the invitation")}
+      <p style="margin:16px 0 0;font-size:13px;color:#64748b">The invitation is open until ${esc(input.expiresOn)}.</p>`,
+      `Sent by ${esc(brand.name)} because a friend invited your account on <a href="${esc(brand.url)}" style="color:#94a3b8">${esc(host)}</a>.`,
+    ),
+  };
+}

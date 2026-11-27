@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Trophy, Target, CheckCircle2, CalendarDays, Sparkles } from "lucide-react";
+import { Trophy, Target, CheckCircle2, CalendarDays, Sparkles, Flame, Zap, Users } from "lucide-react";
+import { liveStreak } from "@/lib/day";
+import { groupOf } from "@/lib/friends";
 import { Logo } from "@/components/logo";
 import { SITE_NAME } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
@@ -54,6 +56,14 @@ export default async function PublicProfilePage({
   const shiny = (await premiumMemberIds([id])).has(id);
 
   const tier = tierForRating(p.rating);
+  const streak = liveStreak(p.streak ?? 0, p.last_activity_date ?? null, p.timezone ?? null);
+  // "In your Friends group" only for a signed-in viewer in the same group (0078).
+  const viewer = await (await createClient()).auth.getUser().then((r) => r.data.user?.id ?? null);
+  let sharedGroup: string | null = null;
+  if (viewer && viewer !== p.id) {
+    const g = await groupOf(viewer);
+    if (g?.members.some((m) => m.id === p.id)) sharedGroup = g.name;
+  }
   const progress = ratingProgress(p.rating);
   const points: RatingPoint[] = p.history.map((h) => ({ rating: h.r, at: h.at }));
   const memberSince = new Date(p.member_since).toLocaleDateString(undefined, {
@@ -131,7 +141,18 @@ export default async function PublicProfilePage({
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {sharedGroup && (
+          <Link
+            href="/premium/group"
+            className="flex items-center gap-2 rounded-2xl border border-premium/40 bg-premium/10 px-4 py-3 text-sm"
+          >
+            <Users className="h-4 w-4 text-premium" /> In your Friends group <b>{sharedGroup}</b>
+          </Link>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Stat icon={<Flame />} label="Day streak" value={`${streak}`} />
+          <Stat icon={<Zap />} label="Points this week" value={`${p.weekly_points ?? 0}`} />
           <Stat icon={<Trophy />} label="Peak rating" value={`${p.peak_rating}`} />
           <Stat icon={<CheckCircle2 />} label="Tests done" value={`${p.tests_completed}`} />
           <Stat

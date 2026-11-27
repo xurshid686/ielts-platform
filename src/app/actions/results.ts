@@ -1,5 +1,6 @@
 "use server";
 
+import { checkGroupGoal } from "@/lib/friends";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -306,6 +307,8 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
   if (actErr) {
     console.error(`[saveResult] record_activity_for failed for ${user.id}: ${actErr.message}`);
   }
+  // Friends (0078): the weekly group goal (+100 XP each when reached). Never throws.
+  await checkGroupGoal(user.id);
   const a = act?.[0];
 
   // Discipline: tick the day off if this submission completed it. Runs after

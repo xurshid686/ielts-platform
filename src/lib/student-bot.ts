@@ -32,6 +32,12 @@ function newCode(): string {
   return out;
 }
 
+/** The Telegram chat a student linked to the bot, or null. */
+export async function chatForUser(userId: string): Promise<number | null> {
+  const { data } = await db().from("student_bot_links").select("chat_id").eq("user_id", userId).maybeSingle();
+  return data?.chat_id != null ? Number(data.chat_id) : null;
+}
+
 export async function isLinked(userId: string): Promise<boolean> {
   const { data } = await db().from("student_bot_links").select("user_id").eq("user_id", userId).maybeSingle();
   return !!data;

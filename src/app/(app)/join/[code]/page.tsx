@@ -55,7 +55,8 @@ export default async function JoinPage({
               {invite.ownerName} invited you to {SITE_NAME} Premium
             </h1>
             <p className="mt-2 text-muted">
-              Join their Friends group and get every Premium IELTS test for as long as the group runs.
+              Join <b className="text-foreground">{invite.groupName}</b> and get every Premium IELTS test for as long as
+              the group runs.
             </p>
             <ul className="mx-auto mt-5 max-w-xs space-y-2 text-left text-sm">
               {["Every premium reading and listening test", "Mock exam place instantly", "Your own account and progress"].map(

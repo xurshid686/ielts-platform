@@ -266,6 +266,11 @@ export type PublicProfile = {
   tests_completed: number;
   global_rank: number | null;
   best_band: number | null;
+  /** 0078: raw streak (made live with liveStreak + timezone) and this week's rated points. */
+  streak?: number;
+  last_activity_date?: string | null;
+  timezone?: string | null;
+  weekly_points?: number;
   history: { r: number; at: string }[];
   achievements: {
     id: string;

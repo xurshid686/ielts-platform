@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   ArrowLeft,
   Home,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BadgeCounts } from "@/lib/admin/stats";
@@ -35,7 +36,13 @@ export function AdminSidebar({ isOwner, badges }: { isOwner: boolean; badges: Ba
 
   const groups: { title?: string; items: Item[] }[] = [
     { items: [{ href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true }] },
-    { title: "Students", items: [{ href: "/admin/members", label: "Members", icon: Users }] },
+    {
+      title: "Students",
+      items: [
+        { href: "/admin/members", label: "Members", icon: Users },
+        { href: "/admin/groups", label: "Friends groups", icon: UsersRound },
+      ],
+    },
     {
       title: "Content",
       items: [

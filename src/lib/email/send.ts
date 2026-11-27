@@ -25,6 +25,7 @@ import {
   type WritingCheckEmailInput,
 } from "./mock-templates";
 import {
+  buildFriendsInviteEmail,
   buildInactiveEmail,
   buildPremiumExpiringEmail,
   buildStreakEmail,
@@ -179,4 +180,19 @@ export function sendReminderEmail(
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
+}
+
+/** A Friends group invitation (0078). Transactional, so no List-Unsubscribe. */
+export function sendFriendsInviteEmail(input: {
+  to: string;
+  name?: string | null;
+  inviter: string;
+  groupName: string;
+  expiresOn: string;
+}): Promise<SendResult> {
+  const { subject, html } = buildFriendsInviteEmail(BRAND, {
+    ...input,
+    acceptUrl: `${EMAIL_BASE_URL}/premium/group/invites`,
+  });
+  return sendEmail({ to: input.to, subject, html });
 }
