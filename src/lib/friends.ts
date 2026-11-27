@@ -318,7 +318,8 @@ export async function notifyInvite(buyerId: string, inviteeId: string): Promise<
       data: { href: "/premium/group/invites" },
     });
     const { data: who } = await client.from("profiles").select("name, email").eq("id", inviteeId).maybeSingle();
-    if (who?.email) {
+    // Never email the reserved test domain: bounces hurt the sender's reputation (E2E accounts use it).
+    if (who?.email && !/@example\.(com|org|net)$/i.test(String(who.email))) {
       const { sendFriendsInviteEmail } = await import("@/lib/email/send");
       const r = await sendFriendsInviteEmail({
         to: String(who.email),

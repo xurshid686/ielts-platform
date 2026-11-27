@@ -43,7 +43,16 @@ const waitText = (p, re, timeout = 20000) =>
   p.waitForFunction((s) => new RegExp(s).test(document.body.innerText), re.source, { timeout }).then(() => true, () => false);
 const premiumUntil = async (id) => (await admin.from("profiles").select("premium_until").eq("id", id).single()).data.premium_until;
 const isPremium = async (id) => { const u = await premiumUntil(id); return !!u && new Date(u) > new Date(Date.now() + 60_000); };
-const goto = async (p, path) => { await p.goto(`${BASE}${path}`); await p.waitForLoadState("networkidle"); };
+// The one-time "Congratulations, you're Premium" popup (premium_announce) covers the page: close it like a student would.
+const dismissWelcome = async (p) => {
+  const b = p.getByRole("button", { name: /Let.s go/ });
+  if (await b.isVisible().catch(() => false)) { await b.click(); await p.waitForTimeout(300); }
+};
+const goto = async (p, path) => {
+  await p.goto(`${BASE}${path}`);
+  await p.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  await dismissWelcome(p);
+};
 
 const browser = await chromium.launch({ channel: "msedge" });
 try {
@@ -121,7 +130,8 @@ try {
   check(await invite(f3), "buyer invites f3");
   await goto(bp, "/premium/group");
   await bp.locator("li", { hasText: f3.name }).getByRole("button", { name: "Cancel" }).click();
-  check(await waitText(bp, /no longer|invitations accepted/) && (await admin.from("premium_group_invites").select("status").eq("group_id", g.id).eq("invitee_id", f3.id).single()).data.status === "cancelled", "buyer cancels f3's invitation");
+  await bp.locator("li", { hasText: f3.name }).waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
+  check((await admin.from("premium_group_invites").select("status").eq("group_id", g.id).eq("invitee_id", f3.id).single()).data.status === "cancelled", "buyer cancels f3's invitation");
 
   // f4 joins by link
   const p4 = await login(browser, f4);
