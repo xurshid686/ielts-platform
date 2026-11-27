@@ -92,7 +92,9 @@ try {
     await p.goto(`${BASE}/join/${g.invite_code.toLowerCase()}`); await p.waitForLoadState("networkidle");
     await p.locator("button[data-join]").click();
     await p.waitForURL(/premium\/group\?joined=1/, { timeout: 30000 });
-    check((await p.locator("body").innerText()).includes("You're in!"), `${f.tag} joined`);
+    const ok = await p.waitForFunction(() => document.body.innerText.includes("You’re in!") || document.body.innerText.includes("You're in!"), null, { timeout: 20000 }).then(() => true, () => false);
+    if (!ok && SHOTS) await shot(p, `joined-${f.tag}-fail`);
+    check(ok, `${f.tag} sees the "You're in!" banner`);
     check(new Date(await premiumUntil(f.id)) >= new Date(g.expires_at) - 1000, `${f.tag} has Premium to the group end`);
     if (f === friends[2]) {
       await p.goto(`${BASE}/dashboard`); await p.waitForLoadState("networkidle");
