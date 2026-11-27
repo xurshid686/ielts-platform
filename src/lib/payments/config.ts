@@ -7,10 +7,19 @@ import "server-only";
  */
 export type Provider = "payme" | "click";
 
+/**
+ * Online payment is PAUSED (owner, 2026-11-27): the Payme/Click contract is
+ * months away, so Premium, Ultima and Friends are granted by an admin after a
+ * Telegram message. While true, no provider is live on any host, whatever the
+ * env says, and students see only the Telegram way. The code stays in place:
+ * set this to false (and PAYMENTS_ENABLED=1 + keys) to switch it back on.
+ */
+export const ONLINE_PAYMENTS_PAUSED = true;
+
 export function paymeConfig() {
   const merchantId = process.env.PAYME_MERCHANT_ID?.trim();
   const key = process.env.PAYME_KEY?.trim();
-  if (process.env.PAYMENTS_ENABLED !== "1" || !merchantId || !key) return null;
+  if (ONLINE_PAYMENTS_PAUSED || process.env.PAYMENTS_ENABLED !== "1" || !merchantId || !key) return null;
   return {
     merchantId,
     key,
@@ -25,7 +34,7 @@ export function clickConfig() {
   const serviceId = process.env.CLICK_SERVICE_ID?.trim();
   const merchantId = process.env.CLICK_MERCHANT_ID?.trim();
   const secret = process.env.CLICK_SECRET_KEY?.trim();
-  if (process.env.PAYMENTS_ENABLED !== "1" || !serviceId || !merchantId || !secret) return null;
+  if (ONLINE_PAYMENTS_PAUSED || process.env.PAYMENTS_ENABLED !== "1" || !serviceId || !merchantId || !secret) return null;
   return { serviceId, merchantId, secret, merchantUserId: process.env.CLICK_MERCHANT_USER_ID?.trim() || undefined };
 }
 

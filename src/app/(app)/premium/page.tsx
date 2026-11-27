@@ -108,9 +108,12 @@ export default async function PremiumPage({
       <section aria-labelledby="ways-to-pay" className="rounded-3xl border border-border bg-surface-2/60 p-6 sm:p-8">
         <p className="text-center text-xs font-semibold uppercase tracking-widest text-muted">Accepted payments</p>
         <h2 id="ways-to-pay" className="mt-1 text-center text-2xl font-bold">
-          Ways to pay
+          {online ? "Ways to pay" : "How to pay"}
         </h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        {/* Online payment shows only when Payme/Click are switched on (owner, 2026-11-27:
+            the contract is months away, so students see the Telegram way only). */}
+        <div className={`mt-6 grid gap-4 ${online ? "md:grid-cols-2" : "mx-auto max-w-xl"}`}>
+          {online && (
           <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-premium/10 text-premium">
@@ -119,24 +122,18 @@ export default async function PremiumPage({
               <div>
                 <p className="flex flex-wrap items-center gap-2 font-semibold">
                   Pay online
-                  {!online && (
-                    <span className="rounded-full bg-premium/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-premium">
-                      Coming soon
-                    </span>
-                  )}
                 </p>
                 <p className="mt-0.5 text-sm text-muted">
-                  {online
-                    ? "Uzcard, Humo or Visa through Payme or Click. Premium switches on the moment you pay."
-                    : "Uzcard, Humo or Visa through Payme or Click, with Premium switched on instantly. Opening very soon."}
+                  Uzcard, Humo or Visa through Payme or Click. Premium switches on the moment you pay.
                 </p>
               </div>
             </div>
-            <div className={`mt-4 flex flex-wrap gap-2 ${online ? "" : "opacity-75"}`}>
+            <div className="mt-4 flex flex-wrap gap-2">
               <PaymentLogo provider="payme" height={18} />
               <PaymentLogo provider="click" height={18} />
             </div>
           </div>
+          )}
           <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#229ED9]/10 text-[#229ED9]">
@@ -205,7 +202,7 @@ export default async function PremiumPage({
             Press &ldquo;Get Premium&rdquo;, choose the period and how to pay.{" "}
             {online
               ? "With Payme or Click, Premium switches on the moment the payment goes through."
-              : "Paying online with Payme or Click opens very soon. Until then, message our admin on Telegram and we switch Premium on as soon as you pay."}
+              : "Message our admin on Telegram: we send the payment details and switch your plan on as soon as you pay."}
           </Faq>
           <Faq q="I already have Premium. What happens if I buy more?">
             The new period is added on top of the time you have left, so you never lose days.

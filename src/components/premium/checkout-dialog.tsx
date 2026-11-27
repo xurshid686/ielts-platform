@@ -64,11 +64,12 @@ export function CheckoutDialog({
   }
 
   const rows: { id: Method; title: React.ReactNode; note: string; enabled: boolean }[] = [
-    ...(["payme", "click"] as const).map((p) => ({
+    // Only providers that are switched on are listed (owner, 2026-11-27: no "Coming soon" rows).
+    ...online.map((p) => ({
       id: p as Method,
       title: <PaymentLogo provider={p} height={16} />,
-      note: online.includes(p) ? `Uzcard, Humo or Visa. ${label} switches on instantly.` : "Coming soon",
-      enabled: online.includes(p),
+      note: `Uzcard, Humo or Visa. ${label} switches on instantly.`,
+      enabled: true,
     })),
     {
       id: "telegram",
@@ -98,7 +99,7 @@ export function CheckoutDialog({
           <X className="h-4 w-4" />
         </button>
         <h3 id="checkout-title" className="text-lg font-bold">
-          Choose how to pay
+          {online.length ? "Choose how to pay" : `Get ${label}`}
         </h3>
         <div className="mt-3 flex items-baseline justify-between rounded-xl bg-surface-2 px-4 py-3">
           <span className="text-sm">
