@@ -88,7 +88,9 @@ try {
   await page.fill('input[aria-label="Find a student"]', student.email);
   await page.press('input[aria-label="Find a student"]', "Enter");
   await page.waitForURL(/members\?q=/); await page.waitForLoadState("networkidle");
-  check((await page.locator("tbody tr").count()) === 1, "top-bar search finds exactly the student");
+  // loading.tsx streams the page in: wait for the filtered table, not just the URL.
+  await page.locator("tbody tr a", { hasText: "Open" }).first().waitFor({ timeout: 20000 });
+  check((await page.locator("tbody tr").count()) === 1, "sidebar search finds exactly the student");
   await page.locator("tbody tr a", { hasText: "Open" }).click();
   await page.waitForURL(/\/admin\/members\/[0-9a-f-]{36}/); await page.waitForLoadState("networkidle");
 
