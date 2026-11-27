@@ -36,6 +36,7 @@ import {
 } from "@/lib/mock-shared";
 
 import { fileStore } from "@/lib/storage";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 // The OWNER's side of the Mock exam section (0050/0051).
 //
 // Same contract as lib/mock.ts: service role, authorisation-free, gated by its
@@ -52,22 +53,7 @@ import { fileStore } from "@/lib/storage";
 //    whether or not the query says .limit(), so "no limit" silently truncates
 //    the permanent record. fetchAll() pages until a short page comes back.
 
-const PAGE = 1000;
-
-/** Pages a query builder to exhaustion. `build` must apply a stable order. */
-async function fetchAll<T>(
-  label: string,
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build(from, from + PAGE - 1);
-    if (error) throw new Error(`[mock-admin] ${label} failed: ${error.message}`);
-    const page = rows<T>(data);
-    out.push(...page);
-    if (page.length < PAGE) return out;
-  }
-}
+// fetchAll lives in lib/supabase/fetch-all.ts now (shared with the admin panel).
 
 function must<T>(label: string, res: { data: T; error: { message: string } | null }): T {
   if (res.error) throw new Error(`[mock-admin] ${label} failed: ${res.error.message}`);

@@ -1,0 +1,19 @@
+/* Admin panel theme. v2.1 (2026-11-27): the panel uses the site's own warm
+ * tokens (owner: v2's slate palette "feels like another website"). Only
+ * density and motion live here. */
+
+.admin-theme table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Page switches fade in rather than snap, so the panel feels continuous. */
+.admin-main {
+  animation: admin-fade 160ms ease-out;
+}
+@keyframes admin-fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-main { animation: none; }
+}

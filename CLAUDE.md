@@ -2146,3 +2146,47 @@ a provider is live only when `PAYMENTS_ENABLED=1` AND its keys are set
   `premium_until` by the same months (the owner's manual-grant rule); a refund
   takes both back (check-0074.mjs). Prices: `ULTIMA_PLANS[].priceUzs`.
 - All prices are shown in so'm (`plan.price`); `plan.usd` is only a hint.
+
+# Admin panel v2 (migration 0076, owner 2026-11-27)
+
+The owner asked for a "greater" admin panel: analytics, sidebar navigation, a
+per-student page and better test management, with a full new look, laptop-first.
+
+- **Own shell.** `components/chrome-switch.tsx` drops the student header and the
+  capped `<main>` on `/admin/*`; `admin/layout.tsx` renders an ink sidebar
+  (`components/admin/shell/`) with live waiting-work badges
+  (`adminBadgeCounts`) and a top bar whose search lands on Members. The theme is
+  `app/(app)/admin/admin.css`: it overrides the colour VARIABLES under
+  `.admin-theme`, so every existing admin component re-skins untouched. Below
+  `lg` the sidebar folds into a scrolling strip.
+- **Numbers come from SQL, never from rows.** The old overview counted
+  `profiles` through PostgREST and silently stopped at 1000 (there were ~1,260).
+  0076 adds three read-only SECURITY DEFINER functions that refuse non-admins:
+  `admin_dashboard_stats(days)` (totals, current vs previous window, daily
+  series in Tashkent dates, 8 weekly cohorts, catalogue, backlog ages, stuck
+  checkouts), `admin_recent_activity(limit)` (signups/results/payments/mocks/
+  reports, names only, no email) and `admin_test_stats()`. They check
+  `is_admin(auth.uid())`, so `lib/admin/stats.ts` calls them with the SESSION
+  client (the service role has no uid and is refused). They are not in the
+  generated types yet: untyped client + runtime narrowing (`asDashboardStats`)
+  until `npm run types` is run.
+- **Members** (`/admin/members`) is paged and sorted on the server
+  (`lib/admin/members.ts`, 50 a page, filters in the URL). The previous screen
+  is kept whole at `?view=bulk`.
+- **Student 360** (`/admin/members/[id]`, `lib/admin/student-360.ts`, service
+  role, page-gated) shows everything about one student and reuses the existing
+  actions (`setPremium`, `setUltima`, `giftXp`, `setUserLevel`,
+  `setLeaderboardHidden`, `removeUserAvatar`, `adminSendWeeklyReport`). No new
+  privileged writes. Mock places are still granted on /admin/mocks.
+- **Tests** (`/admin/tests`): every test (paged past the 1000 cap), filters,
+  per-test attempts / avg band / open reports, inline tier / track / passage /
+  question types (`actions/admin-tests.ts`), bulk Free/Premium. **Track edits
+  only move between regular / pre_ielts / intro** (`canRetrack`): discipline and
+  mock papers have their own attachment and access rules.
+- `fetchAll` moved to `lib/supabase/fetch-all.ts` (mock-admin imports it).
+- **Never put `position: sticky` on a `<thead>` inside an `overflow-x-auto`
+  box**: the box becomes the sticky container, the `top` offset is applied with
+  no scroll, and the header sat on top of the first row and ate its clicks
+  (caught by the E2E).
+- E2E: `node scripts/e2e-admin-v2.mjs [base] [shotDir]` (31 checks; throwaway
+  admin, student and test row, all deleted).
