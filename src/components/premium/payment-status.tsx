@@ -45,7 +45,7 @@ export function PaymentStatus({ orderId, initial }: { orderId: string; initial: 
           <Crown className="h-7 w-7" />
         </div>
         <h1 className="mt-4 text-2xl font-bold">
-          Payment received. {state.plan === "ultima" ? "Ultima" : "Premium"} is on!
+          Payment received. {state.plan === "ultima" ? "Ultima" : state.plan === "friends" ? "Friends" : "Premium"} is on!
         </h1>
         {state.until && (
           <p className="mt-2 text-muted">
@@ -53,10 +53,11 @@ export function PaymentStatus({ orderId, initial }: { orderId: string; initial: 
           </p>
         )}
         <Link
-          href="/reading"
+          href={state.plan === "friends" ? "/premium/group" : "/reading"}
           className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-premium-gradient px-5 py-3 font-semibold text-white hover:opacity-95"
         >
-          <CheckCircle2 className="h-4 w-4" /> Open the full library
+          <CheckCircle2 className="h-4 w-4" />{" "}
+          {state.plan === "friends" ? "Invite your friends" : "Open the full library"}
         </Link>
       </div>
     );

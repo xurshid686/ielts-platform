@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PREMIUM_PLANS, ULTIMA_PLANS, formatUzs } from "@/lib/site";
+import { FRIENDS_PLANS, PREMIUM_PLANS, ULTIMA_PLANS, formatUzs } from "@/lib/site";
 import type { Provider } from "./config";
 
 /**
@@ -49,15 +49,17 @@ function norm(r: Record<string, unknown> | null): OrderRow | null {
   };
 }
 
-export type PayPlan = "premium" | "ultima";
+export type PayPlan = "premium" | "ultima" | "friends";
+export const PAY_PLANS: PayPlan[] = ["premium", "ultima", "friends"];
 
-/** The plan for a number of months, priced on the SERVER (Premium or Ultima, 0074). */
+/** The plan for a number of months, priced on the SERVER (Premium, Ultima 0074, Friends 0077). */
 export function planFor(months: number, plan: PayPlan = "premium") {
-  const p = (plan === "ultima" ? ULTIMA_PLANS : PREMIUM_PLANS).find((x) => x.months === months);
+  const table = plan === "ultima" ? ULTIMA_PLANS : plan === "friends" ? FRIENDS_PLANS : PREMIUM_PLANS;
+  const p = table.find((x) => x.months === months);
   return p ? { ...p, plan, amountTiyin: p.priceUzs * 100 } : null;
 }
 
-export const planName = (plan: PayPlan) => (plan === "ultima" ? "Ultima" : "Premium");
+export const planName = (plan: PayPlan) => (plan === "ultima" ? "Ultima" : plan === "friends" ? "Friends" : "Premium");
 
 export async function createOrder(input: {
   userId: string;
@@ -197,9 +199,13 @@ export async function afterPaid(order: OrderRow): Promise<void> {
         type: "premium_paid",
         title: `Payment received: ${planName(order.plan)} is on`,
         body: `Thank you! ${order.months === 1 ? "1 month" : `${order.months} months`} of ${
-          order.plan === "ultima" ? "Ultima (with Premium)" : "Premium"
-        } was added to your account.`,
-        data: { href: "/premium" },
+          order.plan === "ultima"
+            ? "Ultima (with Premium)"
+            : order.plan === "friends"
+              ? "Friends Premium for your group"
+              : "Premium"
+        } was added to your account.${order.plan === "friends" ? " Share your invite link with your friends." : ""}`,
+        data: { href: order.plan === "friends" ? "/premium/group" : "/premium" },
       });
     }
     await notifyPayment({

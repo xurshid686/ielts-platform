@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  FRIENDS_PLANS,
+  FRIENDS_SEATS,
+  friendsRequestUrl,
+  perPerson,
   GRANT_PERIODS,
   PREMIUM_PLANS,
   ULTIMA_PLANS,
@@ -42,5 +46,26 @@ describe("ultimaRequestUrl", () => {
   });
   it("is distinct from the Premium link", () => {
     expect(ultimaRequestUrl("a@b.c", 1)).not.toBe(premiumRequestUrl("a@b.c", 1));
+  });
+});
+
+describe("Friends plan (0077)", () => {
+  it("prices: 150 000 for 3 months (owner), every period grantable", () => {
+    expect(FRIENDS_PLANS.find((p) => p.months === 3)?.priceUzs).toBe(150_000);
+    const offered = new Set(GRANT_PERIODS.map((p) => p.months));
+    for (const p of FRIENDS_PLANS) expect(offered.has(p.months)).toBe(true);
+  });
+  it("is cheaper per person than Premium alone, but costs more than one Premium", () => {
+    for (const f of FRIENDS_PLANS) {
+      const p = PREMIUM_PLANS.find((x) => x.months === f.months)!;
+      expect(f.priceUzs / FRIENDS_SEATS).toBeLessThan(p.priceUzs);
+      expect(f.priceUzs).toBeGreaterThan(p.priceUzs);
+    }
+  });
+  it("per-person price and request link", () => {
+    expect(perPerson(FRIENDS_PLANS.find((p) => p.months === 3)!)).toBe("37 500 so'm");
+    const text = decodeURIComponent(friendsRequestUrl("a@b.uz", 3).split("?text=")[1]);
+    expect(text).toContain("Friends (Premium for 4 people) for 3 months (150 000 so'm)");
+    expect(text).toContain("My account: a@b.uz");
   });
 });

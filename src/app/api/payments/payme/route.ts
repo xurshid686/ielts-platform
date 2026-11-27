@@ -20,6 +20,7 @@ import {
   fulfilOrder,
   getOrder,
   getOrderByTx,
+  planName,
   paymeStatement,
   type OrderRow,
 } from "@/lib/payments/orders";
@@ -97,7 +98,7 @@ export async function POST(req: Request) {
           receipt_type: 0,
           items: [
             {
-              title: `MockOnline ${r.order.plan === "ultima" ? "Ultima" : "Premium"}, ${r.order.months === 1 ? "1 month" : `${r.order.months} months`}`,
+              title: `MockOnline ${planName(r.order.plan)}, ${r.order.months === 1 ? "1 month" : `${r.order.months} months`}`,
               price: r.order.amount_tiyin,
               count: 1,
               code: cfg.ikpu,

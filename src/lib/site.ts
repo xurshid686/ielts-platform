@@ -86,6 +86,36 @@ export function ultimaRequestUrl(account?: string | null, months?: number): stri
 }
 
 /**
+ * Friends (owner, 2026-11-27, after chess.com's "Friends & Family"): one organiser
+ * buys Premium for a group of up to FRIENDS_SEATS people, the organiser included.
+ * Friends join with an invite link (/join/<code>) and get Premium until the
+ * group's end date (0077). 3 months is the owner's price; 1 month is mine, the
+ * same ~35% per-person saving. Prices live here only.
+ */
+export const FRIENDS_SEATS = 4;
+export const FRIENDS_PLANS: Plan[] = [
+  { months: 1, label: "1 month", price: formatUzs(65_000), priceUzs: 65_000, usd: "$5" },
+  { months: 3, label: "3 months", price: formatUzs(150_000), priceUzs: 150_000, usd: "$12", note: `Save ${formatUzs(45_000)}` },
+];
+
+/** What one seat costs: "37 500 so'm per person". */
+export function perPerson(plan: Plan): string {
+  return formatUzs(Math.round(plan.priceUzs / FRIENDS_SEATS / 500) * 500);
+}
+
+/** The Friends request link: the owner's chat with a message already typed (see premiumRequestUrl). */
+export function friendsRequestUrl(account?: string | null, months?: number): string {
+  const plan = FRIENDS_PLANS.find((p) => p.months === months);
+  const lines = [
+    plan
+      ? `Hello! I would like ${SITE_NAME} Friends (Premium for ${FRIENDS_SEATS} people) for ${plan.label} (${plan.price}).`
+      : `Hello! I would like ${SITE_NAME} Friends (Premium for ${FRIENDS_SEATS} people).`,
+  ];
+  if (account) lines.push(`My account: ${account}`);
+  return `${PREMIUM_TELEGRAM_URL}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+/**
  * The periods the owner can grant on /admin/members, for Premium AND Ultima. Every `months` value
  * sold above (PREMIUM_PLANS, ULTIMA_PLANS) must appear here: site.test.ts enforces it.
  */

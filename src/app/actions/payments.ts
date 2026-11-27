@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { clickConfig, paymeConfig, type Provider } from "@/lib/payments/config";
-import { createOrder, getOwnOrder, planFor, type PayPlan } from "@/lib/payments/orders";
+import { PAY_PLANS, createOrder, getOwnOrder, planFor, type PayPlan } from "@/lib/payments/orders";
 import { paymeCheckoutUrl } from "@/lib/payments/payme-shared";
 import { clickPayUrl } from "@/lib/payments/click-shared";
 
@@ -33,7 +33,7 @@ export async function startCheckout(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Please sign in first." };
 
-  if (plan !== "premium" && plan !== "ultima") return { ok: false, error: "Choose Premium or Ultima." };
+  if (!PAY_PLANS.includes(plan)) return { ok: false, error: "Choose Premium, Ultima or Friends." };
   if (!planFor(months, plan)) return { ok: false, error: "Choose 1 month or 3 months." };
   const payme = provider === "payme" ? paymeConfig() : null;
   const click = provider === "click" ? clickConfig() : null;

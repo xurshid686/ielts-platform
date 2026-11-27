@@ -5,9 +5,12 @@ import { Check, Loader2, Send, X } from "lucide-react";
 import { startCheckout } from "@/app/actions/payments";
 import { PaymentLogo, type PayProvider } from "@/components/premium/payment-logos";
 import {
+  FRIENDS_PLANS,
+  FRIENDS_SEATS,
   PREMIUM_PLANS,
   ULTIMA_PLANS,
   formatUzs,
+  friendsRequestUrl,
   premiumRequestUrl,
   ultimaRequestUrl,
 } from "@/lib/site";
@@ -28,24 +31,24 @@ export function CheckoutDialog({
   providers,
   onClose,
 }: {
-  plan: "premium" | "ultima";
+  plan: "premium" | "ultima" | "friends";
   months: number;
   email: string | null;
   providers: PayProvider[];
   onClose: () => void;
 }) {
-  const premium = PREMIUM_PLANS.find((p) => p.months === months) ?? PREMIUM_PLANS[0];
-  const ultima = ULTIMA_PLANS.find((p) => p.months === months) ?? ULTIMA_PLANS[0];
+  const table = plan === "ultima" ? ULTIMA_PLANS : plan === "friends" ? FRIENDS_PLANS : PREMIUM_PLANS;
+  const chosen = table.find((p) => p.months === months) ?? table[0];
   const online: PayProvider[] = providers;
   const [method, setMethod] = useState<Method>(online[0] ?? "telegram");
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const label = plan === "premium" ? "Premium" : "Ultima";
-  const price = formatUzs(plan === "premium" ? premium.priceUzs : ultima.priceUzs);
-  const period = plan === "premium" ? premium.label : ultima.label;
-  const telegramUrl =
-    plan === "premium" ? premiumRequestUrl(email, premium.months) : ultimaRequestUrl(email, ultima.months);
+  const label = plan === "ultima" ? "Ultima" : plan === "friends" ? `Friends (${FRIENDS_SEATS} people)` : "Premium";
+  const price = formatUzs(chosen.priceUzs);
+  const period = chosen.label;
+  const requestUrl = plan === "ultima" ? ultimaRequestUrl : plan === "friends" ? friendsRequestUrl : premiumRequestUrl;
+  const telegramUrl = requestUrl(email, chosen.months);
 
   function go() {
     setError(null);
@@ -54,7 +57,7 @@ export function CheckoutDialog({
       return;
     }
     start(async () => {
-      const res = await startCheckout(plan === "premium" ? premium.months : ultima.months, method, plan);
+      const res = await startCheckout(chosen.months, method, plan);
       if (!res.ok) return setError(res.error);
       window.location.assign(res.url); // the provider's own checkout page
     });

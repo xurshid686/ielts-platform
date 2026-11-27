@@ -3,12 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, Crown, FileDown, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Crown, FileDown, Sparkles, Users } from "lucide-react";
 import { CheckoutDialog } from "@/components/premium/checkout-dialog";
 import type { PayProvider } from "@/components/premium/payment-logos";
-import { PREMIUM_PLANS, ULTIMA_PLANS, formatUzs } from "@/lib/site";
+import { FRIENDS_PLANS, FRIENDS_SEATS, PREMIUM_PLANS, ULTIMA_PLANS, formatUzs, perPerson } from "@/lib/site";
 
-type Buy = { plan: "premium" | "ultima"; months: number };
+type Buy = { plan: "premium" | "ultima" | "friends"; months: number };
 
 /**
  * The /premium price row (owner, 2026-11-24, after ieltsx.com/pricing):
@@ -25,6 +25,7 @@ export function PricingCards({
   premiumTests,
   providers,
   initialBuy,
+  inGroup = false,
 }: {
   signedIn: boolean;
   email: string | null;
@@ -34,6 +35,8 @@ export function PricingCards({
   premiumTests: number;
   providers: PayProvider[];
   initialBuy: Buy | null;
+  /** Already in a Friends group (organiser or member): the card links to it. */
+  inGroup?: boolean;
 }) {
   const router = useRouter();
   const months0 = PREMIUM_PLANS.map((p) => p.months);
@@ -48,6 +51,8 @@ export function PricingCards({
   const saved = monthly.priceUzs * months - premium.priceUzs;
   const ultimaMonthly = ULTIMA_PLANS.find((p) => p.months === 1)!;
   const ultimaSaved = ultimaMonthly.priceUzs * months - ultima.priceUzs;
+  const friends = FRIENDS_PLANS.find((p) => p.months === months) ?? FRIENDS_PLANS[0];
+  const friendsAlone = premium.priceUzs * FRIENDS_SEATS - friends.priceUzs;
 
   function buy(plan: Buy["plan"]) {
     if (!signedIn) {
@@ -161,6 +166,72 @@ export function PricingCards({
             items={["PDF of every reading test with answers", "Sent to your Telegram, ready to print", "20 AI writing checks a month"]}
           />
         </Card>
+      </section>
+
+      {/* Friends (0077): one wide card under the three, so the main row stays readable at 1280px. */}
+      <section
+        aria-label="Friends plan"
+        data-plan="friends"
+        className="grid gap-6 rounded-2xl border border-border bg-surface p-6 shadow-soft md:grid-cols-[1.1fr_1fr_auto] md:items-center"
+      >
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="flex items-center gap-2 text-2xl font-bold">
+              <span className="text-premium">
+                <Users className="h-5 w-5" />
+              </span>
+              Friends
+            </h2>
+            <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success">
+              Up to {FRIENDS_SEATS} people
+            </span>
+          </div>
+          <p className="mt-3 flex flex-wrap items-baseline gap-x-1.5">
+            <span className="text-4xl font-extrabold tabular-nums tracking-tight">{formatUzs(friends.priceUzs)}</span>
+            <span className="text-sm text-muted">/ {friends.label}</span>
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {perPerson(friends)} per person, {friends.label}
+          </p>
+          {friendsAlone > 0 && (
+            <p className="mt-0.5 text-sm font-semibold text-success">
+              Save {formatUzs(friendsAlone)} vs {FRIENDS_SEATS} separate Premiums
+            </p>
+          )}
+        </div>
+        <ul className="space-y-2.5 text-sm">
+          {[
+            `Premium for you and ${FRIENDS_SEATS - 1} friends`,
+            "Friends join with your invite link",
+            "Everyone keeps their own account and progress",
+            "See who practised most this week",
+          ].map((i) => (
+            <li key={i} className="flex items-start gap-2.5">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-premium" aria-hidden />
+              <span>{i}</span>
+            </li>
+          ))}
+        </ul>
+        {!isAdmin && (
+          <div className="md:w-52">
+            {inGroup ? (
+              <Link
+                href="/premium/group"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary/50 px-5 py-3 font-semibold text-primary hover:bg-primary/10"
+              >
+                Open my group <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <button
+                onClick={() => buy("friends")}
+                data-buy="friends"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-premium-gradient px-5 py-3 font-semibold text-white shadow-sm hover:opacity-95"
+              >
+                Get Friends <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
       </section>
 
       {isAdmin && (

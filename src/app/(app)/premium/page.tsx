@@ -1,7 +1,16 @@
 import { Check, ChevronDown, Crown, CreditCard, FileDown, Send } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
-import { PREMIUM_PLANS, PREMIUM_TELEGRAM_HANDLE, PREMIUM_TELEGRAM_URL, ULTIMA_PLANS, formatUzs } from "@/lib/site";
+import {
+  FRIENDS_PLANS,
+  FRIENDS_SEATS,
+  PREMIUM_PLANS,
+  PREMIUM_TELEGRAM_HANDLE,
+  PREMIUM_TELEGRAM_URL,
+  ULTIMA_PLANS,
+  formatUzs,
+} from "@/lib/site";
+import { groupOf } from "@/lib/friends";
 import { ultimaUntil } from "@/lib/ultima";
 import { enabledProviders } from "@/lib/payments/config";
 import { PaymentLogo } from "@/components/premium/payment-logos";
@@ -48,9 +57,11 @@ export default async function PremiumPage({
   const ultimaActive = isPremiumActive({ premium_until: ultimaEnds });
   // Online payment (0073): only providers whose keys are set on this host.
   const providers = enabledProviders();
+  const inGroup = profile ? !!(await groupOf(profile.id)) : false;
   const online = providers.length > 0;
 
-  const buyPlan: "premium" | "ultima" | null = sp.buy === "premium" || sp.buy === "ultima" ? sp.buy : null;
+  const buyPlan: "premium" | "ultima" | "friends" | null =
+    sp.buy === "premium" || sp.buy === "ultima" || sp.buy === "friends" ? sp.buy : null;
   const buyMonths = Number(sp.months);
   const initialBuy = buyPlan
     ? { plan: buyPlan, months: PREMIUM_PLANS.some((p) => p.months === buyMonths) ? buyMonths : 1 }
@@ -86,6 +97,7 @@ export default async function PremiumPage({
           isAdmin={isAdmin}
           premiumActive={active}
           ultimaActive={ultimaActive}
+          inGroup={inGroup}
           premiumTests={premiumTests}
           providers={providers}
           initialBuy={initialBuy}
@@ -210,6 +222,11 @@ export default async function PremiumPage({
           <Faq q="What happens when my Premium ends?">
             Your account, results, streak and rating stay. You keep the free tests and your 3 free Premium tests
             a week; only the full library closes until you renew.
+          </Faq>
+          <Faq q="How does Friends work?">
+            One person buys Friends ({FRIENDS_PLANS.map((p) => `${formatUzs(p.priceUzs)} for ${p.label}`).join(" or ")}) and
+            gets an invite link. Up to {FRIENDS_SEATS - 1} friends open the link, sign in, and get Premium until the
+            same date. Everyone keeps their own account, results and rating. Buying again extends the whole group.
           </Faq>
           <Faq q="What is Ultima?">
             Ultima is for teachers. It includes Premium for the same period, plus a PDF of every reading test with

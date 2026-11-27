@@ -39,6 +39,8 @@ import { TelegramDailyCard } from "@/components/premium/telegram-daily-card";
 import { canAccessTrack } from "@/lib/levels";
 import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
 import { rows } from "@/types/database";
+import { groupOf } from "@/lib/friends";
+import { MyGroupCard } from "@/components/premium/my-group-card";
 
 type Activity = {
   id: string;
@@ -288,6 +290,7 @@ export default async function DashboardPage() {
     ? await Promise.all([hasActiveTrial(profile.id), trialEligible(profile)])
     : [false, false];
   const canAccessPremium = member || trialOn;
+  const friendsGroup = await groupOf(profile.id);
   const userRating = profile.rating ?? 1000;
   const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
     attempted: attemptedReadingIds,
@@ -384,6 +387,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
         <TelegramDailyCard userId={profile.id} />
 
         <WritingReportsCard reports={writingReports} />
@@ -426,6 +430,8 @@ export default async function DashboardPage() {
       </section>
 
       {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
+
+      {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
 
       <TelegramDailyCard userId={profile.id} />
 

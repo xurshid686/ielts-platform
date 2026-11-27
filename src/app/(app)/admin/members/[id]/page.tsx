@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { Badge, Empty, Panel, StatTile } from "@/components/admin/ui/primitives";
 import { Avatar, PremiumChip } from "@/components/admin/ui/person";
 import { StudentActions } from "@/components/admin/student-actions";
+import { FriendsAdmin } from "@/components/admin/friends-admin";
+import { groupOf } from "@/lib/friends";
 import { BandTrend } from "@/components/dashboard/band-trend";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 
@@ -34,7 +36,7 @@ export default async function Student360Page({
 }) {
   await requireAdmin();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
-  const s = await loadStudent360(id);
+  const [s, group] = await Promise.all([loadStudent360(id), groupOf(id)]);
   if (!s) notFound();
   const tabParam = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
   const tab: Tab = TABS.some((t) => t.id === tabParam) ? (tabParam as Tab) : "tests";
@@ -162,6 +164,22 @@ export default async function Student360Page({
               hasAvatar={!!p.avatar_url}
               premiumActive={s.membership.stage === "active" || s.membership.stage === "expiring"}
               ultimaActive={!!s.ultima?.active}
+            />
+          </Panel>
+          <Panel
+            title="Friends group"
+            description={
+              group
+                ? `${group.members.length} of ${group.seats} seats · ${group.active ? "until" : "ended"} ${group.expires_at.slice(0, 10)}${
+                    group.owner_id === id ? "" : " · member"
+                  }`
+                : "Premium for up to 4 people, joined by invite link"
+            }
+          >
+            <FriendsAdmin
+              studentId={id}
+              role={!group ? "none" : group.owner_id === id ? "organiser" : "member"}
+              members={(group?.members ?? []).map((m) => ({ id: m.id, name: m.name, is_owner: m.is_owner }))}
             />
           </Panel>
         </div>
