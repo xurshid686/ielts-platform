@@ -180,7 +180,9 @@ export function PricingCards({
               <span className="text-premium">
                 <Users className="h-5 w-5" />
               </span>
-              Friends
+              <Link href="/premium/friends" className="hover:underline">
+                Friends
+              </Link>
             </h2>
             <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success">
               Up to {FRIENDS_SEATS} people
@@ -222,13 +224,14 @@ export function PricingCards({
                 Open my group <ArrowRight className="h-4 w-4" />
               </Link>
             ) : (
-              <button
-                onClick={() => buy("friends")}
-                data-buy="friends"
+              // Owner, 2026-11-27: clicking the plan opens its guide; buying happens there.
+              <Link
+                href="/premium/friends"
+                data-friends-guide
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-premium-gradient px-5 py-3 font-semibold text-white shadow-sm hover:opacity-95"
               >
-                Get Friends <ArrowRight className="h-4 w-4" />
-              </button>
+                See how it works <ArrowRight className="h-4 w-4" />
+              </Link>
             )}
           </div>
         )}

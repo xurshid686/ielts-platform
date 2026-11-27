@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Check, ChevronDown, Crown, CreditCard, FileDown, Send } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { isPremiumActive } from "@/lib/premium";
@@ -223,7 +224,10 @@ export default async function PremiumPage({
           <Faq q="How does Friends work?">
             One person buys Friends ({FRIENDS_PLANS.map((p) => `${formatUzs(p.priceUzs)} for ${p.label}`).join(" or ")}) and
             gets an invite link. Up to {FRIENDS_SEATS - 1} friends open the link, sign in, and get Premium until the
-            same date. Everyone keeps their own account, results and rating. Buying again extends the whole group.
+            same date. Everyone keeps their own account, results and rating. Buying again extends the whole group.{" "}
+            <Link href="/premium/friends" className="font-medium text-primary hover:underline">
+              See the full guide
+            </Link>
           </Faq>
           <Faq q="What is Ultima?">
             Ultima is for teachers. It includes Premium for the same period, plus a PDF of every reading test with

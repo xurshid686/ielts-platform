@@ -99,6 +99,9 @@ export default async function GroupPage({ searchParams }: { searchParams: Promis
         <div className="space-y-1">
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-premium">
             <Users className="h-3.5 w-3.5" /> Friends group
+            <Link href="/premium/friends" className="ml-2 font-medium normal-case tracking-normal text-primary hover:underline">
+              How Friends works
+            </Link>
           </p>
           <GroupName groupId={group.id} name={group.name} canRename={isBuyer} />
           <p className="text-muted">

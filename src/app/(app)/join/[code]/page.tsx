@@ -115,6 +115,11 @@ export default async function JoinPage({
           </>
         )}
       </div>
+      <p className="mt-4 text-center text-sm">
+        <Link href="/premium/friends" className="font-medium text-primary hover:underline">
+          How the Friends plan works
+        </Link>
+      </p>
     </div>
   );
 }

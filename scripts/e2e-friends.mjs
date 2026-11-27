@@ -68,6 +68,19 @@ try {
     const card = p.locator('[data-plan="friends"]');
     check(await card.isVisible(), "/premium shows the Friends card");
     check((await card.innerText()).includes("150"), "3-month Friends price is 150 000");
+    // Owner, 2026-11-27: clicking the plan opens its guide page.
+    await p.locator("[data-friends-guide]").click();
+    await p.waitForURL(/\/premium\/friends$/, { timeout: 20000 });
+    await p.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    check((await p.locator("[data-step]").count()) === 5, "guide page shows 5 steps");
+    const imgs = await p.locator("main img, img[alt]").evaluateAll((els) =>
+      els.filter((e) => e.getAttribute("src")?.includes("friends")).map((e) => ({ ok: e.complete && e.naturalWidth > 0, src: e.getAttribute("src") })));
+    for (const im of imgs) im.ok || (await p.locator(`img[src="${im.src}"]`).scrollIntoViewIfNeeded(), await p.waitForTimeout(800));
+    const loaded = await p.locator("img").evaluateAll((els) => els.filter((e) => (e.getAttribute("src") ?? "").includes("friends")).map((e) => e.complete && e.naturalWidth > 0));
+    check(loaded.length === 5 && loaded.every(Boolean), `guide screenshots load (${loaded.filter(Boolean).length}/5)`);
+    await p.locator('button[data-buy="friends"]').first().click();
+    await p.waitForURL(/\/login\?next=/, { timeout: 20000 });
+    check(decodeURIComponent(p.url()).includes("/premium/friends?buy=friends&months=3"), "guest Get Friends -> sign in, returns to the guide");
     await ctx.close();
   }
 
@@ -125,6 +138,12 @@ try {
   await p2.locator("button[data-decline]").first().click();
   check(await waitText(p2, /Invitation declined/), "f2 declines");
   check(!(await isPremium(f2.id)), "f2 got no Premium");
+  // The guide's buy button opens the Telegram-only payment window for a signed-in student.
+  await goto(p2, "/premium/friends?buy=friends&months=3");
+  const dlg = p2.getByRole("dialog");
+  check(await dlg.isVisible().catch(() => false) || (await dlg.waitFor({ timeout: 10000 }).then(() => true, () => false)), "?buy=friends reopens the payment window");
+  const methods = await dlg.locator("[data-method]").evaluateAll((els) => els.map((e) => e.getAttribute("data-method")));
+  check(JSON.stringify(methods) === '["telegram"]' && (await dlg.innerText()).includes("150"), "Friends payment window: Telegram only, 150 000");
 
   // buyer invites f3, then cancels
   check(await invite(f3), "buyer invites f3");
