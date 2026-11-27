@@ -92,7 +92,8 @@ try {
   const dlg = page.getByRole("dialog");
   await dlg.waitFor();
   const dt = await dlg.innerText();
-  check(dt.includes("Telegram") && !/payme|click/i.test(await dlg.innerHTML()), "checkout dialog offers Telegram only");
+  const methods = await dlg.locator("[data-method]").evaluateAll((els) => els.map((e) => e.getAttribute("data-method")));
+  check(dt.includes("Telegram") && JSON.stringify(methods) === '["telegram"]', `checkout dialog offers Telegram only (${methods})`);
   await shot(page, "premium-telegram-only");
   await ctx.close();
 } finally {
