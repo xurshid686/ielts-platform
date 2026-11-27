@@ -1,4 +1,5 @@
 import { SiteHeader } from "@/components/site-header";
+import { ChromeSwitch } from "@/components/chrome-switch";
 import type { Profile, Notification } from "@/types/database";
 
 /**
@@ -24,17 +25,20 @@ export function AppShell({
   discipline?: boolean;
   children: React.ReactNode;
 }) {
+  // /admin/* brings its own full-screen shell; ChromeSwitch drops the student
+  // header and the capped <main> there.
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader
-        profile={profile}
-        notifications={notifications}
-        discipline={discipline}
-        variant="app"
-      />
-      {/* The old sidebar ate 260px, so pages never had to cap their own width.
-          Without it they ran edge to edge on a wide monitor. */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
-    </div>
+    <ChromeSwitch
+      header={
+        <SiteHeader
+          profile={profile}
+          notifications={notifications}
+          discipline={discipline}
+          variant="app"
+        />
+      }
+    >
+      {children}
+    </ChromeSwitch>
   );
 }

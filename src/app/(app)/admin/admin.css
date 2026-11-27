@@ -1,0 +1,62 @@
+/* Admin panel v2 theme (owner, 2026-11-27: "full new admin look").
+ *
+ * Scoped to .admin-theme so the student site keeps its warm paper palette.
+ * Every Tailwind colour utility resolves through these variables (globals.css
+ * `@theme inline`), so overriding them here re-skins every existing admin
+ * component without touching it. Terracotta stays as the one accent, so the
+ * panel still reads as the same product. */
+
+.admin-theme {
+  --background: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --foreground: #15191e;
+  --muted: #59616d;        /* 6.1:1 on surface, 5.6:1 on background */
+  --border: #e0e3e8;
+  --primary: #b5502a;
+  --primary-foreground: #fffaf4;
+  --ring: #b5502a;
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-elevated: 0 8px 24px rgba(16, 24, 40, 0.1);
+  --shadow-primary: 0 1px 3px rgba(150, 64, 30, 0.25);
+
+  /* The sidebar is ink in both modes. */
+  --side-bg: #12161b;
+  --side-fg: #c7cdd6;
+  --side-muted: #7d8794;
+  --side-hover: #1c2229;
+  --side-active: #232a33;
+  --side-border: #222831;
+
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.dark .admin-theme {
+  --background: #0d1014;
+  --surface: #151a20;
+  --surface-2: #1c222a;
+  --foreground: #e5e8ec;
+  --muted: #9aa3ae;
+  --border: #262d36;
+  --primary: #e08a5a;
+  --primary-foreground: #1b120d;
+  --ring: #e08a5a;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-elevated: 0 10px 28px rgba(0, 0, 0, 0.55);
+
+  --side-bg: #090b0e;
+  --side-hover: #12161b;
+  --side-active: #181d24;
+  --side-border: #171c22;
+}
+
+/* Cards in the panel are flatter and tighter than on the student site. */
+.admin-theme .rounded-2xl {
+  border-radius: 0.75rem;
+}
+
+.admin-theme ::selection {
+  background: color-mix(in srgb, var(--primary) 25%, transparent);
+}
