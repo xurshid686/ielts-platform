@@ -18,11 +18,13 @@ export function MyGroupCard({ group, me }: { group: FriendsGroup; me: string }) 
         <Users className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-semibold">{group.name} · this week</p>
+        <p className="font-semibold">
+          {group.name} · {group.active ? "this week" : <span className="text-danger">ended</span>}
+        </p>
         <p className="mt-0.5 truncate text-sm text-muted">
           {ranked.map((m) => `${m.id === me ? "You" : m.name.split(/\s+/)[0]} ${m.points_week} pts`).join(" · ")}
         </p>
-        {group.members.length >= 2 && (
+        {group.active && group.members.length >= 2 && (
           <div className="mt-2 flex items-center gap-2 text-xs text-muted">
             <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-2">
               <div className="h-full bg-premium-gradient" style={{ width: `${pct}%` }} />
@@ -32,7 +34,8 @@ export function MyGroupCard({ group, me }: { group: FriendsGroup; me: string }) 
         )}
       </div>
       <Link href="/premium/group" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
-        {isBuyer && free > 0 ? "Invite friends" : "Open group"} <ArrowRight className="h-4 w-4" />
+        {/* An ended group can't take invitations (the group page hides the box), so don't promise one. */}
+        {isBuyer && group.active && free > 0 ? "Invite friends" : "Open group"} <ArrowRight className="h-4 w-4" />
       </Link>
     </section>
   );

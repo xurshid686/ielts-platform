@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createRateLimiter } from "@/lib/rate-limit";
 import {
   cancelInvite as cancelInviteRpc,
   cleanCode,
@@ -55,9 +56,14 @@ export async function joinFriendsGroup(formData: FormData): Promise<void> {
   redirect(`/join/${code}?error=${status}`);
 }
 
+// The invite box searches as you type; 30 searches a minute is plenty for a person and stops
+// the box being used to scan the student list. searchInvitable() also refuses non-buyers.
+const searchLimit = createRateLimiter({ limit: 30, windowMs: 60_000 });
+
 export async function findInvitable(q: string): Promise<InviteCandidate[]> {
   const uid = await me();
   if (!uid) return [];
+  if (!searchLimit.check(uid).allowed) return [];
   return searchInvitable(String(q ?? "").slice(0, 80), uid);
 }
 

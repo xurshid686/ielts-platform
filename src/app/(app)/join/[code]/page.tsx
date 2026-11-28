@@ -29,10 +29,15 @@ export default async function JoinPage({
 }) {
   const { code } = await params;
   const { error } = await searchParams;
-  const [invite, profile] = await Promise.all([invitePreview(code), getProfile()]);
+  const profile = await getProfile();
+  // With the viewer's id, a seat their own invitation saves counts as free for them (friends_join's rule).
+  const [invite, mine] = await Promise.all([
+    invitePreview(code, profile?.id ?? null),
+    profile ? groupOf(profile.id) : Promise.resolve(null),
+  ]);
   const here = `/join/${encodeURIComponent(code)}`;
-  const mine = profile ? await groupOf(profile.id) : null;
   const alreadyHere = invite.ok && mine?.id === invite.groupId;
+  const inOtherGroup = invite.ok && !!mine && mine.id !== invite.groupId;
 
   return (
     <div className="mx-auto max-w-lg py-6">
@@ -68,7 +73,11 @@ export default async function JoinPage({
               )}
             </ul>
             <p className="mt-4 text-sm font-medium">
-              {invite.active ? `${invite.seatsLeft} of ${invite.seats} seats left` : "This group's Premium has ended"}
+              {!invite.active
+                ? "This group's Premium has ended"
+                : invite.invitedHere
+                  ? "A seat is saved for you"
+                  : `${invite.seatsLeft} of ${invite.seats} seats left`}
             </p>
 
             {error && ERRORS[error] && (
@@ -77,6 +86,8 @@ export default async function JoinPage({
               </p>
             )}
 
+            {/* Every state ends in a next step: an ended or full group, or a member of another
+                group, used to get a sign-up button or a Join that could only fail. */}
             {alreadyHere ? (
               <Link
                 href="/premium/group"
@@ -84,6 +95,39 @@ export default async function JoinPage({
               >
                 You&apos;re in this group. Open it
               </Link>
+            ) : !invite.active ? (
+              <div className="mt-6 space-y-2" data-join-state="ended">
+                <p className="text-sm text-muted">Ask {invite.ownerName} to renew it, or get Premium for yourself.</p>
+                <Link
+                  href="/premium"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-premium-gradient px-5 py-3 font-semibold text-white"
+                >
+                  See Premium plans
+                </Link>
+              </div>
+            ) : inOtherGroup ? (
+              <div className="mt-6 space-y-2" data-join-state="other-group">
+                <p className="text-sm text-muted">
+                  You&apos;re in <b className="text-foreground">{mine!.name}</b>. A person can be in one Friends group at a
+                  time, so leave it first to join this one.
+                </p>
+                <Link
+                  href="/premium/group"
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-border px-5 py-3 font-semibold hover:bg-surface-2"
+                >
+                  Open my group
+                </Link>
+              </div>
+            ) : invite.seatsLeft <= 0 ? (
+              <div className="mt-6 space-y-2" data-join-state="full">
+                <p className="text-sm text-muted">Every seat is taken. Ask {invite.ownerName}, or get Premium for yourself.</p>
+                <Link
+                  href="/premium"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-premium-gradient px-5 py-3 font-semibold text-white"
+                >
+                  See Premium plans
+                </Link>
+              </div>
             ) : !profile ? (
               <div className="mt-6 space-y-2">
                 <Link
@@ -99,7 +143,7 @@ export default async function JoinPage({
                   I already have an account
                 </Link>
               </div>
-            ) : invite.active && invite.seatsLeft > 0 ? (
+            ) : (
               <form action={joinFriendsGroup} className="mt-6">
                 <input type="hidden" name="code" value={code} />
                 <button
@@ -111,7 +155,7 @@ export default async function JoinPage({
                 </button>
                 <p className="mt-2 text-xs text-muted">Signed in as {profile.email}</p>
               </form>
-            ) : null}
+            )}
           </>
         )}
       </div>

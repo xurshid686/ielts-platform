@@ -215,8 +215,18 @@ export async function joinGroup(userId: string, code: string): Promise<JoinStatu
 }
 
 /** What a /join/<code> visitor may see: the buyer's first name and the seats left. */
-export async function invitePreview(code: string): Promise<
-  | { ok: true; groupId: string; ownerName: string; groupName: string; seatsLeft: number; seats: number; active: boolean }
+export async function invitePreview(code: string, viewerId?: string | null): Promise<
+  | {
+      ok: true;
+      groupId: string;
+      ownerName: string;
+      groupName: string;
+      seatsLeft: number;
+      seats: number;
+      active: boolean;
+      /** The viewer holds a pending, unexpired invitation to this group (a seat is saved for them). */
+      invitedHere: boolean;
+    }
   | { ok: false }
 > {
   const c = cleanCode(code);
@@ -228,9 +238,20 @@ export async function invitePreview(code: string): Promise<
     .eq("invite_code", c)
     .maybeSingle();
   if (!g) return { ok: false };
-  const [{ data: owner }, { data: used }] = await Promise.all([
+  const [{ data: owner }, { data: used }, { data: mine }] = await Promise.all([
     client.from("profiles").select("name").eq("id", g.owner_id).maybeSingle(),
-    client.rpc("friends_seats_used", { p_group: g.id }),
+    // The same rule friends_join applies: the viewer's own invitation doesn't count against them.
+    client.rpc("friends_seats_used", { p_group: g.id, p_except_invitee: viewerId ?? null }),
+    viewerId
+      ? client
+          .from("premium_group_invites")
+          .select("id")
+          .eq("group_id", g.id)
+          .eq("invitee_id", viewerId)
+          .eq("status", "pending")
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   // First name only: the link may be forwarded to people the buyer doesn't know.
   const ownerName = firstName(owner?.name as string) || "A friend";
@@ -242,6 +263,7 @@ export async function invitePreview(code: string): Promise<
     seats: Number(g.seats),
     seatsLeft: Math.max(0, Number(g.seats) - Number(used ?? 0)),
     active: new Date(String(g.expires_at)).getTime() > Date.now(),
+    invitedHere: !!mine,
   };
 }
 
@@ -289,6 +311,15 @@ export type InviteCandidate = { id: string; name: string; avatar_url: string | n
 export async function searchInvitable(q: string, buyerId: string): Promise<InviteCandidate[]> {
   const term = q.trim();
   if (term.length < 2) return [];
+  // Only a buyer with a live group may search. It used to answer any signed-in student, and an
+  // exact email search then told them whether that address has an account, with name and photo.
+  const { data: own } = await db()
+    .from("premium_groups")
+    .select("id")
+    .eq("owner_id", buyerId)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!own) return [];
   let req = db()
     .from("profiles")
     .select("id, name, avatar_url, level")
@@ -449,12 +480,17 @@ export async function groupFeed(group: FriendsGroup, limit = 25): Promise<FeedIt
       .in("user_id", ids)
       .gte("submitted_at", group.members.reduce((m, x) => (x.joined_at < m ? x.joined_at : m), group.created_at))
       .order("submitted_at", { ascending: false })
-      .limit(limit),
+      // Over-fetch: rows from before a member joined are dropped below.
+      .limit(limit * 3),
     client.from("profiles").select("id, friends_hide_bands").in("id", ids),
     client.from("premium_group_goal_weeks").select("target, reached_at").eq("group_id", group.id).order("reached_at", { ascending: false }).limit(5),
   ]);
   const hide = new Set((priv ?? []).filter((p) => p.friends_hide_bands).map((p) => String(p.id)));
-  const testIds = [...new Set((res ?? []).map((r) => r.test_id).filter(Boolean).map(String))];
+  // A member's tests show from the moment THEY joined. The query's cutoff is the earliest join
+  // in the group, which used to expose a newcomer's older tests and bands to everyone.
+  const joinedAt = new Map(group.members.map((m) => [m.id, m.joined_at]));
+  const ownRows = (res ?? []).filter((r) => String(r.submitted_at) >= (joinedAt.get(String(r.user_id)) ?? "9999"));
+  const testIds = [...new Set(ownRows.map((r) => r.test_id).filter(Boolean).map(String))];
   const { data: tests } = testIds.length
     ? await client.from("tests").select("id, title").in("id", testIds)
     : { data: [] as { id: string; title: string }[] };
@@ -462,7 +498,7 @@ export async function groupFeed(group: FriendsGroup, limit = 25): Promise<FeedIt
   const nameOf = new Map(group.members.map((m) => [m.id, m.name]));
 
   const items: FeedItem[] = [
-    ...(res ?? []).map((r) => {
+    ...ownRows.map((r) => {
       const id = String(r.user_id);
       const hidden = hide.has(id);
       return {
