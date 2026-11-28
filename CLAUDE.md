@@ -2190,3 +2190,49 @@ per-student page and better test management, with a full new look, laptop-first.
   (caught by the E2E).
 - E2E: `node scripts/e2e-admin-v2.mjs [base] [shotDir]` (31 checks; throwaway
   admin, student and test row, all deleted).
+
+# @MockOnlineMaterials_bot: profile, chat, Mini App (owner, 2026-11-28)
+
+The teacher/student bot (`/api/telegram-teacher`) speaks **English or Uzbek** by the
+user's Telegram app language (`from.language_code` starting `uz`). Every string is in
+`lib/telegram/bot-copy.ts` (pure, tested: both languages must have the same keys and
+balanced HTML). The 10:00 daily cron has no update to read a language from, so its
+text stays English.
+
+- **Profile** (photo, bio, description, commands, menu button) is set by
+  `node scripts/teacher-bot-profile.mjs info | apply [--photo] [--miniapp]` (reads the
+  token from `.env.local`). Live instantly, no deploy. The empty-chat picture
+  (`public/brand/bot-banner.jpg`) and the profile's main Mini App ("Open App") are
+  **BotFather only**.
+- **The webhook must allow `callback_query`** (the welcome's Test now / Help buttons).
+  Re-registering the teacher webhook without it leaves those buttons spinning.
+- Private chats only: anything else is ignored, because Telegram refuses a whole message
+  that carries a `web_app` button outside a private chat (so never put one in a channel post).
+- Button colours are Bot API 9.4 `style` (`success` / `primary`). The 🎉 effect on
+  "Connected!" is retried without the effect if Telegram refuses it.
+
+## The Mini App sign-in (`/tg`)
+
+`/tg?next=<path>` is the Mini App door. It posts Telegram's signed `initData` to
+`POST /api/telegram-miniapp/session`, which signs a **linked** student in
+(`student_bot_links`, else `teacher_bot_links`; chat id = Telegram user id because every
+link row comes from a private chat) by minting a magic-link token server-side
+(`generateLink` sends no email) and spending it with the cookie-bound client.
+
+- `lib/telegram/init-data.ts` is the security boundary: HMAC check per Telegram's docs,
+  5-minute `auth_date`, duplicated keys refused. Each initData mints or links **once**
+  (in-memory, one instance).
+- **Admins and the owner are never signed in this way.** A lost Telegram account must
+  not open the admin panel.
+- Same-origin POST only, rate-limited, fixed reason codes.
+- **Do not `signOut()` before replacing a different session**: @supabase/ssr writes the
+  SIGNED_OUT cookie deletion after the new session's cookie and the browser ends up
+  signed out (caught by the E2E). `verifyOtp` replaces the session by itself.
+- "Connect this Telegram" (signed in by email inside the Mini App, Telegram not linked)
+  binds the chat with `linkStudentChat`: the session proves the account, initData proves
+  the Telegram.
+- Telegram on the WEB frames Mini Apps, where cookies cannot stick: `/tg` hands those
+  clients a browser tab instead. Only `/tg` carries `frame-ancestors https://web.telegram.org`.
+- E2E: `node scripts/e2e-miniapp.mjs [base]` (22 checks; signs initData with the real token;
+  fake Telegram ids are 4e15+, above any real id) and `scripts/e2e-bot-chat.mjs` (fake
+  Telegram server, 17 checks).
