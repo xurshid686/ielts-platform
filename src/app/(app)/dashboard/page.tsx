@@ -97,7 +97,7 @@ export default async function DashboardPage() {
           all (Suspense adds none either), so the rows re-flow by themselves. */}
       <div
         data-dashboard-grid
-        className="grid gap-6 md:grid-cols-2 md:[&>*:last-child:nth-child(odd)]:col-span-2"
+        className="grid gap-6 empty:hidden md:grid-cols-2 [&>*]:min-w-0 md:[&>*:last-child:nth-child(odd)]:col-span-2"
       >
         {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
         {d.passes && <PassesCard left={d.passes.left} tests={today.passPicks} />}
