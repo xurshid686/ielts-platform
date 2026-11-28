@@ -25,14 +25,14 @@ export function PassesCard({
         </h2>
       </div>
       <p className="mt-1 text-sm text-muted">Picked for your weak spots. Each one stays open for good once you open it.</p>
-      <ul className="mt-3 grid gap-2">
+      <ul className="mt-3 space-y-2">
         {tests.map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="min-w-0">
             <Link
               href={testPath("reading", t)}
-              className="group flex h-full items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm font-medium transition-colors hover:border-premium/50"
+              className="group flex min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm font-medium transition-colors hover:border-premium/50"
             >
-              <span className="truncate">{t.title}</span>
+              <span className="min-w-0 truncate">{t.title}</span>
               <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted group-hover:text-premium" />
             </Link>
           </li>
