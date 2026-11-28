@@ -105,8 +105,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, already: true }, { headers: { "Cache-Control": "no-store" } });
   }
   if (alreadySpent(tgId, v.authDate)) return refuse("stale", 401);
-  // Signed in as someone else in this webview: the Telegram owner wins, the other session goes.
-  if (current) await supabase.auth.signOut({ scope: "local" });
+  // Signed in as someone else in this webview: the Telegram owner wins. verifyOtp below REPLACES
+  // the stored session. Do not signOut() first: @supabase/ssr writes the SIGNED_OUT cookie
+  // deletion after the new session's cookie, so the response ended with no session at all
+  // (caught by scripts/e2e-miniapp.mjs).
 
   const tokenHash = await mintSignInToken(account.email);
   if (!tokenHash) return refuse("failed", 500);
