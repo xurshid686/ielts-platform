@@ -14,6 +14,8 @@ export type TelegramUser = {
   is_bot?: boolean;
   first_name?: string;
   username?: string;
+  /** IETF tag of the user's Telegram app language ("uz", "en", "ru", ...). Optional. */
+  language_code?: string;
 };
 
 export type TelegramChat = {
@@ -52,11 +54,17 @@ export type TelegramUpdate = {
   callback_query?: TelegramCallbackQuery;
 };
 
-/** One button in an inline keyboard. `callback_data` is capped at 64 BYTES. */
+/**
+ * One button in an inline keyboard. `callback_data` is capped at 64 BYTES.
+ * `web_app` opens a Mini App (private chats only); `style` colours the button
+ * (Bot API 9.4: "primary" blue, "success" green, "danger" red).
+ */
 export type InlineButton = {
   text: string;
   callback_data?: string;
   url?: string;
+  web_app?: { url: string };
+  style?: "primary" | "success" | "danger";
 };
 
 /** Rows of buttons, as `reply_markup.inline_keyboard` wants them. */

@@ -9,6 +9,8 @@ import {
   tashkentDay,
 } from "@/lib/student-bot";
 import { sendStudentText, studentBotConfigured } from "@/lib/telegram/student-api";
+import { startTestKeyboard } from "@/lib/telegram/bot-copy";
+import { SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,7 +52,9 @@ export async function GET(req: Request) {
       out.sent++;
       continue;
     }
-    const res = await sendStudentText(r.chat_id, msg.text, { label: "Start the test", href: msg.url });
+    // A Mini App button: the paper opens inside Telegram, signed in (/tg). English, like the text:
+    // a cron has no update to read the student's app language from.
+    const res = await sendStudentText(r.chat_id, msg.text, startTestKeyboard("en", SITE_URL, msg.path));
     if (res.ok) {
       out.sent++;
       await markDailySent(r.user_id, day);

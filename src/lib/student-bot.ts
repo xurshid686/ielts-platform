@@ -75,6 +75,20 @@ export async function consumeStudentLinkCode(code: string, chatId: number): Prom
   return error ? null : userId;
 }
 
+/**
+ * Bind a chat to an account WITHOUT a code. Only for the Mini App, where the caller has proven
+ * both sides at once: the account by its session, the Telegram user by signed initData
+ * (lib/telegram-miniapp.ts). Same one-chat-one-account replacement as a code.
+ */
+export async function linkStudentChat(userId: string, chatId: number): Promise<boolean> {
+  const client = db();
+  await client.from("student_bot_links").delete().eq("chat_id", chatId);
+  const { error } = await client
+    .from("student_bot_links")
+    .upsert({ user_id: userId, chat_id: chatId, daily_on: true, linked_at: new Date().toISOString() });
+  return !error;
+}
+
 export async function studentForChat(chatId: number): Promise<string | null> {
   const { data } = await db().from("student_bot_links").select("user_id").eq("chat_id", chatId).maybeSingle();
   return (data?.user_id as string | undefined) ?? null;
@@ -138,7 +152,7 @@ export async function buildDaily(
   userId: string,
   catalogue: CatalogueRow[],
   now: number = Date.now(),
-): Promise<{ text: string; url: string } | null> {
+): Promise<{ text: string; url: string; path: string } | null> {
   const client = db();
   const [{ data: prof }, { data: mine }, trialEnd] = await Promise.all([
     client.from("profiles").select("name, role, premium_until, rating").eq("id", userId).maybeSingle(),
@@ -183,5 +197,7 @@ export async function buildDaily(
       trialDaysLeft: trialLeft,
     }),
     url: `${SITE_URL}${testPath("reading", pick)}`,
+    // Site-relative, for the Mini App button (/tg?next=<path>).
+    path: testPath("reading", pick),
   };
 }

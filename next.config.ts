@@ -25,7 +25,17 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "8mb" },
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The Telegram Mini App door. Telegram on the WEB shows a Mini App in an iframe, so /tg
+      // (and only /tg) may be framed by web.telegram.org: enough for it to hand the student
+      // over to a real browser tab. CSP frame-ancestors overrides X-Frame-Options in every
+      // current browser; the rest of the site stays unframeable.
+      {
+        source: "/tg",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self' https://web.telegram.org" }],
+      },
+    ];
   },
 };
 

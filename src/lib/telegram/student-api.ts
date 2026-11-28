@@ -7,6 +7,7 @@ import "server-only";
 // Same contract as api.ts / teacher-api.ts: nothing throws.
 
 import { with429Retry } from "./retry";
+import type { InlineKeyboard } from "./types";
 
 export { escapeHtml } from "./api";
 
@@ -46,17 +47,31 @@ async function call<T>(method: string, json: unknown): Promise<Result<T>> {
   }
 }
 
-/** chatId may be a number (a student) or "@channel" (a channel the bot administers). */
+/** A single link button (the old call shape) or full rows of buttons. */
+export type StudentMarkup = { label: string; href: string } | InlineKeyboard;
+
+/**
+ * chatId may be a number (a student) or "@channel" (a channel the bot administers).
+ * `web_app` buttons and message effects work in private chats only; never pass them for a channel.
+ */
 export async function sendStudentText(
   chatId: number | string,
   text: string,
-  url?: { label: string; href: string },
+  markup?: StudentMarkup,
+  opts: { effectId?: string } = {},
 ) {
-  return call<{ message_id: number }>("sendMessage", {
+  const rows = markup ? (Array.isArray(markup) ? markup : [[{ text: markup.label, url: markup.href }]]) : null;
+  const body = {
     chat_id: chatId,
     text,
     parse_mode: "HTML",
-    link_preview_options: { is_disabled: !!url },
-    ...(url ? { reply_markup: { inline_keyboard: [[{ text: url.label, url: url.href }]] } } : {}),
-  });
+    link_preview_options: { is_disabled: !!markup },
+    ...(rows ? { reply_markup: { inline_keyboard: rows } } : {}),
+  };
+  if (opts.effectId) {
+    const withEffect = await call<{ message_id: number }>("sendMessage", { ...body, message_effect_id: opts.effectId });
+    // An effect is decoration: if Telegram refuses it, send the message plain.
+    if (withEffect.ok || withEffect.code === 403) return withEffect;
+  }
+  return call<{ message_id: number }>("sendMessage", body);
 }

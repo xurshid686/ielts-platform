@@ -13,7 +13,13 @@ describe("parseStudentText", () => {
     expect(parseStudentText("/test@MyBot")).toEqual({ kind: "test" });
     expect(parseStudentText("/stop")).toEqual({ kind: "stop" });
     expect(parseStudentText("/daily")).toEqual({ kind: "daily" });
-    expect(parseStudentText("hello")).toEqual({ kind: "help" });
+    expect(parseStudentText("/help")).toEqual({ kind: "help" });
+    expect(parseStudentText("/whatever")).toEqual({ kind: "help" });
+  });
+  it("free text is not a command", () => {
+    expect(parseStudentText("hello")).toEqual({ kind: "text" });
+    expect(parseStudentText("")).toEqual({ kind: "text" });
+    expect(parseStudentText(undefined)).toEqual({ kind: "text" });
   });
 });
 

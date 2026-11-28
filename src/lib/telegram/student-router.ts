@@ -7,12 +7,14 @@ export type StudentCommand =
   | { kind: "test" }
   | { kind: "stop" }
   | { kind: "daily" }
-  | { kind: "help" };
+  | { kind: "help" }
+  /** Anything that is not a command: answered with a short nudge, not the whole welcome. */
+  | { kind: "text" };
 
 export function parseStudentText(text: string | undefined | null): StudentCommand {
   const t = (text ?? "").trim();
   const m = /^\/(\w+)(?:@\w+)?(?:\s+(\S+))?/.exec(t);
-  if (!m) return { kind: "help" };
+  if (!m) return { kind: "text" };
   const cmd = m[1].toLowerCase();
   const arg = m[2] ?? "";
   if (cmd === "start") {

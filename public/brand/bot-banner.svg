@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22a466"/>
+      <stop offset="1" stop-color="#0f5f39"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="1130" cy="110" r="260" fill="#ffffff" fill-opacity="0.05"/>
+  <circle cx="120" cy="700" r="220" fill="#ffffff" fill-opacity="0.05"/>
+  <g transform="translate(110 190) scale(0.62)">
+    <g stroke="#ffffff" stroke-width="44" stroke-linecap="round" fill="none">
+      <line x1="300" y1="300" x2="440" y2="440"/>
+      <line x1="392" y1="392" x2="436" y2="348"/>
+      <line x1="430" y1="430" x2="472" y2="388"/>
+    </g>
+    <circle cx="232" cy="232" r="118" fill="#ffffff"/>
+    <circle cx="232" cy="232" r="78" fill="#178a52"/>
+    <text x="232" y="232" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="118" fill="#ffffff">9</text>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#ffffff">
+    <text x="470" y="250" font-size="74" font-weight="800">MockOnline</text>
+    <text x="472" y="318" font-size="38" font-weight="600" fill-opacity="0.85">IELTS practice in your pocket</text>
+    <g font-size="36" font-weight="500">
+      <text x="472" y="420">📚  A reading test every morning</text>
+      <text x="472" y="480">🎯  Real computer-exam format</text>
+      <text x="472" y="540">⚡  Instant band score</text>
+    </g>
+    <text x="472" y="630" font-size="32" font-weight="700" fill-opacity="0.9">mockonline.uz</text>
+  </g>
+</svg>

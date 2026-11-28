@@ -5,6 +5,7 @@ import "server-only";
 // Same contract as api.ts: nothing throws; every call returns a result object.
 
 import { with429Retry } from "./retry";
+import type { InlineKeyboard } from "./types";
 
 export { escapeHtml } from "./api";
 
@@ -46,21 +47,44 @@ async function post<T>(method: string, init: { json?: unknown; form?: FormData }
   }
 }
 
+/** A single link button (the old call shape) or full rows of buttons. */
+export type Markup = { label: string; href: string } | InlineKeyboard;
+
+export function replyMarkup(m: Markup | undefined) {
+  if (!m) return {};
+  const rows = Array.isArray(m) ? m : [[{ text: m.label, url: m.href }]];
+  return { reply_markup: { inline_keyboard: rows } };
+}
+
 export async function sendText(
   chatId: number,
   text: string,
-  url?: { label: string; href: string },
+  markup?: Markup,
   replyTo?: number,
+  opts: { effectId?: string } = {},
 ) {
-  return post<{ message_id: number }>("sendMessage", {
-    json: {
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-      ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}),
-      ...(url ? { reply_markup: { inline_keyboard: [[{ text: url.label, url: url.href }]] } } : {}),
-    },
+  const body = {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    ...(replyTo ? { reply_parameters: { message_id: replyTo, allow_sending_without_reply: true } } : {}),
+    ...replyMarkup(markup),
+  };
+  if (opts.effectId) {
+    const withEffect = await post<{ message_id: number }>("sendMessage", {
+      json: { ...body, message_effect_id: opts.effectId },
+    });
+    // An effect is decoration: if Telegram refuses it (an id it no longer knows), send the message plain.
+    if (withEffect.ok) return withEffect;
+  }
+  return post<{ message_id: number }>("sendMessage", { json: body });
+}
+
+/** Stops the button's loading spinner. Telegram wants this for EVERY callback, answered or not. */
+export async function answerCallbackQuery(callbackQueryId: string, text?: string) {
+  return post<boolean>("answerCallbackQuery", {
+    json: { callback_query_id: callbackQueryId, ...(text ? { text } : {}) },
   });
 }
 
