@@ -1,7 +1,7 @@
 // E2E for the Telegram Mini App sign-in (/tg + POST /api/telegram-miniapp/session).
 // Signs initData with the REAL teacher-bot token (from .env.local) exactly as Telegram would,
 // so it runs against a deployed host without Telegram. Throwaway accounts and fake chat ids
-// (9e9+, never a real Telegram user) are created with the service role and DELETED in `finally`.
+// (4e15+, never a real Telegram user) are created with the service role and DELETED in `finally`.
 //
 //   node scripts/e2e-miniapp.mjs [baseUrl]      (default: the dev preview)
 
@@ -21,7 +21,10 @@ const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUP
 const fails = [];
 const check = (ok, label) => { console.log(ok ? "✓" : "✗", label); if (!ok) fails.push(label); };
 const stamp = Date.now();
-const tgBase = 9_000_000_000 + Math.floor(Math.random() * 900_000_000);
+// Telegram user ids have at most 52 significant bits, and real ones are ~1e10 today (a real
+// student is linked as 9,206,284,110). 4e15+ cannot belong to anybody, so a test link can never
+// collide with, or (via linkStudentChat's delete-by-chat) remove, a real student's link.
+const tgBase = 4_000_000_000_000_000 + Math.floor(Math.random() * 400_000_000_000_000);
 
 function initData(tgId, { ageS = 5, lang = "en", token = TOKEN } = {}) {
   const p = new URLSearchParams({
