@@ -212,7 +212,11 @@ export function TestBrowser({
     if (!el || remaining <= 0 || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + PAGE_SIZE);
+        // Near the end of the drawn cards, OR already scrolled past it: the plain list of
+        // every title (TestIndexLinks) sits below the grid, so jumping to the bottom of the
+        // page overshoots the sentinel. Each new observer reports at once, so this keeps
+        // drawing until the end of the cards is back below the screen.
+        if (entries.some((e) => e.isIntersecting || e.boundingClientRect.top < 0)) setVisible((v) => v + PAGE_SIZE);
       },
       { rootMargin: AUTOLOAD_MARGIN },
     );

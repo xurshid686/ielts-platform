@@ -47,7 +47,8 @@ try {
     check(overflow <= 0, `${skill} @${w}: no sideways scroll`);
     const top = p.getByRole("button", { name: "Back to top" });
     check(await top.isVisible(), `${skill} @${w}: 'Back to top' shows far down`);
-    await top.click(); await p.waitForTimeout(900);
+    await top.click();
+    await p.waitForFunction(() => window.scrollY < 200, null, { timeout: 6000 }).catch(() => {});
     check((await p.evaluate(() => window.scrollY)) < 200, `${skill} @${w}: 'Back to top' returns to the filters`);
 
     if (skill === "reading" && w === 1280) {
@@ -55,7 +56,8 @@ try {
       await p.fill('input[placeholder="Search by title…"]', "the");
       await p.waitForTimeout(400);
       const searched = await cards(p);
-      check(searched > 0 && searched <= 24, `search shows its first ${searched} matches`);
+      const allTitles = await p.locator("[data-catalogue-grid] > a").allInnerTexts();
+      check(searched > 0 && allTitles.every((t) => /the/i.test(t)), `search shows only matches (${searched} drawn)`);
       await p.fill('input[placeholder="Search by title…"]', "");
       await p.waitForTimeout(400);
       check((await cards(p)) === 24, "clearing the search shows the first 24 again");
