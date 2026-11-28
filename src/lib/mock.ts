@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rows, type Json, type TablesUpdate } from "@/types/database";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { asAnswerKey, asAnswers, gradeAnswers, isAnswerCorrect } from "@/lib/ielts/grade";
+import { regroupForPaper } from "@/lib/ielts/answer-groups-server";
 import {
   MAX_ESSAY_CHARS,
   MAX_REQUEST_MESSAGE,
@@ -847,7 +848,7 @@ export async function submitSection(
   const testId = section === "listening" ? a.listening_test_id : a.reading_test_id;
   if (!testId) return { ok: false, error: "This mock has no paper for that section. Tell your teacher." };
 
-  const { data: test } = await db().from("tests").select("answer_key").eq("id", testId).maybeSingle();
+  const { data: test } = await db().from("tests").select("answer_key, file_path").eq("id", testId).maybeSingle();
   const key = asAnswerKey((test as { answer_key?: unknown } | null)?.answer_key);
   if (!key) {
     return { ok: false, error: "This paper has no answer key, so it can't be marked. Tell your teacher." };
@@ -858,7 +859,9 @@ export async function submitSection(
   if (!startedAt) return { ok: false, error: "This section hasn't started." };
   const draft = asAnswers(section === "listening" ? a.listening_draft : a.reading_draft) ?? {};
   const late = isExpired(startedAt, sectionMinutes(a, null, section));
-  const answers = late ? draft : { ...draft, ...(asAnswers(answersInput) ?? {}) };
+  // Choose-TWO/THREE groups are re-seated against the key, as in saveResult (lib/ielts/answer-groups.ts).
+  const answers = await regroupForPaper(key, late ? draft : { ...draft, ...(asAnswers(answersInput) ?? {}) },
+    (test as { file_path?: string | null } | null)?.file_path);
 
   const graded = gradeAnswers(key, answers, section);
   const band = rawToBand(section, graded.raw, graded.total);

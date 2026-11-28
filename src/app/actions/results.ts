@@ -11,6 +11,7 @@ import { recordDisciplineProgress } from "@/lib/discipline";
 import { localDay } from "@/lib/day";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { gradeAnswers, asAnswerKey, asAnswers, type Answers } from "@/lib/ielts/grade";
+import { regroupForPaper } from "@/lib/ielts/answer-groups-server";
 
 export type SaveResultInput = {
   // Required. A submission with no test behind it used to be accepted and
@@ -145,7 +146,11 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
 
   // A keyed test with no/blank answers means harvesting failed — grade what
   // we have (a perfect-score fake is still impossible: raw comes from us).
-  const graded = gradeAnswers(key, asAnswers(input.answers) ?? {}, skill);
+  // Choose-TWO/THREE letters are re-seated against the key first (marked as a set, in any order);
+  // the groups come from the paper's own HTML, never from the request (lib/ielts/answer-groups.ts).
+  const given = asAnswers(input.answers);
+  const seated = given ? await regroupForPaper(key, given, access.row.file_path) : null;
+  const graded = gradeAnswers(key, seated ?? {}, skill);
   raw = graded.raw;
   total = graded.total;
   band = rawToBand(skill, raw, total);
@@ -223,7 +228,8 @@ export async function saveResult(input: SaveResultInput): Promise<SaveResultResu
 
   // Persist the student's answers so they can reopen the test for review.
   // (The answer key already lives on the test; we only store what they typed.)
-  const storedAnswers = asAnswers(input.answers);
+  // Stored re-seated, so /review marks exactly what the score was computed from.
+  const storedAnswers = seated;
 
   const duration =
     typeof input.durationSeconds === "number" && input.durationSeconds >= 0

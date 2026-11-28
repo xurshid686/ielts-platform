@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { gradeAnswers, asAnswerKey, asAnswers } from "@/lib/ielts/grade";
+import { regroupForPaper } from "@/lib/ielts/answer-groups-server";
 import { rawToBand } from "@/lib/ielts/bandTable";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("tests")
-    .select("skill, tier, track, answer_key")
+    .select("skill, tier, track, answer_key, file_path")
     .eq("id", testId)
     .single();
 
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
     tier?: string;
     track?: string | null;
     answer_key?: unknown;
+    file_path?: string | null;
   } | null;
 
   if (!test) return Response.json({ error: "Not found" }, { status: 404 });
@@ -75,7 +77,8 @@ export async function POST(req: Request) {
   if (!key) return Response.json({ error: "This test cannot be scored" }, { status: 409 });
 
   const skill = test.skill === "listening" ? "listening" : "reading";
-  const graded = gradeAnswers(key, asAnswers(answers) ?? {}, skill);
+  // Choose-TWO/THREE groups marked as a set, exactly as saveResult does (lib/ielts/answer-groups.ts).
+  const graded = gradeAnswers(key, await regroupForPaper(key, asAnswers(answers) ?? {}, test.file_path), skill);
   const band = rawToBand(skill, graded.raw, graded.total);
 
   return Response.json(
