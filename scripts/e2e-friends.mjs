@@ -233,7 +233,7 @@ try {
   await goto(p1, "/leaderboard");
   await p1.getByRole("button", { name: "Groups" }).click();
   await p1.getByRole("button", { name: "Average rating" }).click();
-  check((await body(p1)).includes(groupName), "group appears on the Groups leaderboard");
+  check((await p1.locator('[data-board="groups"]').innerText()).includes(groupName), "group appears on the Groups leaderboard");
   await shot(p1, "leaderboard-groups");
 
   // ------------------------------------------------ admin groups page: hide, change buyer
@@ -245,7 +245,8 @@ try {
   await goto(p1, "/leaderboard");
   await p1.getByRole("button", { name: "Groups" }).click();
   await p1.getByRole("button", { name: "Average rating" }).click();
-  check(!(await body(p1)).includes(groupName), "hidden group disappears from the leaderboard");
+  // Scoped to the board: the renewal banner above it names the group too.
+  check(!(await p1.locator('[data-board="groups"]').innerText()).includes(groupName), "hidden group disappears from the leaderboard");
   await goto(ap, "/admin/groups");
   await panel.locator('select[aria-label="Member"]').selectOption(f1.id);
   ap.once("dialog", (d) => d.accept());
