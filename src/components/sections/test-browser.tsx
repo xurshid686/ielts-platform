@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PREMIUM_PLANS } from "@/lib/site";
 import {
@@ -16,6 +16,7 @@ import {
   Repeat2,
   ListChecks,
   SlidersHorizontal,
+  ArrowUp,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { testPath } from "@/lib/tests/ref";
@@ -23,7 +24,9 @@ import { testPath } from "@/lib/tests/ref";
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
 
 /**
- * How many cards are rendered before "Show more".
+ * How many cards are rendered at first, and how many more arrive each time the
+ * student scrolls near the end (2026-11-28: the rest loads by itself, no "Show
+ * more" clicks; the owner found 17 clicks through 438 tests too many).
  *
  * The catalogue is 171 tests. Rendering every card put 506 KB of HTML on the
  * wire and made the browser hydrate 171 card subtrees before the page would
@@ -33,6 +36,12 @@ const NEW_WINDOW_MS = 24 * 60 * 60 * 1000; // a test stays "new" for 24 hours
  * capped. A multiple of 12 keeps the 2- and 3-column grids flush.
  */
 const PAGE_SIZE = 24;
+/** Start loading the next step this far before the end of the list comes into view. */
+const AUTOLOAD_MARGIN = "800px";
+/** Where the catalogue remembers how far a student had scrolled, for the Back button. */
+const PLACE_KEY = "catalogue-place";
+/** A remembered place older than this is stale (a new visit, not a Back). */
+const PLACE_TTL_MS = 30 * 60 * 1000;
 
 export type BrowserItem = {
   id: string;
@@ -193,6 +202,69 @@ export function TestBrowser({
 
   const shown = useMemo(() => filtered.slice(0, visible), [filtered, visible]);
   const remaining = filtered.length - shown.length;
+
+  // ---- The next cards load by themselves as the end of the list approaches. ----
+  // The whole catalogue is already in the browser (`items`): this only draws more
+  // of it, so it costs no request. The server HTML stays at PAGE_SIZE cards.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || remaining <= 0 || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisible((v) => v + PAGE_SIZE);
+      },
+      { rootMargin: AUTOLOAD_MARGIN },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [remaining, visible]);
+
+  // ---- Back from a test lands where the student was, not at card 24. ----
+  // Saved when a card is opened; restored once on the next mount for the same
+  // skill and filters (the facets themselves start fresh, as before), then cleared.
+  const placeKey = `${skill}|${facetKey}`;
+  const rememberPlace = () => {
+    try {
+      sessionStorage.setItem(PLACE_KEY, JSON.stringify({ key: placeKey, visible, y: window.scrollY, at: Date.now() }));
+    } catch {
+      /* private mode: no place memory, nothing else changes */
+    }
+  };
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    let saved: { key?: string; visible?: number; y?: number; at?: number } | null = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(PLACE_KEY) ?? "null");
+      sessionStorage.removeItem(PLACE_KEY);
+    } catch {
+      saved = null;
+    }
+    if (!saved || saved.key !== placeKey || !saved.at || Date.now() - saved.at > PLACE_TTL_MS) return;
+    const want = Math.max(PAGE_SIZE, Math.min(Number(saved.visible) || PAGE_SIZE, 2000));
+    const y = Number(saved.y) || 0;
+    // In a frame callback, after the first paint: draw the same number of cards, then scroll.
+    requestAnimationFrame(() => {
+      setVisible(want);
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    });
+    // Mount only: placeKey is the initial one on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- "Back to top": the filters are at the top of what is now a long page. ----
+  const [farDown, setFarDown] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setFarDown(window.scrollY > window.innerHeight * 2);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const backToTop = () => {
+    const smooth = window.matchMedia("(prefers-reduced-motion: no-preference)").matches;
+    window.scrollTo({ top: 0, behavior: smooth ? "smooth" : "auto" });
+  };
 
   // Where the second tier group starts, so a divider can be drawn there. Only
   // meaningful in the unfiltered "All" view — once a search or facet is active,
@@ -362,7 +434,13 @@ export function TestBrowser({
           />
         )
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          data-catalogue-grid
+          onClickCapture={(e) => {
+            if ((e.target as HTMLElement).closest("a")) rememberPlace();
+          }}
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {showGroups && (
             <GroupHeading
               label={leadingTier === "free" ? "Free tests" : "Your Premium tests"}
@@ -529,16 +607,36 @@ export function TestBrowser({
         </div>
       )}
 
-      {remaining > 0 && (
-        <div className="flex justify-center pt-2">
-          <button
-            onClick={() => setVisible((v) => v + PAGE_SIZE)}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-semibold shadow-soft transition-colors hover:bg-surface-2"
-          >
-            Show {Math.min(remaining, PAGE_SIZE)} more
-            <span className="text-muted tabular-nums">({remaining} left)</span>
-          </button>
+      {/* The sentinel the auto-load watches, then a quiet status line. The button is a
+          fallback (no IntersectionObserver, or a keyboard user who wants more now). */}
+      <div ref={sentinel} aria-hidden className="h-px" />
+      {filtered.length > 0 && (
+        <div className="flex flex-col items-center gap-2 pt-2 text-sm text-muted" aria-live="polite">
+          {remaining > 0 ? (
+            <button
+              onClick={() => setVisible((v) => v + PAGE_SIZE)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 font-medium hover:bg-surface-2 hover:text-foreground"
+            >
+              Loading more… <span className="tabular-nums">({remaining} left)</span>
+            </button>
+          ) : (
+            filtered.length > PAGE_SIZE && (
+              <p data-catalogue-end>
+                All {filtered.length} {skill} tests shown
+              </p>
+            )
+          )}
         </div>
+      )}
+
+      {farDown && (
+        <button
+          onClick={backToTop}
+          aria-label="Back to top"
+          className="fixed bottom-5 right-5 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-foreground shadow-elevated transition-colors hover:bg-surface-2"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
       )}
     </section>
   );

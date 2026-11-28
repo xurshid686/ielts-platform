@@ -1751,6 +1751,13 @@ Two separate causes, both fixed the same day:
   because the grid cannot list everything without the cost the cap was added to
   avoid.
 
+**Since 2026-11-28 the rest of the grid loads by itself** as the student scrolls
+(an IntersectionObserver on a sentinel, 800px ahead; owner: 17 "Show more" clicks through
+438 tests was too many). `PAGE_SIZE` is now the size of each automatic step, and the server
+HTML is unchanged at 24 cards. Opening a card saves the count + scroll position in
+sessionStorage (`catalogue-place`, 30 min, used once) so Back lands in the same place.
+E2E: `scripts/e2e-catalogue-scroll.mjs`.
+
 **Do NOT fix a future version of this by raising `PAGE_SIZE` or rendering every
 card.** That was already measured and rejected: 171 cards is 506 KB of HTML and
 171 hydrating subtrees. The index is plain anchors in a server component —
