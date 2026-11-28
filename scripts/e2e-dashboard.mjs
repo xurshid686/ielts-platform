@@ -45,7 +45,8 @@ async function login(ctx, u) {
 async function open(page, path) {
   await page.goto(`${BASE}${path}`); await page.waitForLoadState("networkidle", { timeout: 60000 });
 }
-const text = (page) => page.evaluate(() => document.body.innerText);
+// The page body only: the site header's nav lists every section (Speaking included).
+const text = (page) => page.evaluate(() => (document.querySelector("main") ?? document.body).innerText);
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 
@@ -68,7 +69,7 @@ try {
     const page = await login(ctx, N);
     await open(page, "/dashboard");
     const card = page.locator('[data-today-card]');
-    check((await card.getAttribute("data-today-card")) === "todo" && (await card.innerText()).includes("Your first test"), "new account: 'Your first test'");
+    check((await card.getAttribute("data-today-card")) === "todo" && /your first test/i.test(await card.innerText()), "new account: 'Your first test'");
     const box = await card.boundingBox();
     check(!!box && box.y < 740, "new account: the Today card is visible without scrolling on a 375x740 phone");
     check(!(await text(page)).includes("Your bands"), "new account: no empty bands panel");
@@ -89,7 +90,7 @@ try {
     await open(page, "/dashboard");
     const card = page.locator('[data-today-card]');
     const cardText = await card.innerText();
-    check((await card.getAttribute("data-today-card")) === "todo" && cardText.includes("Today's test"), "free student: Today's test card");
+    check((await card.getAttribute("data-today-card")) === "todo" && /today's test/i.test(cardText), "free student: Today's test card");
     check([...weakTypes].some((q) => cardText.includes(`Trains ${q}`)), `free student: the pick trains a weak type (${[...weakTypes].join(" / ")})`);
     const startHref = await card.getByRole("link", { name: /Start the test/ }).getAttribute("href");
     check(!!startHref && startHref.startsWith("/reading/") && !weakTests.some((t) => startHref.includes(t.id)), "free student: picks an unattempted paper");
@@ -119,6 +120,7 @@ try {
     // Progress page.
     await page.getByRole("link", { name: "Progress" }).first().click();
     await page.waitForURL(/\/dashboard\/progress/, { timeout: 30000 });
+    await page.getByRole("heading", { name: "Your progress" }).waitFor({ timeout: 30000 });
     await page.waitForLoadState("networkidle");
     const prog = await text(page);
     check(prog.includes("Your progress") && prog.includes("What to practise next") && prog.includes("Question-type accuracy"), "Progress: headline sections render");
@@ -132,7 +134,7 @@ try {
     await open(page, "/dashboard");
     const done = page.locator('[data-today-card]');
     const doneText = await done.innerText();
-    check((await done.getAttribute("data-today-card")) === "done" && doneText.includes("Done for today") && doneText.includes("Band 7"), "after a test today: 'Done for today' with the band");
+    check((await done.getAttribute("data-today-card")) === "done" && /done for today/i.test(doneText) && doneText.includes("Band 7"), "after a test today: 'Done for today' with the band");
     check(doneText.includes("Another one?"), "done state offers another paper");
     await shot(page, "05-done-1280");
     await ctx.close();
