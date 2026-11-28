@@ -23,6 +23,8 @@ type Props = {
   pick: { test: TodayTest; kind: "free" | "pass" | "open"; weak: TypeStat | null } | null;
   /** Bands of what they finished today (newest first); empty = not done yet. */
   doneBands: (number | null)[];
+  /** The live streak (0 = none), for the done-state line. */
+  streak: number;
   passesLeft: number | null;
 };
 
@@ -53,7 +55,7 @@ function DateBlock({ day, done }: { day: string; done: boolean }) {
   return (
     <div
       aria-hidden
-      className={`relative flex w-20 shrink-0 flex-col items-center justify-center self-stretch rounded-xl border-2 border-dashed py-3 sm:w-24 ${
+      className={`relative flex w-[4.5rem] shrink-0 flex-col items-center justify-center self-start rounded-xl border-2 border-dashed py-3 sm:w-24 sm:self-stretch ${
         done ? "border-success/50 bg-success/8 text-success" : "border-primary/35 bg-primary/6 text-primary"
       }`}
     >
@@ -69,7 +71,7 @@ function DateBlock({ day, done }: { day: string; done: boolean }) {
   );
 }
 
-export function TodayCard({ day, first, pick, doneBands, passesLeft }: Props) {
+export function TodayCard({ day, first, pick, doneBands, passesLeft, streak }: Props) {
   const done = doneBands.length > 0;
   const lastBand = doneBands.find((b) => b != null) ?? null;
 
@@ -93,7 +95,9 @@ export function TodayCard({ day, first, pick, doneBands, passesLeft }: Props) {
                   {doneBands.length > 1 ? `· ${doneBands.length} tests today` : ""}
                 </span>
               </h2>
-              <p className="mt-1.5 text-sm text-muted">Your streak is safe. Come back tomorrow for the next one.</p>
+              <p className="mt-1.5 text-sm text-muted">
+                {streak > 0 ? `${streak}-day streak, safe for today.` : "Nice work."} Come back tomorrow for the next one.
+              </p>
               {pick && (
                 <Link
                   href={testPath("reading", pick.test)}

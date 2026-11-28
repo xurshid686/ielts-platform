@@ -69,7 +69,11 @@ export default async function DashboardPage() {
               </span>
             ) : (
               <span className="text-muted">
-                {first ? "One test and this page fills in with your band and what to practise next." : "Do today's test to start a streak."}
+                {first
+                  ? "One test and this page fills in with your band and what to practise next."
+                  : today.practisedToday
+                    ? "Good work today. Come back tomorrow to start a streak."
+                    : "Do today's test to start a streak."}
               </span>
             )}
           </div>
@@ -85,12 +89,10 @@ export default async function DashboardPage() {
             pick={today.pick}
             doneBands={today.doneToday.map((r) => (r.band != null ? Number(r.band) : null))}
             passesLeft={d.passes?.left ?? null}
+            streak={profile.streak}
           />
           {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
           {d.passes && <PassesCard left={d.passes.left} tests={today.passPicks} />}
-          {!first && (
-            <RecentActivity items={recent} total={d.results.length} more={{ href: "/dashboard/progress", label: "All your progress" }} />
-          )}
         </div>
 
         <div className="space-y-6">
@@ -104,6 +106,9 @@ export default async function DashboardPage() {
           <Suspense fallback={null}>
             <TelegramDailyCard userId={profile.id} />
           </Suspense>
+          {!first && (
+            <RecentActivity items={recent} total={d.results.length} more={{ href: "/dashboard/progress", label: "All your progress" }} />
+          )}
           <WritingReportsCard reports={d.reports} />
         </div>
       </div>
