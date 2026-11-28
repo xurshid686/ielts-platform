@@ -4,6 +4,7 @@ import { PremiumWelcome } from "@/components/premium-welcome";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { getProfile, isDisciplineMember } from "@/lib/auth";
 import { PremiumRenewalBanner } from "@/components/premium-renewal-banner";
+import { groupOf } from "@/lib/friends";
 import { isPremiumActive, membershipStage, trialDaysLeft } from "@/lib/premium";
 import { trialEndsAt } from "@/lib/passes";
 import { TrialBanner } from "@/components/premium/trial-banner";
@@ -52,6 +53,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     (membership.stage === "expiring" || membership.stage === "lapsed")
       ? { stage: membership.stage, days: membership.days, until: profile.premium_until }
       : null;
+  // Friends (0077/0078): when this Premium IS the group's (same end date), the
+  // banner talks about the group: the buyer renews it, a member asks the buyer.
+  // Looked up only when a banner is due, so ordinary pages pay nothing.
+  let renewalGroup: { name: string; buyer: boolean; buyerName: string } | null = null;
+  if (renewal) {
+    const g = await groupOf(profile.id);
+    if (g && Math.abs(new Date(g.expires_at).getTime() - new Date(renewal.until).getTime()) < 86400_000) {
+      const b = g.members.find((m) => m.is_owner);
+      renewalGroup = { name: g.name, buyer: g.owner_id === profile.id, buyerName: b?.name.split(/\s+/)[0] ?? "the buyer" };
+    }
+  }
 
   // 3-day trial (0069): a slim line while it runs. Members and admins never see it.
   const trialDays =
@@ -71,7 +83,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         until={profile.premium_until}
       />
       {renewal && (
-        <PremiumRenewalBanner {...renewal} />
+        <PremiumRenewalBanner {...renewal} group={renewalGroup} />
       )}
       {trialDays > 0 && <TrialBanner days={trialDays} />}
       {children}

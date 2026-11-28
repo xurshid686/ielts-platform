@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rows } from "@/types/database";
 import { emailConfigured, sendReminderEmail, type ReminderEmail } from "@/lib/email/send";
+import { groupOf } from "@/lib/friends";
 import { DAILY_REMINDER_CAP, planReminders } from "@/lib/email/reminder-plan";
 
 // Reminder emails (migration 0061, owner 2026-11-11). The ONLY door, like
@@ -107,10 +108,22 @@ export async function sendReminders(
       continue;
     }
 
+    // Friends (0078): a Premium that is a group's (same end day) gets the group wording.
+    let payload = c.payload;
+    if (payload.kind === "premium_expiring") {
+      const g = await groupOf(c.userId).catch(() => null);
+      if (g && formatDay(g.expires_at) === payload.endsOn) {
+        const b = g.members.find((m) => m.is_owner);
+        payload = {
+          ...payload,
+          group: { name: g.name, buyer: g.owner_id === c.userId, buyerName: b?.name.split(/\s+/)[0] ?? "the buyer" },
+        };
+      }
+    }
     const res = await sendReminderEmail(
       c.email,
       { name: c.name, unsubscribeToken: c.unsubscribeToken },
-      c.payload,
+      payload,
     );
     if (res.sent) summary.sent++;
     else summary.failed++;

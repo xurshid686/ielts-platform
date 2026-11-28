@@ -137,7 +137,13 @@ export type ReminderEmail =
   | { kind: "streak"; streak: number }
   | { kind: "inactive"; everPractised: boolean }
   | { kind: "weekly_report"; tests: number; avgBand: number | null; bestBand: number | null; ratingDelta: number | null; reportId: string }
-  | { kind: "premium_expiring"; stage: "before" | "after"; endsOn: string };
+  | {
+      kind: "premium_expiring";
+      stage: "before" | "after";
+      endsOn: string;
+      /** Friends (0078): this Premium is a group's, ending the same day. */
+      group?: { name: string; buyer: boolean; buyerName: string } | null;
+    };
 
 /**
  * One reminder email. Every one carries the unsubscribe link in its footer AND
@@ -170,6 +176,7 @@ export function sendReminderEmail(
               stage: email.stage,
               endsOn: email.endsOn,
               priceLine: PREMIUM_PRICE_LINE,
+              group: email.group ?? null,
             });
   return sendEmail({
     to,

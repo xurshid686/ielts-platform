@@ -60,6 +60,7 @@ try {
   check(await page.locator('header a[href="/admin"][aria-current="page"], header button:has-text("Admin")').count() > 0, "header shows the Admin entry");
   let t = await text(page);
   check(t.includes("Waiting on you"), "work-waiting panel present");
+  check(!t.includes("Unfinished checkouts"), "no 'Unfinished checkouts' while online payments are paused");
   const m = t.match(/([\d,]+) accounts in all/);
   const shown = m ? Number(m[1].replace(/,/g, "")) : -1;
   check(shown === accounts + 2 || shown === accounts, `account total is the real count (${shown}; db ${accounts}+2), not the 1000 cap`);

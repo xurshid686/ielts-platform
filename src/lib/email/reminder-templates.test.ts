@@ -156,3 +156,23 @@ describe("planReminders", () => {
     expect(plan.overCap).toBe(1);
   });
 });
+
+describe("premium expiring: Friends group wording (0078)", () => {
+  const base = { ...who, endsOn: "14 November 2026", priceLine: "x" };
+  it("the buyer is asked to renew the group", () => {
+    const e = buildPremiumExpiringEmail(BRAND, { ...base, stage: "before", group: { name: "Band <7> Club", buyer: true, buyerName: "Aziz" } });
+    expect(e.subject).toBe("Band <7> Club ends in 3 days");
+    expect(e.html).toContain("Band &lt;7&gt; Club");
+    expect(e.html).toContain("/premium/friends?buy=friends");
+    expect(e.html).toContain(UNSUB);
+  });
+  it("a member is told to ask the buyer", () => {
+    const e = buildPremiumExpiringEmail(BRAND, { ...base, stage: "after", group: { name: "Tigers", buyer: false, buyerName: "Aziz" } });
+    expect(e.subject).toBe("Tigers has ended");
+    expect(e.html).toContain("Ask Aziz to renew");
+    expect(e.html).toContain("/premium/group");
+  });
+  it("without a group it is the normal Premium email", () => {
+    expect(buildPremiumExpiringEmail(BRAND, { ...base, stage: "before" }).subject).toBe("Your Premium ends in 3 days");
+  });
+});

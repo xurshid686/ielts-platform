@@ -213,6 +213,18 @@ try {
   check((await body(bp)).includes("Goal reached"), "group page shows the goal reached");
   await shot(bp, "group-buyer-light");
 
+  // ------------------------------------------------ renewal banner talks about the group
+  {
+    const soon = new Date(Date.now() + 2 * 86400_000).toISOString();
+    await admin.from("premium_groups").update({ expires_at: soon }).eq("id", g.id);
+    await admin.from("profiles").update({ premium_until: soon }).in("id", [buyer.id, f1.id]);
+    await goto(bp, "/dashboard");
+    check((await bp.locator('[data-renew="group-buyer"]').count()) === 1 && (await body(bp)).includes(`${groupName} ends in`), "buyer's renewal banner: renew the group");
+    await goto(p1, "/dashboard");
+    check((await p1.locator('[data-renew="group-member"]').count()) === 1 && (await body(p1)).includes("renew the group"), "member's renewal banner: ask the buyer");
+    await shot(p1, "renewal-member");
+  }
+
   // ------------------------------------------------ profile + leaderboard
   await goto(bp, `/u/${f1.id}`);
   check((await body(bp)).includes("In your Friends group"), "friend's profile shows the shared group");

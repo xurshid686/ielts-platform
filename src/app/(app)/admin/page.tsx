@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { workloadCounts } from "@/lib/mock-admin";
-import { enabledProviders } from "@/lib/payments/config";
+import { ONLINE_PAYMENTS_PAUSED, enabledProviders } from "@/lib/payments/config";
 import { reportStatusCounts } from "@/lib/test-reports";
 import { formatUzs } from "@/lib/site";
 import { timeAgo, cn } from "@/lib/utils";
@@ -63,8 +63,9 @@ export default async function AdminPage({
       age: reports.open > 0 ? ages.reports : null,
     },
     // Orders a student opened but never finished (last 7 days). No page lists
-    // them yet; the number is here so a broken checkout is noticed.
-    { label: "Unfinished checkouts (7 d)", value: t.orders_stuck, href: null },
+    // them yet; the number is here so a broken checkout is noticed. Hidden while
+    // online payment is paused (owner, 2026-11-27): those are old test orders.
+    ...(ONLINE_PAYMENTS_PAUSED ? [] : [{ label: "Unfinished checkouts (7 d)", value: t.orders_stuck, href: null }]),
   ];
 
   return (
@@ -84,7 +85,10 @@ export default async function AdminPage({
 
       {/* Work waiting on the owner comes first: both reviewers (Grok, agy)
           named the backlog as the number that matters most. */}
-      <Panel title="Waiting on you" bodyClassName="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+      <Panel
+        title="Waiting on you"
+        bodyClassName={cn("grid grid-cols-2 gap-2 sm:grid-cols-3", waiting.length === 4 ? "xl:grid-cols-4" : "xl:grid-cols-5")}
+      >
         {waiting.map((w) => {
           const body = (
             <>
@@ -139,7 +143,13 @@ export default async function AdminPage({
           label="Revenue (online)"
           value={formatUzs(Math.round(cur.revenue))}
           delta={pctDelta(cur.revenue, prev.revenue)}
-          hint={providers.length ? `${cur.paid} paid orders` : "online payments are switched off"}
+          hint={
+            ONLINE_PAYMENTS_PAUSED
+              ? "online payments paused (Telegram + admin grants)"
+              : providers.length
+                ? `${cur.paid} paid orders`
+                : "online payments are switched off"
+          }
         />
         <StatTile
           label="Premium members now"
@@ -196,7 +206,10 @@ export default async function AdminPage({
         <Panel title="Tests taken per day">
           <TimeChart label="Tests taken per day" points={series.map((s) => ({ day: s.day, value: s.results }))} unit="tests" />
         </Panel>
-        <Panel title="Revenue per day" description="Paid Payme / Click orders, so'm">
+        <Panel
+          title="Revenue per day"
+          description={ONLINE_PAYMENTS_PAUSED ? "Payme / Click are paused: payments go through Telegram" : "Paid Payme / Click orders, so'm"}
+        >
           <TimeChart label="Revenue per day" points={series.map((s) => ({ day: s.day, value: s.revenue }))} unit="so'm" />
         </Panel>
       </div>

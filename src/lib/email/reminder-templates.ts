@@ -125,9 +125,40 @@ export function buildWeeklyReportEmail(
 /** `before`: Premium ends in 3 days. `after`: it ended yesterday. `endsOn` is already formatted. */
 export function buildPremiumExpiringEmail(
   brand: Brand,
-  input: Common & { stage: "before" | "after"; endsOn: string; priceLine: string },
+  input: Common & {
+    stage: "before" | "after";
+    endsOn: string;
+    priceLine: string;
+    /** Friends (0078): the Premium is a group's; the buyer renews, a member asks the buyer. */
+    group?: { name: string; buyer: boolean; buyerName: string } | null;
+  },
 ): Built {
   const before = input.stage === "before";
+  const g = input.group;
+  if (g) {
+    const lead = before
+      ? `Your Friends group <strong>${esc(g.name)}</strong> ends on <strong>${esc(input.endsOn)}</strong>.`
+      : `Your Friends group <strong>${esc(g.name)}</strong> ended on <strong>${esc(input.endsOn)}</strong>, so the Premium tests are locked again. Your results and progress are all still there.`;
+    const ask = g.buyer
+      ? before
+        ? "Renew before then and Premium stays on for everyone in the group."
+        : "Renew the group and Premium opens again for everyone in it."
+      : `Ask ${esc(g.buyerName)} to renew the group, or get your own Premium.`;
+    return {
+      subject: before ? `${g.name} ends in 3 days` : `${g.name} has ended`,
+      html: shell(
+        brand,
+        `
+      <p style="margin:0 0 12px">${hello(input.name)}</p>
+      <p style="margin:0 0 16px">${lead} ${ask}</p>
+      ${button(
+        g.buyer ? `${brand.url}/premium/friends?buy=friends&months=3` : `${brand.url}/premium/group`,
+        g.buyer ? "Renew the group" : "Open my group",
+      )}`,
+        reminderFooter(brand, input.unsubscribeUrl),
+      ),
+    };
+  }
   return {
     subject: before ? "Your Premium ends in 3 days" : "Your Premium has ended",
     html: shell(

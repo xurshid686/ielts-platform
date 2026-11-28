@@ -31,10 +31,13 @@ export function PremiumRenewalBanner({
   stage,
   days,
   until,
+  group = null,
 }: {
   stage: "expiring" | "lapsed";
   days: number;
   until: string;
+  /** Set when this Premium comes from a Friends group that ends at the same time. */
+  group?: { name: string; buyer: boolean; buyerName: string } | null;
 }) {
   const key = `premium-renewal-dismissed:${stage}:${until}`;
   // Hidden on the server and until hydration, so a dismissed banner never flashes.
@@ -54,14 +57,29 @@ export function PremiumRenewalBanner({
     window.dispatchEvent(new Event(EVENT));
   }
 
+  const what = group ? `Your Friends group ${group.name}` : "Your Premium";
   const headline =
     stage === "expiring"
       ? days <= 1
-        ? "Your Premium ends today."
-        : `Your Premium ends in ${days} days.`
+        ? `${what} ends today.`
+        : `${what} ends in ${days} days.`
       : days === 0
-        ? "Your Premium ended today."
-        : `Your Premium ended ${days} day${days === 1 ? "" : "s"} ago.`;
+        ? `${what} ended today.`
+        : `${what} ended ${days} day${days === 1 ? "" : "s"} ago.`;
+  const note = group
+    ? group.buyer
+      ? stage === "expiring"
+        ? "Renew to keep Premium for everyone in the group."
+        : "Renew to open Premium again for the whole group."
+      : `Ask ${group.buyerName} to renew the group, or get your own Premium.`
+    : stage === "expiring"
+      ? "Renew now to keep the premium tests and instant mock entry."
+      : "Renew to open the premium tests and instant mock entry again.";
+  const cta = group
+    ? group.buyer
+      ? { href: "/premium/friends?buy=friends&months=3", label: "Renew group" }
+      : { href: "/premium/group", label: "Open my group" }
+    : { href: "/premium", label: "Renew Premium" };
 
   return (
     <div
@@ -72,21 +90,18 @@ export function PremiumRenewalBanner({
         <Crown className="mt-0.5 h-4 w-4 shrink-0 text-premium" />
         <span>
           <strong className="font-semibold">{headline}</strong>{" "}
-          <span className="text-muted">
-            {stage === "expiring"
-              ? "Renew now to keep the premium tests and instant mock entry."
-              : "Renew to open the premium tests and instant mock entry again."}
-          </span>
+          <span className="text-muted">{note}</span>
         </span>
       </p>
       <div className="flex shrink-0 items-center gap-2">
         {/* To the Premium page, like every other Premium prompt; the Telegram
             buttons live there. */}
         <Link
-          href="/premium"
+          href={cta.href}
+          data-renew={group ? (group.buyer ? "group-buyer" : "group-member") : "premium"}
           className="inline-flex items-center gap-2 rounded-lg bg-premium-gradient px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95"
         >
-          Renew Premium <ArrowRight className="h-4 w-4" />
+          {cta.label} <ArrowRight className="h-4 w-4" />
         </Link>
         <button
           type="button"
