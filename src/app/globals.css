@@ -408,6 +408,14 @@ h1, h2, h3, h4, h5, h6 {
   }
   .animate-fade-in-up { animation: fade-in-up 0.4s ease both; }
 
+  /* The dashboard's "Done for today" check, pressed onto the date block like a stamp. */
+  @keyframes today-stamp {
+    0% { opacity: 0; transform: scale(1.8) rotate(-18deg); }
+    70% { opacity: 1; transform: scale(0.92) rotate(4deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  .today-stamp { animation: today-stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.25s both; }
+
   /* Staggered entrance for hero/landing content */
   @keyframes rise-in {
     from { opacity: 0; transform: translateY(14px); }

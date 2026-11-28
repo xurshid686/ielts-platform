@@ -4,8 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPremiumActive, passWeekStart, trialDaysLeft } from "@/lib/premium";
 import { passState, trialEndsAt } from "@/lib/passes";
-import { computeTypeStats, weakestType, type ResultLite } from "@/lib/analytics";
-import { recommendForWeakType } from "@/lib/recommend";
+import type { ResultLite } from "@/lib/analytics";
+import { pickToday } from "@/lib/today-pick";
 import { testPath } from "@/lib/tests/ref";
 import { SITE_URL } from "@/lib/site";
 import { dailyText } from "@/lib/telegram/student-router";
@@ -114,7 +114,7 @@ export async function disableDailyForUser(userId: string): Promise<void> {
   await db().from("student_bot_links").update({ daily_on: false }).eq("user_id", userId);
 }
 
-type CatalogueRow = {
+export type CatalogueRow = {
   id: string;
   slug: string | null;
   title: string;
@@ -166,25 +166,17 @@ export async function buildDaily(
   const passes = member || trialLeft > 0 ? null : await passState(userId);
   const opensAll = member || trialLeft > 0;
 
-  const results = (mine ?? []) as ResultLite[];
-  const attempted = new Set<string | null>(results.map((r) => r.test_id));
-  // A pass-opened test is already theirs; one with a pass left can be opened.
-  const canOpen = (t: CatalogueRow) =>
-    t.tier !== "premium" || opensAll || !!passes?.testIds.has(t.id) || (passes?.left ?? 0) > 0;
-  const openable = catalogue.filter(canOpen);
-  const weak = weakestType(computeTypeStats(results, openable, "reading"));
-  const pick =
-    recommendForWeakType(openable, {
-      attempted,
-      weakType: weak?.type ?? null,
-      canOpenPremium: true, // already filtered to what they can open
-      rating: p.rating ?? 1000,
-      limit: 1,
-    })[0] ?? openable.find((t) => !attempted.has(t.id));
-  if (!pick) return null;
+  // The pick itself is lib/today-pick.ts: the SAME rule the dashboard's Today card uses.
+  const today = pickToday({
+    catalogue,
+    results: (mine ?? []) as ResultLite[],
+    rating: p.rating ?? 1000,
+    opensAll,
+    passes,
+  });
+  if (!today) return null;
+  const { test: pick, kind } = today;
 
-  const kind: "free" | "pass" | "open" =
-    pick.tier !== "premium" ? "free" : opensAll || passes?.testIds.has(pick.id) ? "open" : "pass";
   const monday = passWeekStart(now) === tashkentDay(now);
   const firstName = (p.name ?? "").trim().split(/\s+/)[0] || null;
   return {

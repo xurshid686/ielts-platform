@@ -6,14 +6,14 @@ import { Card } from "@/components/ui/card";
 
 export type BandPoint = { band: number; at: string };
 
+// Speaking is not drawn: it is not sold (owner, 2026-11-28). Colours are the skill tokens.
 const SKILL_META: Record<string, { label: string; color: string }> = {
-  reading: { label: "Reading", color: "var(--primary)" },
-  listening: { label: "Listening", color: "var(--accent)" },
-  speaking: { label: "Speaking", color: "var(--danger)" },
-  writing: { label: "Writing", color: "var(--warning)" },
+  reading: { label: "Reading", color: "var(--skill-reading)" },
+  listening: { label: "Listening", color: "var(--skill-listening)" },
+  writing: { label: "Writing", color: "var(--skill-writing)" },
 };
 
-const ORDER = ["reading", "listening", "speaking", "writing"];
+const ORDER = ["reading", "listening", "writing"];
 
 // Multi-skill band trend with a per-skill toggle. Each series must be in
 // chronological order (oldest first). Skills with no data are hidden; a skill

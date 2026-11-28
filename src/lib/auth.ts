@@ -61,21 +61,11 @@ export function withLiveStreak<T extends Pick<Profile, "streak" | "last_activity
  * callers, so the redirect still happens for every caller in the request.
  */
 export const requireProfile = cache(async function requireProfile(): Promise<Profile> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  // Fallback in the rare window before the signup trigger has run.
-  return withLiveStreak((profile as Profile | null) ?? fallbackProfile(user));
+  // Same read as getProfile(), and through ITS cache: the (app) layout already called getProfile()
+  // for this request, so an account page no longer pays a second getUser() + profiles round trip.
+  const profile = await getProfile();
+  if (!profile) redirect("/login");
+  return profile;
 });
 
 /** Stand-in profile for the window between signup and the DB trigger firing. */

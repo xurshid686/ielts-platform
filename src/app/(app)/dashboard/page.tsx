@@ -1,775 +1,118 @@
-import Link from "next/link";
-import {
-  Flame,
-  Trophy,
-  Zap,
-  CheckCircle2,
-  BookOpen,
-  Headphones,
-  PenLine,
-  Mic,
-  ArrowRight,
-  Target,
-  Gauge,
-  CalendarDays,
-  Lightbulb,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { Suspense } from "react";
+import { Flame } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
-import { avg, timeAgo, weeklyActivity } from "@/lib/utils";
-import { Card } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ProgressTrends, type BandPoint } from "@/components/dashboard/progress-trends";
-import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
-import { CriteriaBars } from "@/components/dashboard/criteria-bars";
-import { GoalTracker, type GoalSkill } from "@/components/dashboard/goal-tracker";
+import { TRIAL_DAYS } from "@/lib/premium";
+import { loadDashboard, todayView } from "@/lib/dashboard-data";
+import { estimatedOverall, skillSnapshot, streakAtRisk } from "@/lib/dashboard-shared";
+import { groupOf, myInvites } from "@/lib/friends";
+import { DashboardTabs } from "@/components/dashboard/dashboard-tabs";
+import { TodayCard } from "@/components/dashboard/today-card";
+import { PassesCard } from "@/components/dashboard/passes-card";
+import { SkillsSnapshot } from "@/components/dashboard/skills-snapshot";
+import { RecentActivity } from "@/components/dashboard/recent-activity";
+import { MockStatusCard } from "@/components/dashboard/mock-status-card";
 import { WritingReportsCard } from "@/components/dashboard/writing-reports-card";
-import { listMyReports } from "@/lib/writing-ai";
-import { RatingCard } from "@/components/rating/rating-card";
-import { RatingTrend, type RatingPoint } from "@/components/dashboard/rating-trend";
-import { FocusArea, type RecommendedTest } from "@/components/dashboard/focus-area";
-import { computeTypeStats, weakestType } from "@/lib/analytics";
-import { recommendForWeakType } from "@/lib/recommend";
-import { isPremiumActive, TRIAL_DAYS } from "@/lib/premium";
-import { hasActiveTrial, trialEligible } from "@/lib/passes";
 import { TrialOffer } from "@/components/premium/trial-offer";
 import { TelegramDailyCard } from "@/components/premium/telegram-daily-card";
-import { canAccessTrack } from "@/lib/levels";
-import type { Result, SpeakingSubmission, LeaderboardGlobalRow, Test } from "@/types/database";
-import { rows } from "@/types/database";
-import { groupOf, myInvites } from "@/lib/friends";
 import { InviteBanner } from "@/components/premium/invite-banner";
-import { skillRatingsOf } from "@/lib/skill-ratings";
-import { SkillRatingsCard } from "@/components/rating/skill-ratings-card";
 import { MyGroupCard } from "@/components/premium/my-group-card";
 
-type Activity = {
-  id: string;
-  skill: string;
-  band: number | null;
-  raw: number | null;
-  total: number | null;
-  at: string;
-};
-
-// Round to the nearest half band, the IELTS way (e.g. 6.25 → 6.5, 6.75 → 7.0).
-function roundHalf(n: number) {
-  return Math.round(n * 2) / 2;
-}
+// The student dashboard is "Today" (owner, 2026-11-28): ONE test to do today, picked by
+// lib/today-pick.ts (the same pick as the 10:00 Telegram message), then the weekly free
+// Premium tests, the bands at a glance and whatever needs attention. Every chart and
+// statistic the old one-page dashboard had lives on /dashboard/progress.
+//
+// Speed: one Promise.all (lib/dashboard-data.ts); the cards that need their own reads
+// (mock, Friends, Telegram) stream in under <Suspense> and never hold up the Today card.
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const supabase = await createClient();
-  // Saved AI writing reports (a card appears once there is one). A failure here must never take the dashboard down.
-  const writingReports = await listMyReports(profile.id, 20)
-    .then((r) => r.map((x) => ({ id: x.check.id, at: x.check.finished_at ?? x.check.created_at, results: x.check.results })))
-    .catch(() => []);
+  const d = await loadDashboard(profile);
+  const today = todayView(profile, d);
 
-  const readingCols =
-    "id, title, kind, tier, passage, question_types, difficulty, track";
-  type ReadingTestRow = Pick<
-    Test,
-    "id" | "title" | "kind" | "tier" | "passage" | "question_types" | "difficulty" | "track"
-  >;
+  const first = d.results.length === 0;
+  const atRisk = streakAtRisk(profile.streak, today.practisedToday);
+  const snap = skillSnapshot(d.results, d.writingBand);
+  const overall = estimatedOverall(snap).band;
+  const firstName = profile.name?.trim().split(/\s+/)[0] || "there";
+  // The one-time trial: never had Premium or a trial, has finished something (trialEligible's
+  // rule, answered from data this page already holds instead of two more queries).
+  const offerTrial = !d.member && !profile.premium_until && !d.hadTrial && !first;
 
-  // The seven result columns this page reads. `select("*")` also pulled
-  // `answers` — the full response map per attempt — which is never used here.
-  type ResultRow = Pick<
-    Result,
-    | "id"
-    | "skill"
-    | "band"
-    | "raw"
-    | "total"
-    | "submitted_at"
-    | "test_id"
-    | "rated"
-    | "rating_after"
-  >;
-
-  // Reading / listening / writing live in `results`; speaking lives in `speaking_submissions`.
-  const [{ data: results }, { data: speaking }, { data: rankRow }, { data: readingTestRows }] =
-    await Promise.all([
-      supabase
-        .from("results")
-        .select("id, skill, band, raw, total, submitted_at, test_id, rated, rating_after")
-        .eq("user_id", profile.id)
-        .order("submitted_at", { ascending: false }),
-      supabase
-        .from("speaking_submissions")
-        .select("id, score, created_at, feedback")
-        .eq("user_id", profile.id)
-        .order("created_at", { ascending: false }),
-      supabase.from("leaderboard_global").select("rank").eq("id", profile.id).maybeSingle(),
-      supabase.from("tests").select(readingCols).eq("skill", "reading"),
-    ]);
-  const readingTests = rows<ReadingTestRow>(readingTestRows);
-
-  const globalRank = (rankRow as Pick<LeaderboardGlobalRow, "rank"> | null)?.rank ?? null;
-
-  const all = rows<ResultRow>(results);
-  const speak = (speaking ?? []) as Pick<
-    SpeakingSubmission,
-    "id" | "score" | "created_at" | "feedback"
-  >[];
-
-  // ---- Per-skill aggregates -------------------------------------------------
-  const bands = (skill: string) =>
-    all.filter((r) => r.skill === skill && r.band != null).map((r) => Number(r.band));
-
-  const speakingBands = speak.filter((s) => s.score != null).map((s) => Number(s.score));
-
-  const readingAvg = avg(bands("reading"));
-  const listeningAvg = avg(bands("listening"));
-  const writingAvg = avg(bands("writing"));
-  const speakingAvg = avg(speakingBands);
-
-  const best = (xs: number[]) => (xs.length ? Math.max(...xs) : null);
-
-  // Chronological band series per skill (oldest first), capped to the last 12.
-  const seriesFor = (skill: string): BandPoint[] =>
-    all
-      .filter((r) => r.skill === skill && r.band != null)
-      .slice(0, 12)
-      .reverse()
-      .map((r) => ({ band: Number(r.band), at: r.submitted_at }));
-
-  const speakingSeries: BandPoint[] = speak
-    .filter((s) => s.score != null)
-    .slice(0, 12)
-    .reverse()
-    .map((s) => ({ band: Number(s.score), at: s.created_at }));
-
-  const series: Record<string, BandPoint[]> = {
-    reading: seriesFor("reading"),
-    listening: seriesFor("listening"),
-    writing: seriesFor("writing"),
-    speaking: speakingSeries,
-  };
-
-  const delta = (xs: BandPoint[]) =>
-    xs.length >= 2 ? +(xs[xs.length - 1].band - xs[xs.length - 2].band).toFixed(1) : null;
-
-  // Accuracy (raw/total) for the auto-graded skills.
-  const accuracy = (skill: string) => {
-    const rows = all.filter(
-      (r) => r.skill === skill && r.raw != null && r.total != null && r.total > 0,
-    );
-    if (!rows.length) return null;
-    const got = rows.reduce((a, r) => a + (r.raw as number), 0);
-    const max = rows.reduce((a, r) => a + (r.total as number), 0);
-    return Math.round((got / max) * 100);
-  };
-
-  const skillStats = [
-    {
-      key: "reading",
-      href: "/reading",
-      icon: <BookOpen className="h-5 w-5" />,
-      title: "Reading",
-      avg: readingAvg,
-      best: best(bands("reading")),
-      count: bands("reading").length,
-      delta: delta(series.reading),
-      accuracy: accuracy("reading"),
-    },
-    {
-      key: "listening",
-      href: "/listening",
-      icon: <Headphones className="h-5 w-5" />,
-      title: "Listening",
-      avg: listeningAvg,
-      best: best(bands("listening")),
-      count: bands("listening").length,
-      delta: delta(series.listening),
-      accuracy: accuracy("listening"),
-    },
-    {
-      key: "speaking",
-      href: "/speaking",
-      icon: <Mic className="h-5 w-5" />,
-      title: "Speaking",
-      avg: speakingAvg,
-      best: best(speakingBands),
-      count: speak.length,
-      delta: delta(series.speaking),
-      accuracy: null,
-    },
-    {
-      key: "writing",
-      href: "/writing",
-      icon: <PenLine className="h-5 w-5" />,
-      title: "Writing",
-      avg: writingAvg,
-      best: best(bands("writing")),
-      count: bands("writing").length,
-      delta: delta(series.writing),
-      accuracy: null,
-    },
-  ];
-
-  // ---- Estimated overall band (mean of available skill averages) -----------
-  const skillAverages = [readingAvg, listeningAvg, speakingAvg, writingAvg].filter(
-    (n): n is number => n != null,
-  );
-  const overall =
-    skillAverages.length > 0
-      ? roundHalf(skillAverages.reduce((a, b) => a + b, 0) / skillAverages.length)
-      : null;
-
-  // ---- Strongest / weakest skill -------------------------------------------
-  const ranked = skillStats
-    .filter((s) => s.avg != null)
-    .sort((a, b) => (b.avg as number) - (a.avg as number));
-  const strongest = ranked[0];
-  const weakest = ranked[ranked.length - 1];
-
-  // Goal tracker: per-skill averages for the study plan.
-  const goalSkills: GoalSkill[] = skillStats.map((s) => ({
-    key: s.key,
-    title: s.title,
-    href: s.href,
-    avg: s.avg,
+  const titles = new Map(d.catalogue.map((t) => [t.id, t.title]));
+  const recent = d.results.slice(0, 3).map((r) => ({
+    id: r.id,
+    skill: r.skill,
+    title: r.test_id ? (titles.get(r.test_id) ?? null) : null,
+    band: r.band != null ? Number(r.band) : null,
+    raw: r.raw,
+    total: r.total,
+    at: r.submitted_at,
   }));
 
-  // ---- This week vs last week ----------------------------------------------
-  const allDates = [...all.map((r) => r.submitted_at), ...speak.map((s) => s.created_at)];
-  const { thisWeek, lastWeek } = weeklyActivity(allDates);
-  const weekDelta = thisWeek - lastWeek;
-
-  const totalCompleted = all.length + speak.length;
-
-  // ---- Speaking criteria averages (from stored Gemini feedback) ------------
-  const critKeys = [
-    ["fluency", "Fluency & Coherence"],
-    ["lexical", "Lexical Resource"],
-    ["grammar", "Grammar"],
-    ["pronunciation", "Pronunciation"],
-  ] as const;
-  const criteria = critKeys.map(([k, label]) => {
-    const vals = speak
-      .map((s) => s.feedback?.criteria?.[k]?.band)
-      .filter((n): n is number => typeof n === "number");
-    return { label, band: avg(vals) };
-  });
-
-  // ---- Unified recent activity ---------------------------------------------
-  const activity: Activity[] = [
-    ...all.map((r) => ({
-      id: r.id,
-      skill: r.skill,
-      band: r.band != null ? Number(r.band) : null,
-      raw: r.raw,
-      total: r.total,
-      at: r.submitted_at,
-    })),
-    ...speak.map((s) => ({
-      id: s.id,
-      skill: "speaking",
-      band: s.score != null ? Number(s.score) : null,
-      raw: null,
-      total: null,
-      at: s.created_at,
-    })),
-  ]
-    .sort((a, b) => +new Date(b.at) - +new Date(a.at))
-    .slice(0, 8);
-
-  // ---- Question-type analytics + recommended next reading test ----
-  // Only consider tests the student can actually open: their own track
-  // (regular students → regular tests; pre_ielts/intro → their level's tests).
-  const readingTestList = readingTests.filter((t) => canAccessTrack(profile, t.track));
-  const typeStats = computeTypeStats(all, readingTestList, "reading");
-  const weakQType = weakestType(typeStats);
-  const attemptedReadingIds = new Set(
-    all.filter((r) => r.skill === "reading").map((r) => r.test_id),
-  );
-  const member = profile.role === "admin" || isPremiumActive(profile);
-  // 0069: the trial opens the library; a student who finished a test but never
-  // started it is offered it here as well as on their review page.
-  const [trialOn, offerTrial] = !member
-    ? await Promise.all([hasActiveTrial(profile.id), trialEligible(profile)])
-    : [false, false];
-  const canAccessPremium = member || trialOn;
-  const [friendsGroup, friendsInvites, skillRatings] = await Promise.all([
-    groupOf(profile.id),
-    myInvites(profile.id),
-    skillRatingsOf(profile.id),
-  ]);
-  const userRating = profile.rating ?? 1000;
-  const recommended: RecommendedTest[] = recommendForWeakType(readingTestList, {
-    attempted: attemptedReadingIds,
-    weakType: weakQType?.type ?? null,
-    canOpenPremium: canAccessPremium,
-    rating: userRating,
-  }).map((t) => ({
-      id: t.id,
-      title: t.title,
-      kind: t.kind ?? "single",
-      passage: t.passage,
-      difficulty: t.difficulty ?? 1500,
-    }));
-
-  // ---- Rating history (rated reading results, oldest first) ----
-  const ratingPoints: RatingPoint[] = all
-    .filter((r) => r.skill === "reading" && r.rated && r.rating_after != null)
-    .slice()
-    .reverse()
-    .map((r) => ({ rating: r.rating_after as number, at: r.submitted_at }));
-
-  // ---- Quick-start band: has the user practised today (their timezone)? -----
-  const tz = profile.timezone || "UTC";
-  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: tz });
-  const practicedToday = allDates.some(
-    (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: tz }) === todayKey,
-  );
-  const nextTest = recommended[0] ?? null;
-  const firstName = profile.name?.split(" ")[0] || "there";
-
-  // The single most useful "do this next" action.
-  const primaryAction =
-    totalCompleted === 0
-      ? { href: "/reading", label: "Take your first test" }
-      : nextTest
-        ? { href: `/reading/${nextTest.id}`, label: `Continue: ${nextTest.title}` }
-        : { href: "/reading", label: "Start a new test" };
-
-  // A short, contextual nudge line.
-  const nudge =
-    totalCompleted === 0
-      ? "Take your first test to start your streak and see your estimated band."
-      : practicedToday
-        ? `Nice — you've practised today. ${profile.streak}-day streak going strong.`
-        : profile.streak > 0
-          ? `Keep your ${profile.streak}-day streak alive — take a test today.`
-          : "Take a test today to start a new streak.";
-
-  // ---- First run ----------------------------------------------------------
-  // A student who has not finished anything used to get the full dashboard:
-  // a streak hero showing 0, four stat cards showing 0, an empty band box, an
-  // empty rating card and five empty charts, with three different "start here"
-  // areas between them. They get ONE screen instead: what to do first.
-  // The target-band picker was removed from here (owner, 2026-11-23): it was a
-  // second decision standing between a new account and its first test. It
-  // appears on the full dashboard once they have finished something.
-  if (totalCompleted === 0) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <header>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {firstName}</h1>
-          <p className="mt-1.5 text-muted">
-            Take one test and this page fills in with your band, your streak and what to
-            practise next.
-          </p>
-        </header>
-
-        <section className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated sm:p-8">
-          <div className="ring-hairline absolute inset-0 rounded-2xl" />
-          <div className="relative">
-            <p className="text-sm font-medium text-white/85">Start here</p>
-            <h2 className="mt-1 text-balance text-2xl font-bold">
-              {nextTest ? nextTest.title : "Your first reading test"}
-            </h2>
-            <p className="mt-1.5 text-sm text-white/85">
-              {nextTest
-                ? `${nextTest.kind === "full" ? "Full reading test" : nextTest.passage ? `Reading passage ${nextTest.passage}` : "Reading passage"} · the real exam screen · your band the moment you submit`
-                : "The real exam screen, and your band the moment you submit."}
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Link
-                href={nextTest ? `/reading/${nextTest.id}` : "/reading"}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-[#b5502a] hover:bg-white/90"
-              >
-                <Target className="h-4 w-4" /> Start this test <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="/reading" className="text-sm font-medium text-white underline-offset-4 hover:underline">
-                Choose another
-              </Link>
-              <Link href="/listening" className="text-sm font-medium text-white underline-offset-4 hover:underline">
-                Or start with Listening
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {!friendsGroup && <InviteBanner invites={friendsInvites} />}
-        {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
-        <TelegramDailyCard userId={profile.id} />
-
-        <WritingReportsCard reports={writingReports} />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Quick-start: action-first welcome band */}
-      <section className="animate-fade-in-up relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/8 via-surface to-surface p-6 shadow-soft">
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              {totalCompleted === 0 ? `Welcome, ${firstName}` : `Welcome back, ${firstName}`}
-            </h1>
-            <p className="mt-1.5 text-muted">{nudge}</p>
-          </div>
-
-          <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            <Link
-              href={primaryAction.href}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-95"
-            >
-              <Target className="h-4 w-4 shrink-0" />
-              <span className="truncate">{primaryAction.label}</span>
-              <ArrowRight className="h-4 w-4 shrink-0" />
-            </Link>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <QuickLink href="/reading" icon={<BookOpen className="h-4 w-4" />} label="Reading" />
-              <QuickLink
-                href="/listening"
-                icon={<Headphones className="h-4 w-4" />}
-                label="Listening"
-              />
-              <QuickLink href="/writing" icon={<PenLine className="h-4 w-4" />} label="Writing" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
-
-      {!friendsGroup && <InviteBanner invites={friendsInvites} />}
-        {friendsGroup && <MyGroupCard group={friendsGroup} me={profile.id} />}
-
-      <TelegramDailyCard userId={profile.id} />
-
-      {/* Streak hero + overall band + key stats */}
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="relative overflow-hidden rounded-2xl bg-brand-gradient p-6 text-white shadow-elevated">
-          <div className="ring-hairline absolute inset-0 rounded-2xl" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-white/85">
-                <Flame className="h-4 w-4" /> Current streak
-              </div>
-              <p className="mt-2 flex items-end gap-2 text-5xl font-extrabold tabular-nums">
-                {profile.streak}
-              </p>
-              <p className="mt-1 text-sm text-white/80">
-                {profile.streak > 0
-                  ? "Come back tomorrow to keep it going."
-                  : "Take a test today to start your streak."}
-              </p>
-            </div>
-
-            {/* Estimated overall band */}
-            <div className="flex flex-col items-center rounded-2xl bg-white/12 px-5 py-4 text-center backdrop-blur-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-white/80">
-                Est. overall
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {today.greeting}, {firstName}
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            {profile.streak > 0 ? (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold ${
+                  atRisk ? "bg-warning/12 text-warning" : "bg-primary/10 text-primary"
+                }`}
+              >
+                <Flame className="h-4 w-4" />
+                {profile.streak}-day streak{atRisk ? ": practise today to keep it" : ""}
               </span>
-              <span className="mt-1 text-4xl font-extrabold tabular-nums">
-                {overall != null ? overall.toFixed(1) : "—"}
-              </span>
-              <span className="text-xs text-white/70">{skillAverages.length}/4 skills</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Stat icon={<Trophy className="text-warning" />} label="Longest streak" value={`${profile.longest_streak}`} />
-          <Stat icon={<Zap className="text-primary" />} label="XP points" value={`${profile.xp}`} />
-          <Stat icon={<CheckCircle2 className="text-success" />} label="Completed" value={`${totalCompleted}`} />
-          <Stat
-            icon={<CalendarDays className="text-accent" />}
-            label="This week"
-            value={`${thisWeek}`}
-            hint={
-              weekDelta !== 0 ? (
-                <span
-                  className={`inline-flex items-center gap-0.5 ${weekDelta > 0 ? "text-success" : "text-danger"}`}
-                >
-                  {weekDelta > 0 ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  {Math.abs(weekDelta)} vs last
-                </span>
-              ) : null
-            }
-          />
-        </div>
-      </div>
-
-      {/* Competitive reading rating (defaults guard the pre-migration window) */}
-      <RatingCard
-        rating={profile.rating ?? 1000}
-        peak={profile.peak_rating ?? 1000}
-        ratedCount={profile.rated_count ?? 0}
-        globalRank={globalRank}
-      />
-
-      {/* Overall + Listening + Writing (0079) */}
-      {skillRatings && <SkillRatingsCard data={skillRatings} />}
-
-      <WritingReportsCard reports={writingReports} />
-
-      {/* Goal tracker + study plan */}
-      <div id="goal" className="scroll-mt-20">
-        <GoalTracker target={profile.target_band} overall={overall} skills={goalSkills} />
-      </div>
-
-      {/* Insights (only when no goal is set — the tracker covers "focus next" otherwise) */}
-      {profile.target_band == null && strongest && weakest && (
-        <Card className="flex items-start gap-3 border-primary/30 bg-primary/5">
-          <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <p className="text-sm">
-            {strongest.key === weakest.key ? (
-              <>
-                Your strongest skill so far is <strong>{strongest.title}</strong> (Band{" "}
-                {strongest.avg}). Add the other skills to see a full picture and an estimated
-                overall band.
-              </>
             ) : (
-              <>
-                <strong>{strongest.title}</strong> is your strongest skill (Band {strongest.avg}).
-                Focus on <strong>{weakest.title}</strong> (Band {weakest.avg}) to lift your overall
-                band the fastest.{" "}
-                <Link href={weakest.href} className="font-medium text-primary hover:underline">
-                  Practise {weakest.title} →
-                </Link>
-              </>
+              <span className="text-muted">
+                {first ? "One test and this page fills in with your band and what to practise next." : "Do today's test to start a streak."}
+              </span>
             )}
-          </p>
-        </Card>
-      )}
-
-      {/* Skill overview — richer cards */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Skill progress</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {skillStats.map(({ key, ...s }) => (
-            <SkillCard key={key} {...s} />
-          ))}
-        </div>
-      </section>
-
-      {/* Focus area: weakest question types + recommended next test */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">What to practise next</h2>
-        <FocusArea stats={typeStats} weakest={weakQType} recommended={recommended} />
-      </section>
-
-      {/* Band trend + rating history */}
-      <section className="grid gap-4 lg:grid-cols-2">
-        <ProgressTrends series={series} />
-        <RatingTrend points={ratingPoints} />
-      </section>
-
-      {/* Activity heatmap */}
-      <ActivityHeatmap dates={allDates} />
-
-      {/* Speaking breakdown + recent activity */}
-      <section className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <CriteriaBars criteria={criteria} />
-
-        <Card className="overflow-hidden p-0">
-          <div className="flex items-center justify-between px-5 py-3.5">
-            <h3 className="text-sm font-medium text-muted">Recent activity</h3>
-            <span className="text-xs text-muted tabular-nums">{totalCompleted} total</span>
           </div>
-          {activity.length === 0 ? (
-            <div className="border-t border-border p-5">
-              <EmptyState
-                icon={<BookOpen />}
-                title="No activity yet"
-                desc="Your completed tests will show up here, newest first."
-                action={
-                  <Link
-                    href="/reading"
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-primary)] transition-all hover:brightness-110"
-                  >
-                    Take your first test <ArrowRight className="h-4 w-4" />
-                  </Link>
-                }
-                className="border-0 bg-transparent py-8"
-              />
-            </div>
-          ) : (
-            <ul className="divide-y divide-border border-t border-border">
-              {activity.map((a) => {
-                const reviewable = a.skill === "reading" || a.skill === "listening";
-                const inner = (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <SkillDot skill={a.skill} />
-                      <div>
-                        <p className="text-sm font-medium capitalize">{a.skill}</p>
-                        <p className="text-xs text-muted">{timeAgo(a.at)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        {a.band != null && (
-                          <p className="font-semibold tabular-nums">Band {a.band}</p>
-                        )}
-                        {a.raw != null && a.total != null && (
-                          <p className="text-xs text-muted tabular-nums">
-                            {a.raw}/{a.total}
-                          </p>
-                        )}
-                      </div>
-                      {reviewable && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-                          Review
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                    </div>
-                  </>
-                );
-                return (
-                  <li key={a.id}>
-                    {reviewable ? (
-                      <Link
-                        href={`/review/${a.id}`}
-                        className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-surface-2/60"
-                      >
-                        {inner}
-                      </Link>
-                    ) : (
-                      <div className="flex items-center justify-between px-5 py-3">{inner}</div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+        </div>
+        <DashboardTabs active="today" />
+      </header>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <div className="space-y-6">
+          <TodayCard
+            day={today.day}
+            first={first}
+            pick={today.pick}
+            doneBands={today.doneToday.map((r) => (r.band != null ? Number(r.band) : null))}
+            passesLeft={d.passes?.left ?? null}
+          />
+          {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
+          {d.passes && <PassesCard left={d.passes.left} tests={today.passPicks} />}
+          {!first && (
+            <RecentActivity items={recent} total={d.results.length} more={{ href: "/dashboard/progress", label: "All your progress" }} />
           )}
-        </Card>
-      </section>
+        </div>
+
+        <div className="space-y-6">
+          {!first && <SkillsSnapshot skills={snap} overall={overall} target={profile.target_band} />}
+          <Suspense fallback={null}>
+            <MockStatusCard userId={profile.id} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <FriendsSlot userId={profile.id} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <TelegramDailyCard userId={profile.id} />
+          </Suspense>
+          <WritingReportsCard reports={d.reports} />
+        </div>
+      </div>
     </div>
   );
 }
 
-function Stat({
-  icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: React.ReactNode;
-}) {
-  return (
-    <Card className="flex flex-col justify-center">
-      <div className="flex items-center gap-2 text-muted">
-        <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="text-sm">{label}</span>
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-xs font-medium">{hint}</p>}
-    </Card>
-  );
-}
-
-function QuickLink({
-  href,
-  icon,
-  label,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-muted shadow-soft transition-colors hover:border-primary/40 hover:text-foreground"
-    >
-      {icon}
-      {label}
-    </Link>
-  );
-}
-
-function SkillCard({
-  href,
-  icon,
-  title,
-  avg: avgBand,
-  best,
-  count,
-  delta,
-  accuracy,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  avg: number | null;
-  best: number | null;
-  count: number;
-  delta: number | null;
-  accuracy: number | null;
-}) {
-  return (
-    <Link href={href} className="group">
-      <Card interactive className="h-full">
-        <div className="flex items-center justify-between">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
-            {icon}
-          </div>
-          {delta != null && delta !== 0 ? (
-            <span
-              className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${
-                delta > 0 ? "text-success" : "text-danger"
-              }`}
-            >
-              {delta > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {delta > 0 ? `+${delta}` : delta}
-            </span>
-          ) : (
-            <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-          )}
-        </div>
-        <h3 className="mt-3 font-semibold">{title}</h3>
-        <p className="text-lg font-bold tabular-nums">
-          {title === "Writing" && count === 0 ? (
-            <span className="text-sm font-medium text-muted">Coming soon</span>
-          ) : avgBand != null ? (
-            `Band ${avgBand}`
-          ) : (
-            <span className="text-sm font-medium text-muted">No tests yet</span>
-          )}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
-          <span className="inline-flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3" /> {count} {count === 1 ? "test" : "tests"}
-          </span>
-          {best != null && (
-            <span className="inline-flex items-center gap-1">
-              <Target className="h-3 w-3" /> Best {best}
-            </span>
-          )}
-          {accuracy != null && (
-            <span className="inline-flex items-center gap-1">
-              <Gauge className="h-3 w-3" /> {accuracy}%
-            </span>
-          )}
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
-function SkillDot({ skill }: { skill: string }) {
-  const map: Record<string, string> = {
-    reading: "bg-indigo-500",
-    listening: "bg-teal-500",
-    writing: "bg-amber-500",
-    speaking: "bg-rose-500",
-  };
-  return <span className={`h-2.5 w-2.5 rounded-full ${map[skill] ?? "bg-slate-400"}`} />;
+/** The Friends group card, or the invitation banner (0078). Its own reads, streamed. */
+async function FriendsSlot({ userId }: { userId: string }) {
+  const [group, invites] = await Promise.all([groupOf(userId).catch(() => null), myInvites(userId).catch(() => [])]);
+  return group ? <MyGroupCard group={group} me={userId} /> : <InviteBanner invites={invites} />;
 }

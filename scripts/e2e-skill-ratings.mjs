@@ -60,9 +60,10 @@ try {
   await page.goto(`${BASE}/login`); await page.waitForLoadState("networkidle");
   await page.fill('input[type="email"]', email); await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]'); await page.waitForURL(/dashboard/, { timeout: 30000 });
-  await goto(page, "/dashboard");
+  // The skill ratings card moved to the Progress half of the dashboard (2026-11-28).
+  await goto(page, "/dashboard/progress");
   const card = page.locator('[aria-label="Skill ratings"]');
-  check(await card.isVisible(), "dashboard shows the skill ratings card");
+  check(await card.isVisible(), "dashboard Progress shows the skill ratings card");
   const listeningTile = await card.locator('[data-skill="listening"]').innerText();
   check(listeningTile.includes(String(prof.listening_rating)), "Listening tile shows the new rating");
   check((await card.innerText()).includes(String(prof.listening_rating)) && (await card.innerText()).includes("1 of 3"), "Overall = Listening while it's the only rated skill");
