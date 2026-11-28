@@ -2236,3 +2236,29 @@ link row comes from a private chat) by minting a magic-link token server-side
 - E2E: `node scripts/e2e-miniapp.mjs [base]` (22 checks; signs initData with the real token;
   fake Telegram ids are 4e15+, above any real id) and `scripts/e2e-bot-chat.mjs` (fake
   Telegram server, 17 checks).
+
+# The student dashboard: Today + Progress (owner, 2026-11-28)
+
+`/dashboard` is **Today**: one test to do today, then the weekly free Premium tests, the
+bands at a glance and whatever needs attention. `/dashboard/progress` holds every chart
+and statistic the old one-page dashboard had (moved, not deleted). Speaking is not shown
+on either (not sold).
+
+- **One pick rule:** `lib/today-pick.ts` `pickToday()` is used by the Today card AND the
+  10:00 Telegram message (`buildDaily` in lib/student-bot.ts). A Premium paper counts as
+  openable while the student has a weekly pass left (`kind: "pass"`). Do not add a second
+  "what next" rule; `recommendOpenable` / `passSuggestions` live in the same file.
+- **Nothing on the dashboard spends a pass.** The passes card only links; the explicit
+  "Open this test free" click on the test page spends it.
+- **Writing's band comes from the AI writing checks** (`writing_ai_checks`, headlineBand),
+  because writing practice never writes `results`. It used to say "Coming soon".
+- One loader, `lib/dashboard-data.ts` (`loadDashboard`, `todayView`, `loadMockStatus`):
+  one Promise.all. The clock is read there, never in a component (react-hooks/purity).
+  Rank views (they scan every profile) are read on Progress only.
+- `requireProfile()` now goes through `getProfile()`'s per-request cache: an account page
+  pays one getUser + profile read, not two.
+- Today's mock / Friends / Telegram cards stream under `<Suspense>`.
+- E2E: `node scripts/e2e-dashboard.mjs [base] [shotDir]` (26 checks, screenshots).
+  Hooks other scripts rely on: `data-today-card="todo|done"`,
+  `section[aria-label="Group invitation"]`, `data-dashboard-reports`, and
+  `[aria-label="Skill ratings"]` (now on /dashboard/progress).
