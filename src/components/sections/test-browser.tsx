@@ -207,6 +207,16 @@ export function TestBrowser({
   // The whole catalogue is already in the browser (`items`): this only draws more
   // of it, so it costs no request. The server HTML stays at PAGE_SIZE cards.
   const sentinel = useRef<HTMLDivElement>(null);
+  // One step per render: a fling fires dozens of scroll events before React draws the cards.
+  const stepPending = useRef(false);
+  const loadStep = () => {
+    if (stepPending.current) return;
+    stepPending.current = true;
+    setVisible((v) => v + PAGE_SIZE);
+  };
+  useEffect(() => {
+    stepPending.current = false;
+  }, [visible]);
   useEffect(() => {
     const el = sentinel.current;
     if (!el || remaining <= 0 || typeof IntersectionObserver === "undefined") return;
@@ -216,7 +226,7 @@ export function TestBrowser({
         // every title (TestIndexLinks) sits below the grid, so jumping to the bottom of the
         // page overshoots the sentinel. Each new observer reports at once, so this keeps
         // drawing until the end of the cards is back below the screen.
-        if (entries.some((e) => e.isIntersecting || e.boundingClientRect.top < 0)) setVisible((v) => v + PAGE_SIZE);
+        if (entries.some((e) => e.isIntersecting || e.boundingClientRect.top < 0)) loadStep();
       },
       { rootMargin: AUTOLOAD_MARGIN },
     );
@@ -259,9 +269,21 @@ export function TestBrowser({
   }, []);
 
   // ---- "Back to top": the filters are at the top of what is now a long page. ----
+  // The same scroll listener also catches a JUMP past the end of the cards (End key, a
+  // fling, dragging the scrollbar): an IntersectionObserver only reports when the sentinel
+  // crosses the zone, and a jump straight over it never crosses. Once one step loads, the
+  // re-created observer's first report (top < 0) carries on by itself.
   const [farDown, setFarDown] = useState(false);
+  const moreLeft = useRef(remaining > 0);
   useEffect(() => {
-    const onScroll = () => setFarDown(window.scrollY > window.innerHeight * 2);
+    moreLeft.current = remaining > 0;
+  }, [remaining]);
+  useEffect(() => {
+    const onScroll = () => {
+      setFarDown(window.scrollY > window.innerHeight * 2);
+      const el = sentinel.current;
+      if (moreLeft.current && el && el.getBoundingClientRect().top < window.innerHeight + 800) loadStep();
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
