@@ -2262,3 +2262,24 @@ on either (not sold).
   Hooks other scripts rely on: `data-today-card="todo|done"`,
   `section[aria-label="Group invitation"]`, `data-dashboard-reports`, and
   `[aria-label="Skill ratings"]` (now on /dashboard/progress).
+
+# Friends plan: review fixes (2026-11-28, Grok + agy review, owner picked 1/2/6/7/8)
+
+- **The group feed shows a member's tests only from when THEY joined** (`groupFeed`). The query
+  cut-off is the earliest join in the group; rows are filtered per member afterwards.
+- **The invite search answers only a buyer with a live group** (`searchInvitable` checks it
+  itself) and `findInvitable` is limited to 30 searches a minute. Any signed-in student could
+  look up an exact email and see whether it had an account, with name and photo.
+- **Every /join state has a next step.** `invitePreview(code, viewerId)` passes the viewer as
+  `p_except_invitee`, the same rule `friends_join` applies, so a seat an invitation saves for
+  them is free for them. Order: already here, ended, in another group, full, signed out, join.
+  E2E hooks: `data-join-state="ended|other-group|full"`, `button[data-join]`.
+- **Migration 0080** replaces `friends_extend` so the BUYER's member row gets `premium_before`
+  too (it was null). It only mattered after an admin changed the buyer. Existing groups can't be
+  backfilled. Checks: `node scripts/check-0080.mjs --dry` (rolled back; the pre-0080 functions
+  fail it). Call SQL functions as `select * from fn()`, never `select (fn()).*`: the latter runs
+  the function once per column.
+- E2E: `node scripts/e2e-friends-fixes.mjs [base]` (18 checks).
+- Still open from the review (owner deferred): a refunded Friends order doesn't take members'
+  Premium back, and a group member buying their own Friends plan makes fulfil raise. Both need
+  fixing before online payments are switched on.
