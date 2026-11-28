@@ -9,7 +9,7 @@ export function InviteBanner({ invites }: { invites: MyInvite[] }) {
   return (
     <section
       aria-label="Group invitation"
-      className="flex flex-wrap items-center gap-4 rounded-2xl border border-premium/50 bg-premium/10 px-5 py-4"
+      className="flex h-full flex-wrap items-center gap-4 rounded-2xl border border-premium/50 bg-premium/10 px-5 py-4"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-premium-gradient text-white">
         <Users className="h-5 w-5" />

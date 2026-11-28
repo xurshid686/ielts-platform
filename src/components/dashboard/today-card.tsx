@@ -25,6 +25,8 @@ type Props = {
   doneBands: (number | null)[];
   /** The live streak (0 = none), for the done-state line. */
   streak: number;
+  /** The third zone of the hero (the bands panel): right of the test on lg, below it on phones. */
+  aside?: React.ReactNode;
   passesLeft: number | null;
 };
 
@@ -71,7 +73,7 @@ function DateBlock({ day, done }: { day: string; done: boolean }) {
   );
 }
 
-export function TodayCard({ day, first, pick, doneBands, passesLeft, streak }: Props) {
+export function TodayCard({ day, first, pick, doneBands, passesLeft, streak, aside }: Props) {
   const done = doneBands.length > 0;
   const lastBand = doneBands.find((b) => b != null) ?? null;
 
@@ -82,7 +84,8 @@ export function TodayCard({ day, first, pick, doneBands, passesLeft, streak }: P
       className="animate-fade-in-up relative overflow-hidden rounded-2xl border border-border bg-surface shadow-elevated"
     >
       <div className={`h-1.5 w-full ${done ? "bg-success" : "bg-brand-gradient"}`} />
-      <div className="flex gap-4 p-5 sm:gap-6 sm:p-6">
+      <div className="flex flex-col lg:flex-row">
+      <div className="flex min-w-0 flex-1 gap-4 p-5 sm:gap-6 sm:p-6">
         <DateBlock day={day} done={done} />
 
         <div className="min-w-0 flex-1">
@@ -168,6 +171,10 @@ export function TodayCard({ day, first, pick, doneBands, passesLeft, streak }: P
             </>
           )}
         </div>
+      </div>
+      {aside && (
+        <div className="border-t border-border p-5 sm:p-6 lg:w-[22rem] lg:shrink-0 lg:border-l lg:border-t-0">{aside}</div>
+      )}
       </div>
     </section>
   );

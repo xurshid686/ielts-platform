@@ -50,6 +50,27 @@ const text = (page) => page.evaluate(() => (document.querySelector("main") ?? do
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true }); };
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 
+/** Every row of the card grid is full: two cards side by side, or one card spanning the row. */
+async function gridBalanced(page) {
+  return page.evaluate(() => {
+    const grid = document.querySelector("[data-dashboard-grid]");
+    if (!grid) return { ok: false, why: "no grid" };
+    const gw = grid.getBoundingClientRect().width;
+    const rows = new Map();
+    for (const el of grid.children) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const key = Math.round(r.top);
+      rows.set(key, [...(rows.get(key) ?? []), r]);
+    }
+    for (const [, rs] of rows) {
+      if (rs.length === 1 && Math.abs(rs[0].width - gw) > 2) return { ok: false, why: `a lone half-width card (${Math.round(rs[0].width)} of ${Math.round(gw)})` };
+      if (rs.length === 2 && Math.abs(rs[0].height - rs[1].height) > 2) return { ok: false, why: "uneven heights in a row" };
+    }
+    return { ok: true, rows: rows.size };
+  });
+}
+
 const browser = await chromium.launch({ channel: "msedge" });
 try {
   // Free reading tests that share a question type: the weak type we will create.
@@ -72,7 +93,7 @@ try {
     check((await card.getAttribute("data-today-card")) === "todo" && /your first test/i.test(await card.innerText()), "new account: 'Your first test'");
     const box = await card.boundingBox();
     check(!!box && box.y < 740, "new account: the Today card is visible without scrolling on a 375x740 phone");
-    check(!(await text(page)).includes("Your bands"), "new account: no empty bands panel");
+    check(/your first test appears|finish your first test/i.test(await card.innerText()), "new account: the bands zone explains itself instead of empty bars");
     await shot(page, "01-new-375");
     await card.getByRole("link", { name: /Start the test/ }).click();
     await page.waitForURL(/\/reading\//, { timeout: 30000 });
@@ -100,7 +121,10 @@ try {
     check((await passes.locator("a").count()) >= 1, "passes card: lists Premium papers");
     const body = await text(page);
     check(body.includes("free Premium trial"), "free student: trial offered (has a result, never trialled)");
-    check(body.includes("Your bands") && body.includes("Overall"), "free student: bands panel");
+    check(await page.locator("[data-today-card] [data-bands]").isVisible(), "free student: the bands sit inside the Today hero");
+    check(/your bands/i.test(body) && body.includes("Overall"), "free student: bands panel");
+    const g1 = await gridBalanced(page);
+    check(g1.ok, `free student: card rows are full (${g1.why ?? g1.rows + " rows"})`);
     check(body.includes("All your progress"), "free student: recent activity links to Progress");
     check(!/\bSpeaking\b/.test(body), "Today: no Speaking");
     await shot(page, "02-free-1280-light");
@@ -145,6 +169,7 @@ try {
   const P = await mkUser("premium");
   await admin.from("profiles").update({ premium_until: new Date(Date.now() + 30 * 86400000).toISOString() }).eq("id", P.id);
   await addResult(P.id, other, { raw: 20, band: 5.5, at: daysAgo(1) });
+  await admin.from("student_bot_links").insert({ user_id: P.id, chat_id: 4_000_000_000_000_000 + Math.floor(Math.random() * 1e12), daily_on: false });
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await login(ctx, P);
@@ -153,6 +178,9 @@ try {
     check(!(await page.locator('section[aria-label="Free Premium tests this week"]').count()), "Premium: no passes card");
     check(!body.includes("free Premium trial"), "Premium: no trial offer");
     check(!(await page.locator('[data-today-card]').innerText()).includes("Uses 1 of your"), "Premium: the pick never asks for a pass");
+    const g2 = await gridBalanced(page);
+    check(g2.ok, `Premium with few cards: rows are full (${g2.why ?? g2.rows + " rows"})`);
+    await shot(page, "06-premium-telegram-linked-1280");
     await ctx.close();
   }
 } finally {
@@ -160,6 +188,7 @@ try {
   for (const u of users) {
     await admin.from("results").delete().eq("user_id", u.id);
     await admin.from("premium_passes").delete().eq("user_id", u.id);
+    await admin.from("student_bot_links").delete().eq("user_id", u.id);
     const { error } = await admin.auth.admin.deleteUser(u.id);
     if (error) console.log("cleanup failed:", u.email, error.message);
   }

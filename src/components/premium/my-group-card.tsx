@@ -12,7 +12,7 @@ export function MyGroupCard({ group, me }: { group: FriendsGroup; me: string }) 
   return (
     <section
       aria-label="My Friends group"
-      className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 shadow-soft"
+      className="flex h-full flex-wrap items-center gap-4 rounded-2xl border border-border bg-surface px-5 py-4 shadow-soft"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-premium/15 text-premium">
         <Users className="h-5 w-5" />

@@ -81,37 +81,41 @@ export default async function DashboardPage() {
         <DashboardTabs active="today" />
       </header>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <div className="space-y-6">
-          <TodayCard
-            day={today.day}
-            first={first}
-            pick={today.pick}
-            doneBands={today.doneToday.map((r) => (r.band != null ? Number(r.band) : null))}
-            passesLeft={d.passes?.left ?? null}
-            streak={profile.streak}
-          />
-          {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
-          {d.passes && <PassesCard left={d.passes.left} tests={today.passPicks} />}
-        </div>
+      {/* The hero: date | today's test | your bands, full width. */}
+      <TodayCard
+        day={today.day}
+        first={first}
+        pick={today.pick}
+        doneBands={today.doneToday.map((r) => (r.band != null ? Number(r.band) : null))}
+        passesLeft={d.passes?.left ?? null}
+        streak={profile.streak}
+        aside={<SkillsSnapshot skills={snap} overall={overall} target={profile.target_band} first={first} />}
+      />
 
-        <div className="space-y-6">
-          {!first && <SkillsSnapshot skills={snap} overall={overall} target={profile.target_band} />}
-          <Suspense fallback={null}>
-            <MockStatusCard userId={profile.id} />
-          </Suspense>
-          <Suspense fallback={null}>
-            <FriendsSlot userId={profile.id} />
-          </Suspense>
-          <Suspense fallback={null}>
-            <TelegramDailyCard userId={profile.id} />
-          </Suspense>
-          {!first && (
-            <RecentActivity items={recent} total={d.results.length} more={{ href: "/dashboard/progress", label: "All your progress" }} />
-          )}
-          <WritingReportsCard reports={d.reports} />
-        </div>
+      {/* Cards in even rows: two per row on wider screens, and an odd last card spans the row,
+          so neither side is ever left empty. A card with nothing to say renders no element at
+          all (Suspense adds none either), so the rows re-flow by themselves. */}
+      <div
+        data-dashboard-grid
+        className="grid gap-6 md:grid-cols-2 md:[&>*:last-child:nth-child(odd)]:col-span-2"
+      >
+        {offerTrial && <TrialOffer days={TRIAL_DAYS} />}
+        {d.passes && <PassesCard left={d.passes.left} tests={today.passPicks} />}
+        <Suspense fallback={null}>
+          <MockStatusCard userId={profile.id} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <FriendsSlot userId={profile.id} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <TelegramDailyCard userId={profile.id} />
+        </Suspense>
+        <WritingReportsCard reports={d.reports} />
       </div>
+
+      {!first && (
+        <RecentActivity items={recent} total={d.results.length} more={{ href: "/dashboard/progress", label: "All your progress" }} />
+      )}
     </div>
   );
 }

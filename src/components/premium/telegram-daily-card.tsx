@@ -11,7 +11,7 @@ export async function TelegramDailyCard({ userId }: { userId: string }) {
   if (!studentBotConfigured() || !studentBotUsername()) return null;
   if (await isLinked(userId)) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-5 shadow-soft">
+    <div className="flex h-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-5 shadow-soft">
       <div className="min-w-0">
         <p className="font-semibold">Get one test a day on Telegram</p>
         <p className="mt-1 text-sm text-muted">

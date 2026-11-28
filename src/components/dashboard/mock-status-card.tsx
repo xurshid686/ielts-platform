@@ -11,7 +11,7 @@ export async function MockStatusCard({ userId }: { userId: string }) {
   return (
     <Link
       href={`/mock/${item.mockId}`}
-      className="group flex items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-soft transition-colors hover:border-primary/40"
+      className="group flex h-full items-center gap-4 rounded-2xl border border-border bg-surface p-5 shadow-soft transition-colors hover:border-primary/40"
     >
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
         <ClipboardCheck className="h-5 w-5" />
