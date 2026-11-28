@@ -6,10 +6,9 @@ import { getProfile } from "@/lib/auth";
 import { PASSES_PER_WEEK, TRIAL_DAYS } from "@/lib/premium";
 import { canOpenPremium, canOpenTrack } from "@/lib/tests/access";
 import { passState, trialEligible } from "@/lib/passes";
-import { PassClaim } from "@/components/premium/pass-claim";
-import { TrialOffer } from "@/components/premium/trial-offer";
+import { LockedTestCard } from "@/components/premium/locked-test-card";
+import { PREMIUM_PRICE_LINE } from "@/lib/site";
 import { TestRunner } from "@/components/test-runner";
-import { PremiumContact } from "@/components/premium-contact";
 import { GuestTestLauncher } from "@/components/sections/guest-test-launcher";
 import { testJsonLd, faqForTest, faqJsonLd, breadcrumbJsonLd } from "@/lib/seo";
 import { loadTestSeoData, questionOrder } from "@/lib/seo/test-seo-data";
@@ -95,54 +94,56 @@ export async function TestDetail({
     // The one-time trial is offered here too, where students actually meet the
     // paywall — no finished test needed (owner, 2026-11-24).
     const offerTrial = await trialEligible(profile, { requireResult: false });
+    const format =
+      t.kind === "full"
+        ? "Full test"
+        : skill === "reading"
+          ? t.passage
+            ? `Passage ${t.passage}`
+            : "Single passage"
+          : "Section";
     return (
-      <div className="mx-auto max-w-md py-12 text-center">
+      <div className="mx-auto max-w-md py-12">
         <Link
           href={`/${skill}`}
-          className="mb-8 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+          className="mb-6 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Back to {skill}
         </Link>
-        <div className="rounded-2xl border border-premium/30 bg-premium/5 p-8 shadow-soft">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-premium-gradient text-white">
-            <Crown className="h-7 w-7" />
-          </div>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-premium">
+        {/* One card, one filled button (owner, 2026-11-28). The header is
+            server-rendered so the h1 is in the first HTML; the actions are
+            LockedTestCard. */}
+        <div className="rounded-2xl border border-premium/30 bg-surface p-6 shadow-soft">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-premium">
+            <Crown className="h-3.5 w-3.5" />
             Premium test
           </p>
-          <h1 className="mt-1 text-balance text-xl font-bold">{t.title}</h1>
+          <h1 className="mt-2 text-balance text-xl font-bold leading-snug">{t.title}</h1>
           {t.subtitle && <p className="mt-1 text-sm text-muted">{t.subtitle}</p>}
-          {(t.question_types?.length ?? 0) > 0 && (
-            <p className="mt-2 text-sm text-muted">
-              {t.total ? `${t.total} questions · ` : ""}
-              {(t.question_types ?? []).join(" · ")}
-            </p>
-          )}
-          <p className="mt-3 text-sm text-muted">
-            This{" "}
-            <strong>
-              {t.kind === "full"
-                ? "full test"
-                : skill === "reading"
-                  ? t.passage
-                    ? `Passage ${t.passage}`
-                    : "passage"
-                  : "section"}
-            </strong>{" "}
-            is included with Premium, along with every other test in the library.
-          </p>
-        </div>
-        {offerTrial && (
-          <TrialOffer
-            days={TRIAL_DAYS}
-            className="mt-4"
-            heading={`Try every Premium test free for ${TRIAL_DAYS} days`}
+          <ul className="mt-4 flex flex-wrap gap-1.5 text-xs">
+            <li className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">{format}</li>
+            {t.total ? (
+              <li className="rounded-full bg-surface-2 px-2 py-0.5 tabular-nums text-muted">
+                {t.total} questions
+              </li>
+            ) : null}
+            {(t.question_types ?? []).map((q) => (
+              <li key={q} className="rounded-full border border-border px-2 py-0.5 text-muted">
+                {q}
+              </li>
+            ))}
+          </ul>
+          <LockedTestCard
+            testId={t.id}
+            passesLeft={passes ? passes.left : null}
+            perWeek={PASSES_PER_WEEK}
+            trialDays={offerTrial ? TRIAL_DAYS : null}
+            priceLine={PREMIUM_PRICE_LINE}
           />
-        )}
-        {passes && (
-          <PassClaim testId={t.id} left={passes.left} perWeek={PASSES_PER_WEEK} />
-        )}
-        <PremiumContact className="mt-4 text-left" />
+        </div>
+        <p className="mt-4 text-center text-xs text-muted">
+          Included with Premium, along with every other test in the library.
+        </p>
       </div>
     );
   }
