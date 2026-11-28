@@ -155,9 +155,9 @@ export async function TestDetail({
   const graded = (t.total ?? 0) > 0;
 
   // "Get a PDF" (Ultima): shown only to an Ultima account, when the teacher bot is configured and
-  // this reading test has a built PDF. The bot re-checks the plan, so a forged link gets nothing.
+  // this reading/listening test has a built PDF. The bot re-checks the plan, so a forged link gets nothing.
   const pdfHref =
-    skill === "reading" && teacherBotUsername() && (await isUltima(profile.id)) && (await hasTestPdf(t.id))
+    (skill === "reading" || skill === "listening") && teacherBotUsername() && (await isUltima(profile.id)) && (await hasTestPdf(t.id))
       ? `/api/ultima/pdf?test=${t.id}`
       : null;
 

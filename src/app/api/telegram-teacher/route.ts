@@ -9,6 +9,7 @@ import {
   sendText,
   sendDocumentById,
   sendDocumentBytes,
+  sendAudio,
   escapeHtml,
 } from "@/lib/telegram/teacher-api";
 import { CB, copy, pickLang, welcomeKeyboard, type Lang } from "@/lib/telegram/bot-copy";
@@ -17,11 +18,14 @@ import { createDedupe } from "@/lib/telegram/dedupe";
 import type { TelegramUpdate } from "@/lib/telegram/types";
 import {
   consumeLinkCode,
+  forgetAudioFileId,
   forgetFileId,
   getTestPdf,
   isUltima,
   readPdfBytes,
+  rememberAudioFileId,
   rememberFileId,
+  type TestPdf,
   userForChat,
 } from "@/lib/ultima";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,7 +40,7 @@ export const maxDuration = 60;
 const recentUpdates = createDedupe();
 
 /**
- * The TEACHER bot: sends a reading test's PDF to an Ultima account that has linked its chat.
+ * The TEACHER bot: sends a reading or listening test's PDF (listening: + its MP3) to an Ultima account that has linked its chat.
  * Not the owner's admin bot (/api/telegram) — a bot has one webhook, and that one is owner-only.
  *
  * Same rules as the admin bot:
@@ -164,16 +168,17 @@ async function handle(ctx: Ctx, text: string | undefined): Promise<void> {
 
   const admin = createAdminClient();
   const { data: test } = await admin.from("tests").select("title, answer_key").eq("id", action.testId).maybeSingle();
-  const title = test?.title ?? "IELTS Reading";
+  const title = test?.title ?? (pdf.skill === "listening" ? "IELTS Listening" : "IELTS Reading");
   const caption = pdf.passage_label
     ? `<b>${escapeHtml(pdf.passage_label)}</b> · ${escapeHtml(title)}`
     : `<b>${escapeHtml(title)}</b>`;
-  const filename = `${title.replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "IELTS Reading"}.pdf`;
+  const filename = `${title.replace(/[^\w\- ]+/g, "").trim().slice(0, 60) || "IELTS"}.pdf`;
 
   // Cheapest first: a document Telegram already holds costs no upload at all.
   if (pdf.tg_file_id) {
     const sent = await sendDocumentById(chatId, pdf.tg_file_id, caption);
     if (sent.ok) {
+      await sendListeningAudio(chatId, pdf, title, sent.value.message_id);
       await sendAnswers(chatId, title, pdf.passage_label, test?.answer_key, sent.value.message_id);
       return;
     }
@@ -192,7 +197,26 @@ async function handle(ctx: Ctx, text: string | undefined): Promise<void> {
   }
   const fileId = sent.value.document?.file_id;
   if (fileId) await rememberFileId(action.testId, fileId);
+  await sendListeningAudio(chatId, pdf, title, sent.value.message_id);
   await sendAnswers(chatId, title, pdf.passage_label, test?.answer_key, sent.value.message_id);
+}
+
+/**
+ * A listening test's MP3, as a reply under its PDF (owner, 2026-11-28: PDF + MP3 + answers).
+ * Cached file_id first; a stale one is forgotten and the public URL is sent instead, which
+ * Telegram fetches itself. A failure here must not undo the PDF, and the answers still follow.
+ */
+async function sendListeningAudio(chatId: number, pdf: TestPdf, title: string, replyTo: number): Promise<void> {
+  if (pdf.skill !== "listening" || !pdf.audio_url) return;
+  const meta = { title, performer: "EnjoyListeningTests", replyTo };
+  if (pdf.tg_audio_file_id) {
+    const sent = await sendAudio(chatId, pdf.tg_audio_file_id, meta);
+    if (sent.ok) return;
+    await forgetAudioFileId(pdf.test_id);
+  }
+  const sent = await sendAudio(chatId, pdf.audio_url, meta);
+  const fileId = sent.ok ? sent.value.audio?.file_id : undefined;
+  if (fileId) await rememberAudioFileId(pdf.test_id, fileId);
 }
 
 /**

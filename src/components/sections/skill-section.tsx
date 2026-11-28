@@ -65,8 +65,8 @@ export async function SkillSection({ skill }: { skill: "reading" | "listening" }
       ? await Promise.all([hasActiveTrial(profile.id), passState(profile.id)])
       : [false, null];
   const canAccessPremium = member || trialOn;
-  // Ultima teachers get a "PDF" button on every reading card that has one. [] for everyone else.
-  const pdfIds = skill === "reading" && profile ? await ultimaPdfIds(profile.id) : [];
+  // Ultima teachers get a "PDF" button on every reading/listening card that has one. [] for everyone else.
+  const pdfIds = (skill === "reading" || skill === "listening") && profile ? await ultimaPdfIds(profile.id) : [];
 
   // Attempts indexed by test, built in ONE pass. This was a `res.filter` per
   // card, i.e. O(tests x attempts) — 185 cards against a student's whole

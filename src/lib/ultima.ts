@@ -30,9 +30,16 @@ export type TestPdf = {
   bytes: number;
   pages: number;
   tg_file_id: string | null;
-  /** "Reading Passage 2" / "Full test · Passages 1–3" (0067), shown in Telegram. */
+  /** "Reading Passage 2" / "Full test · Passages 1–3" / "Listening · Parts 1–4" (0067), shown in Telegram. */
   passage_label: string | null;
+  /** Listening only (0081): the MP3 that goes with the paper, and its cached Telegram file_id. */
+  audio_url: string | null;
+  tg_audio_file_id: string | null;
+  skill: "reading" | "listening";
 };
+
+/** The skills a teacher PDF can exist for (owner: reading 2026-11-20, listening added 2026-11-28). */
+export const PDF_SKILLS = ["reading", "listening"] as const;
 
 /** The bot's public username (without @). Unset = the PDF button is hidden everywhere. */
 export function teacherBotUsername(): string | null {
@@ -90,19 +97,20 @@ export async function grantUltima(userId: string, until: Date, grantedBy: string
 }
 
 export async function getTestPdf(testId: string): Promise<TestPdf | null> {
+  // Needs 0081 (audio columns): apply it BEFORE this code ships — it is additive.
   const { data, error } = await db()
     .from("test_pdfs")
-    .select("test_id, r2_key, bytes, pages, tg_file_id, passage_label")
+    .select("test_id, r2_key, bytes, pages, tg_file_id, passage_label, audio_url, tg_audio_file_id")
     .eq("test_id", testId)
     .maybeSingle();
-  // A missing table (0066 not applied yet) reads as "no PDF" so the site keeps working.
   if (error || !data) return null;
-  // PDFs are for READING tests only (owner, 2026-11-20). Checked here, at the one door every
-  // caller uses (the site button, the catalogue and the bot), so a listening test can never get
-  // one even if a row were registered for it by mistake.
+  // PDFs are for READING and LISTENING tests only (owner, 2026-11-20 / 2026-11-28). Checked here,
+  // at the one door every caller uses (the site button, the catalogue and the bot), so a writing
+  // or speaking row can never get one even if it were registered by mistake.
   const { data: test } = await db().from("tests").select("skill").eq("id", testId).maybeSingle();
-  if (test?.skill !== "reading") return null;
-  return data as TestPdf;
+  const skill = test?.skill as string | undefined;
+  if (!skill || !(PDF_SKILLS as readonly string[]).includes(skill)) return null;
+  return { ...(data as Omit<TestPdf, "skill">), skill: skill as TestPdf["skill"] };
 }
 
 /**
@@ -114,10 +122,10 @@ export async function ultimaPdfIds(userId: string): Promise<string[]> {
   if (!teacherBotUsername() || !(await isUltima(userId))) return [];
   const { data, error } = await db().from("test_pdfs").select("test_id");
   if (error || !data) return [];
-  // reading tests only (see getTestPdf)
-  const { data: reading } = await db().from("tests").select("id").eq("skill", "reading");
-  const readingIds = new Set((reading ?? []).map((r: { id: string }) => r.id));
-  return data.map((r: { test_id: string }) => r.test_id).filter((id: string) => readingIds.has(id));
+  // reading and listening tests only (see getTestPdf)
+  const { data: allowed } = await db().from("tests").select("id").in("skill", [...PDF_SKILLS]);
+  const allowedIds = new Set((allowed ?? []).map((r: { id: string }) => r.id));
+  return data.map((r: { test_id: string }) => r.test_id).filter((id: string) => allowedIds.has(id));
 }
 
 export async function hasTestPdf(testId: string): Promise<boolean> {
@@ -130,6 +138,14 @@ export async function readPdfBytes(pdf: TestPdf): Promise<Uint8Array | null> {
   const { data, error } = await fileStore(PAPERS_BUCKET, db()).download(path);
   if (error || !data) return null;
   return new Uint8Array(await data.arrayBuffer());
+}
+
+export async function rememberAudioFileId(testId: string, fileId: string): Promise<void> {
+  await db().from("test_pdfs").update({ tg_audio_file_id: fileId }).eq("test_id", testId);
+}
+
+export async function forgetAudioFileId(testId: string): Promise<void> {
+  await db().from("test_pdfs").update({ tg_audio_file_id: null }).eq("test_id", testId);
 }
 
 export async function rememberFileId(testId: string, fileId: string): Promise<void> {

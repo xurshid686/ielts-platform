@@ -108,3 +108,29 @@ export async function sendDocumentBytes(chatId: number, data: Uint8Array, filena
   form.set("document", new Blob([new Uint8Array(data)], { type: "application/pdf" }), filename);
   return post<SentDocument>("sendDocument", { form });
 }
+
+type SentAudio = { message_id: number; audio?: { file_id: string } };
+
+/**
+ * A listening test's MP3, as a reply under its PDF. `audio` is either a file_id Telegram already
+ * holds (no upload) or the public R2 URL, which Telegram fetches itself (up to 50 MB) — so the
+ * MP3 never passes through our server. Its cover art is embedded in the file (ID3).
+ */
+export async function sendAudio(
+  chatId: number,
+  audio: string,
+  opts: { title?: string; performer?: string; caption?: string; replyTo?: number } = {},
+) {
+  return post<SentAudio>("sendAudio", {
+    json: {
+      chat_id: chatId,
+      audio,
+      ...(opts.title ? { title: opts.title } : {}),
+      ...(opts.performer ? { performer: opts.performer } : {}),
+      ...(opts.caption ? { caption: opts.caption, parse_mode: "HTML" } : {}),
+      ...(opts.replyTo
+        ? { reply_parameters: { message_id: opts.replyTo, allow_sending_without_reply: true } }
+        : {}),
+    },
+  });
+}
